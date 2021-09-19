@@ -1,0 +1,15 @@
+# Auto API document configuration with MKDocs
+site_name: Your project name
+repo_url: https://github.com/j-marple-dev/python_template  # Change this URL
+
+nav:
+    - Home: index.md
+    - API: mkapi/api/scripts
+
+plugins:
+    - search
+    - mkapi:
+          src_dirs: ["scripts"]
+
+theme: ivory
+

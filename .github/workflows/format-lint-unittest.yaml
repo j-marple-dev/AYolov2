@@ -1,0 +1,30 @@
+name: format-lint-unittest
+
+on: 
+  - push
+  - pull_request
+
+jobs:
+  format-lint-unittest:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2.3.4
+    - uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: python_template  # Change project name
+        environment-file: environment.yml
+          python-version: 3.7.7  # Change python version if necessary
+        auto-activate-base: false
+    - shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+    - name: Format with black, isort
+      shell: bash -l {0}
+      run: ./run_check.sh format
+    - name: Lint with pylint, mypy, flake8
+      shell: bash -l {0}
+      run: ./run_check.sh lint
+    - name: Test with pytest
+      shell: bash -l {0}
+      run: ./run_check.sh test

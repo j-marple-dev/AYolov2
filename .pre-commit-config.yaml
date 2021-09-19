@@ -1,0 +1,22 @@
+repos:
+-   repo: local
+    hooks:
+    -   id: format
+        name: format
+        language: system
+        entry: ./run_check.sh format
+        types: [python]
+        stages: [commit, push]
+    -   id: lint
+        name: lint
+        language: system
+        entry: ./run_check.sh lint
+        types: [python]
+        stages: [commit, push]
+    -   id: test
+        name: test
+        language: system
+        require_serial: true
+        entry: ./run_check.sh test
+        types: [python]
+        stages: [push]

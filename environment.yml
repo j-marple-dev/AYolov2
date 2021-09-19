@@ -1,0 +1,37 @@
+# Chnage project name. We recommend you to match this name to the name of the GitHub repository
+name: pytorch_template 
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+
+dependencies:
+  - python=3.7.7  # Change python version if necessary
+  - pip
+  - black=19.10b0
+  - coverage=5.3
+  - flake8=3.8.3
+  - flake8-bugbear=20.1.4
+  - flake8-docstrings=1.5.0
+  - isort=5.5.3
+  - mypy=0.782
+  - pre-commit=2.7.1
+  - pyflakes=2.2.0
+  - pylint=2.6.0
+  - pytest=6.0.2
+  - pytest-cov=2.10.1
+  - pytest-flake8=1.0.6
+  - pytest-mypy=0.7.0
+  - pytest-pylint=0.17.0
+  # Place your conda dependencies here
+  - pytorch=1.8.0
+  - torchvision=0.9.0
+  - pip:
+    - flake8-annotations==2.4.0
+    - flake8-polyfill==1.0.2
+    - docformatter==1.4.0
+    - mkdocs==1.1.2
+    - mkapi==1.0.14
+    - mkdocs-ivory==0.4.6
+    # Place your pip dependencies here
+

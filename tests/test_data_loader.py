@@ -37,6 +37,7 @@ def test_load_images(show_gui: bool = False):
 
     assert n_run == 7
 
+
 def test_load_images_and_labels(show_gui: bool = False):
     batch_size = 16
     dataset = LoadImagesAndLabels(
@@ -62,6 +63,7 @@ def test_load_images_and_labels(show_gui: bool = False):
                 cv2.waitKey(1)
 
     assert n_run == 7
+
 
 if __name__ == "__main__":
     # test_load_images_and_labels()

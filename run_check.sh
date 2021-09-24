@@ -41,7 +41,7 @@ do
         do
             echo "$0 $_key - ${CMD_DESC[$_key]}"
         done
-        exit 1
+        exit 0
     else
         echo "Run ${CMD_LIST[$_arg]}"
         eval ${CMD_LIST[$_arg]}

@@ -13,7 +13,7 @@ jobs:
       with:
         activate-environment: python_template  # Change project name
         environment-file: environment.yml
-          python-version: 3.7.7  # Change python version if necessary
+        python-version: 3.7.7  # Change python version if necessary
         auto-activate-base: false
     - shell: bash -l {0}
       run: |

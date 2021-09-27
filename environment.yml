@@ -1,5 +1,5 @@
 # Chnage project name. We recommend you to match this name to the name of the GitHub repository
-name: pytorch_template 
+name: AYolo2
 channels:
   - conda-forge
   - defaults
@@ -33,5 +33,6 @@ dependencies:
     - mkdocs==1.1.2
     - mkapi==1.0.14
     - mkdocs-ivory==0.4.6
+    - pytorch-lightning
     # Place your pip dependencies here
 

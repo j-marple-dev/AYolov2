@@ -2,6 +2,8 @@ FROM nvcr.io/nvidia/tensorrt:20.09-py3
 
 LABEL maintainer="Jongkuk Lim <limjk@jmarple.ai>"
 
+ENV DEBIAN_FRONTEND noninteractive
+
 ARG	UID=1000
 ARG	GID=1000
 RUN	groupadd -g $GID -o user && useradd -m -u $UID -g $GID -o -s /bin/bash user
@@ -13,7 +15,7 @@ WORKDIR	/home/user
 USER	user
 
 # Install Display dependencies
-RUN sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev && apt-get -y install jq
+RUN sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev && sudo apt-get -y install jq
 
 # Install pip3 and C++ linter
 RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1 python3-dev python3-pip

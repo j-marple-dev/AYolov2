@@ -6,7 +6,7 @@ ARG	UID=1000
 ARG	GID=1000
 RUN	groupadd -g $GID -o user && useradd -m -u $UID -g $GID -o -s /bin/bash user
 
-RUN apt-get update && apt-get install -y sudo
+RUN apt-get update && apt-get install -y sudo dialog apt-utils
 RUN	echo "%sudo	ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && echo "user:user" | chpasswd && adduser user sudo
 
 WORKDIR	/home/user

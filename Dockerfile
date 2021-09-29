@@ -12,17 +12,15 @@ RUN	echo "%sudo	ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && echo "user:user" | c
 WORKDIR	/home/user
 USER	user
 
-# TODO(jeikeilim): Add install PyTorch with proper CUDA version.
-
-# Install other dependencies
+# Install Display dependencies
 RUN sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev && apt-get -y install jq
-RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1 python3-dev python3-pip
 
-# RUN pip3 install --upgrade pip
+# Install pip3 and C++ linter
+RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1 python3-dev python3-pip
 RUN python3 -m pip install --upgrade pip
 RUN pip3 install wheel && pip3 install cpplint
 
-# Install doxygen
+# Install doxygen for C++ documentation
 RUN sudo apt-get update && sudo apt-get install -y flex bison && sudo apt-get autoremove
 RUN git clone -b Release_1_9_2 https://github.com/doxygen/doxygen.git \
     && cd doxygen \
@@ -32,15 +30,22 @@ RUN git clone -b Release_1_9_2 https://github.com/doxygen/doxygen.git \
     && make \
     && sudo make install
 
+# Install PyTorch CUDA 11.1
+RUN pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+
+# Install other development dependencies
+COPY ./requirements-dev.txt ./
+RUN pip3 install -r requirements-dev.txt
+RUN rm requirements-dev.txt
+
 # Download libtorch
-# TODO(jeikeilim): Add install libtorch with proper CUDA and PyTorch version.
-RUN wget -q https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-1.9.0%2Bcpu.zip \
-    && unzip libtorch-cxx11-abi-shared-with-deps-1.9.0+cpu.zip \
+RUN wget -q https://download.pytorch.org/libtorch/cu111/libtorch-cxx11-abi-shared-with-deps-1.9.1%2Bcu111.zip \
+    && unzip libtorch-cxx11-abi-shared-with-deps-1.9.1+cu111.zip \
     && mkdir libs \
     && mv libtorch libs/libtorch \
-    && rm libtorch-cxx11-abi-shared-with-deps-1.9.0+cpu.zip
+    && rm libtorch-cxx11-abi-shared-with-deps-1.9.1+cu111.zip
 
-# Update cmake version.
+# Install cmake 3.21.0 version.
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v3.21.0/cmake-3.21.0-linux-x86_64.tar.gz \
     && tar -xzvf cmake-3.21.0-linux-x86_64.tar.gz \
     && sudo ln -s /home/user/cmake-3.21.0-linux-x86_64/bin/cmake /usr/bin/cmake \

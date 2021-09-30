@@ -76,4 +76,3 @@ class TrainModelBuilder:
             model = TrainModelBuilder._model_to_ddp(model)
 
         return model
-

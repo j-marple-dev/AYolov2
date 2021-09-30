@@ -48,7 +48,9 @@ class YoloPLModule(AbstractPLModule):
         # Important: This property activates manual optimization.
         self.optimizer, self.scheduler = self.init_optimizer()
 
-    def init_optimizer(self) -> Tuple[List[torch.optim.Optimizer], List[lr_scheduler.LambdaLR]]:
+    def init_optimizer(
+        self,
+    ) -> Tuple[List[torch.optim.Optimizer], List[lr_scheduler.LambdaLR]]:
         """Initialize optimizer and scheduler."""
         pg0: List[torch.Tensor] = []
         pg1: List[torch.Tensor] = []
@@ -104,6 +106,7 @@ class YoloPLModule(AbstractPLModule):
         """
         x, y = train_batch
         self.model.train()
+
         """
         TODO: This part should be out of class.
         if opt.image_weights:
@@ -146,6 +149,7 @@ class YoloPLModule(AbstractPLModule):
 
         return loss
 
-    def compute_loss(self, x: torch.Tensor, y: torch.Tensor):
+    def compute_loss(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Compute loss."""
         y_hat = self.model(x)
+        return self.loss(y_hat, y)

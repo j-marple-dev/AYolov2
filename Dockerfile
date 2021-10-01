@@ -2,7 +2,7 @@ FROM nvcr.io/nvidia/tensorrt:20.09-py3
 
 LABEL maintainer="Jongkuk Lim <limjk@jmarple.ai>"
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 ARG	UID=1000
 ARG	GID=1000
@@ -18,26 +18,26 @@ USER	user
 RUN sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev && sudo apt-get -y install jq
 
 # Install pip3 and C++ linter
-RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1 python3-dev python3-pip
-RUN python3 -m pip install --upgrade pip
-RUN pip3 install wheel && pip3 install cpplint
+RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py --force-reinstall && python3 -m pip install --upgrade pip
+RUN python3 -m pip install wheel cpplint
 
 # Install doxygen for C++ documentation
-RUN sudo apt-get update && sudo apt-get install -y flex bison && sudo apt-get autoremove
+RUN sudo apt-get update && sudo apt-get install -y flex bison && sudo apt-get autoremove -y
 RUN git clone -b Release_1_9_2 https://github.com/doxygen/doxygen.git \
     && cd doxygen \
     && mkdir build \
     && cd build \
     && cmake -G "Unix Makefiles" .. \
-    && make \
+    && make -j `cat /proc/cpuinfo | grep cores | wc -l` \
     && sudo make install
 
 # Install PyTorch CUDA 11.1
-RUN pip3 install torch==1.9.1+cu111 torchvision==0.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+RUN python3 -m pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 
 # Install other development dependencies
 COPY ./requirements-dev.txt ./
-RUN pip3 install -r requirements-dev.txt
+RUN python3 -m pip install -r requirements-dev.txt
 RUN rm requirements-dev.txt
 
 # Download libtorch
@@ -60,6 +60,9 @@ RUN git clone https://github.com/JeiKeiLim/my_term.git \
     && cd my_term \
     && ./run.sh
 
+# Fix error messages with vim plugins
+RUN cd /home/user/.vim_runtime/sources_non_forked && rm -rf tlib vim-fugitive && git clone https://github.com/tomtom/tlib_vim.git tlib && git clone https://github.com/tpope/vim-fugitive.git 
+
 # Install vim 8.2 with YCM
 RUN sudo apt-get install -y software-properties-common \
     && sudo add-apt-repository ppa:jonathonf/vim \
@@ -71,3 +74,10 @@ RUN cd /home/user/.vim_runtime/my_plugins \
     && git clone --recursive https://github.com/ycm-core/YouCompleteMe.git \
     && cd YouCompleteMe \
     && CC=gcc-8 CXX=g++-8 python3 install.py --clangd-completer
+
+# Install DALI
+RUN python3 -m pip install --extra-index-url https://developer.download.nvidia.com/compute/redist nvidia-dali-cuda110 
+
+# Add PATH
+RUN echo "export PATH=/home/user/.local/bin:\$PATH" >> /home/user/.bashrc
+

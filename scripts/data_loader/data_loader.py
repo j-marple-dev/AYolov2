@@ -400,7 +400,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         Return:
             PyTorch image (CHW),
-            Labels,
+            Normalized(0.0 ~ 1.0) xywh labels,
             Image path,
             Image shapes (Original, Resized)
         """
@@ -422,7 +422,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         # Do something with converted labels
 
-        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=(w1, h1))
+        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=img.shape[1::][::-1])
         n_labels = len(labels)
         labels_out = torch.zeros((n_labels, 6))
         if n_labels > 0:

@@ -24,7 +24,7 @@ def xyxy2xywh(
             normalized pixel coordinates to normalized coordinates.
 
     Return:
-        return coordinates will be (xywh / wh)
+        return coordinates will be (xywh / wh) with centered xy
     """
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
 

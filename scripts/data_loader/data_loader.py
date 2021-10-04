@@ -17,6 +17,8 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from scripts.utils.general import xywh2xyxy, xyxy2xywh
+
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
 EXIF_REVERSE_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
 CACHE_VERSION = "v0.1.0"
@@ -409,15 +411,18 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             img = self.preprocess(img)
 
         # TODO(jeikeilim): Add mosaic augmentation and other augmentations.
-        # TODO(jeikeilim): Fix labels xywh to xyxy.
         img, ratio, pad = self._letterbox(img, auto=False)
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)
 
         shapes = (h0, w0), (h1, w1)
 
-        # TODO(jeikeilim): Fix labels to letterbox applied
         labels = self.labels[index].copy()
+        labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
+
+        # Do something with converted labels
+
+        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=(w1, h1))
         n_labels = len(labels)
         labels_out = torch.zeros((n_labels, 6))
         if n_labels > 0:

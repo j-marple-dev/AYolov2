@@ -13,6 +13,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import cv2
 import numpy as np
 import torch
+from p_tqdm import p_map
 from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
@@ -38,11 +39,10 @@ class LoadImages(Dataset):
         path: Union[str, List[str]],
         img_size: int = 640,
         batch_size: int = 16,
-        # rect: bool = False,
+        rect: bool = False,
         cache_images: Optional[str] = None,
         stride: int = 32,
-        # pad: float = 0.0,
-        # rank: int = -1,
+        pad: float = 0.0,
         n_skip: int = 0,
         prefix: str = "",
         preprocess: Optional[Callable] = None,
@@ -53,10 +53,12 @@ class LoadImages(Dataset):
             path: Image root directory.
             img_size: Minimum width or height size.
             batch_size: batch size to use in iterator.
+            rect: use rectangular image.
             cache_images: use caching images. if None, caching will not be used.
                 'mem': Caching images in memory.
                 'disk': Caching images in disk.
             stride: Stride value
+            pad: pad size for rectangular image. This applies only when rect is True
             n_skip: Skip n images per one image. Ex) If we have 1024 images and n_skip is 1, then total 512 images will be used.
             prefix: logging prefix message
             preprocess: preprocess function.
@@ -64,6 +66,8 @@ class LoadImages(Dataset):
         self.stride = stride
         self.img_size = img_size
         self.preprocess = preprocess
+        self.rect = rect
+        self.pad = pad
 
         # Get image paths
         self.img_files = self.__grep_all_images(path)
@@ -83,6 +87,13 @@ class LoadImages(Dataset):
         self.indices = range(self.n_img)
         self.imgs = [None] * self.n_img
         self.img_npy: List[Optional[Path]] = [None] * self.n_img
+
+        self.shapes = self._get_shapes()
+
+        if self.rect:
+            self.batch_shapes, indices = self._get_batch_shapes()
+            self.img_files = [self.img_files[i] for i in indices]
+            self.shapes = self.shapes[indices]
 
         if cache_images:
             if cache_images == "disk":
@@ -114,6 +125,44 @@ class LoadImages(Dataset):
                     gb += self.imgs[i].nbytes
                 pbar.desc = f"{prefix}Caching images ({gb / 1E9:.1f}GB {cache_images})"
             pbar.close()
+
+    def _get_shapes(self) -> np.ndarray:
+        def __get_img_shape(path: str) -> Tuple[int, int]:
+            image = Image.open(path)
+            image.verify()
+            shape = image.size
+
+            return shape
+
+        shapes = p_map(__get_img_shape, self.img_files)
+
+        return np.array(shapes)
+
+    def _get_batch_shapes(self) -> Tuple[np.ndarray, np.ndarray]:
+        aspect_ratio = self.shapes[:, 1] / self.shapes[:, 0]
+        indices = aspect_ratio.argsort()
+
+        aspect_ratio = aspect_ratio[indices]
+
+        shapes = [[1, 1]] * self.total_n_batch
+        for i in range(self.total_n_batch):
+            aspect_ratio_i = aspect_ratio[self.batch_idx == i]
+            min_aspect_ratio = aspect_ratio_i.min()
+            max_aspect_ratio = aspect_ratio_i.max()
+
+            if max_aspect_ratio < 1:
+                shapes[i] = [max_aspect_ratio, 1]
+            elif min_aspect_ratio > 1:
+                shapes[i] = [1, 1 / min_aspect_ratio]
+
+        batch_shapes = (
+            np.ceil(np.array(shapes) * self.img_size / self.stride + self.pad).astype(
+                "int"
+            )
+            * self.stride
+        )
+
+        return batch_shapes, indices
 
     def __grep_all_images(self, path: Union[str, List[str]]) -> List[str]:
         """Grep all image files in the path.
@@ -205,10 +254,16 @@ class LoadImages(Dataset):
         index = self.indices[index]
         img, (h0, w0), (h1, w1) = self._load_image(index)
 
+        shape = (
+            self.batch_shapes[self.batch_idx[index]]
+            if self.rect
+            else (self.img_size, self.img_size)
+        )
+        img = self._letterbox(img, new_shape=shape, auto=False)[0]
+
         if self.preprocess:
             img = self.preprocess(img)
 
-        img = self._letterbox(img, auto=False)[0]
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)
 
@@ -218,6 +273,7 @@ class LoadImages(Dataset):
     def _letterbox(
         self,
         im: np.ndarray,
+        new_shape: Optional[Tuple[int, int]] = None,
         color: Tuple[int, int, int] = (114, 114, 114),
         auto: bool = True,
         scale_fill: bool = False,
@@ -242,7 +298,9 @@ class LoadImages(Dataset):
         """
         # Resize and pad image while meeting stride-multiple constraints
         shape = im.shape[:2]  # current shape [height, width]
-        new_shape = (self.img_size, self.img_size)
+
+        if new_shape is None:
+            new_shape = (self.img_size, self.img_size)
 
         # Scale ratio (new / old)
         r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
@@ -303,15 +361,14 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         path: Union[str, List[str]],
         img_size: int = 640,
         batch_size: int = 16,
-        augment: bool = False,
-        hyp: Optional[dict] = None,
+        # augment: bool = False,
+        # hyp: Optional[dict] = None,
         rect: bool = False,
-        image_weights: bool = False,
+        # image_weights: bool = False,
         cache_images: Optional[str] = None,
         single_cls: bool = False,
         stride: int = 32,
         pad: float = 0.0,
-        rank: int = -1,
         n_skip: int = 0,
         prefix: str = "",
         preprocess: Optional[Callable] = None,
@@ -329,8 +386,17 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                     ./data/COCO/labels/train/image002.txt,
                     ./data/COCO/labels/train/image003.txt, ...
 
-            img_size: Image size (width)
+            img_size: Minimum width or height size.
             batch_size: Batch size
+            rect: use rectangular image.
+            cache_images: use caching images. if None, caching will not be used.
+                'mem': Caching images in memory.
+                'disk': Caching images in disk.
+            stride: Stride value
+            pad: pad size for rectangular image. This applies only when rect is True
+            n_skip: Skip n images per one image. Ex) If we have 1024 images and n_skip is 1, then total 512 images will be used.
+            prefix: logging prefix message
+            preprocess: preprocess function.
         """
         super().__init__(
             path,
@@ -341,6 +407,8 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             n_skip=n_skip,
             prefix=prefix,
             preprocess=preprocess,
+            rect=rect,
+            pad=pad,
         )
 
         # Define label paths
@@ -385,8 +453,12 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             label_cache = cache
 
         labels, shapes = zip(*[label_cache[x] for x in self.img_files])
-        self.shapes = np.array(shapes, dtype=np.float64)
+        # self.shapes = np.array(shapes, dtype=np.float64)
         self.labels = list(labels)
+
+        if single_cls:
+            for label in self.labels:
+                label[:, 0] = 0
 
     def __getitem__(  # type: ignore
         self, index: int
@@ -407,11 +479,19 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         index = self.indices[index]
         img, (h0, w0), (h1, w1) = self._load_image(index)
 
+        # TODO(jeikeilim): Add mosaic augmentation and other augmentations.
+        shape = (
+            self.batch_shapes[self.batch_idx[index]]
+            if self.rect
+            else (self.img_size, self.img_size)
+        )
+        img, ratio, pad = self._letterbox(
+            img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
+        )
+
         if self.preprocess:
             img = self.preprocess(img)
 
-        # TODO(jeikeilim): Add mosaic augmentation and other augmentations.
-        img, ratio, pad = self._letterbox(img, auto=False)
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)
 

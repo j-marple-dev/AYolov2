@@ -7,6 +7,7 @@
 import multiprocessing
 
 import cv2
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -23,6 +24,7 @@ def test_load_images(show_gui: bool = False):
         cache_images=None,
         n_skip=0,
         batch_size=batch_size,
+        rect=False,
     )
 
     dataset_loader = DataLoader(
@@ -38,7 +40,7 @@ def test_load_images(show_gui: bool = False):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(1)
+                cv2.waitKey(100)
 
     assert n_run == 7
 
@@ -54,12 +56,16 @@ def test_load_images_and_labels(show_gui: bool = False):
         cache_images=None,
         n_skip=0,
         batch_size=batch_size,
+        preprocess=lambda x: (x / 255.0),
+        rect=False,
+        pad=0,
     )
 
     dataset_loader = DataLoader(
         dataset,
         batch_size=batch_size,
         # num_workers=multiprocessing.cpu_count() - 1,
+        num_workers=0,
         collate_fn=LoadImagesAndLabels.collate_fn,
     )
 
@@ -71,9 +77,11 @@ def test_load_images_and_labels(show_gui: bool = False):
         pad = (torch.tensor([img.shape[2:]]) - torch.tensor(shapes)[:, 1, :]) / 2
 
         for i in range(img.shape[0]):
-            np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
+            np_image = (img[i].numpy()[::-1].transpose((1, 2, 0)) * 255).astype(
+                np.uint8
+            )
             label_list = labels[labels[:, 0] == i][:, 1:]
-            label_list[:, 1:] = xywh2xyxy(label_list[:, 1:], wh=img.shape[2:])
+            label_list[:, 1:] = xywh2xyxy(label_list[:, 1:], wh=img.shape[2:][::-1])
 
             # TODO(jeikeilim): Make this as plot class or function.
             for label in label_list:
@@ -119,11 +127,11 @@ def test_load_images_and_labels(show_gui: bool = False):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(500)
+                cv2.waitKey(100)
 
     assert n_run == 7
 
 
 if __name__ == "__main__":
-    # test_load_images_and_labels()
+    # test_load_images(show_gui=True)
     test_load_images_and_labels(show_gui=True)

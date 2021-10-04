@@ -4,6 +4,8 @@
 - Contact: limjk@jmarple.ai
 """
 
+import multiprocessing
+
 import cv2
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -41,14 +43,18 @@ def test_load_images(show_gui: bool = False):
 def test_load_images_and_labels(show_gui: bool = False):
     batch_size = 16
     dataset = LoadImagesAndLabels(
-        "tests/res/datasets/VOC/images/train",
+        # "tests/res/datasets/VOC/images/train",
+        "tests/res/datasets/coco/images/val2017",
         cache_images=None,
         n_skip=0,
         batch_size=batch_size,
     )
 
     dataset_loader = DataLoader(
-        dataset, batch_size=batch_size, collate_fn=LoadImagesAndLabels.collate_fn
+        dataset,
+        batch_size=batch_size,
+        num_workers=multiprocessing.cpu_count() - 1,
+        collate_fn=LoadImagesAndLabels.collate_fn,
     )
 
     pbar = tqdm(dataset_loader, desc="Load image test.")
@@ -66,5 +72,5 @@ def test_load_images_and_labels(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    # test_load_images_and_labels()
-    test_load_images()
+    test_load_images_and_labels()
+    # test_load_images()

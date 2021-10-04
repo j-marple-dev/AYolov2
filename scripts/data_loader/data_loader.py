@@ -477,12 +477,22 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         ] = {"info": {"version": CACHE_VERSION, "msgs": {}}}
 
         for (img, label) in pbar:
+            err_msg = ""
             try:
                 image = Image.open(img)
                 image.verify()
 
                 shape = image.size
-                img_exif = image._getexif()
+
+                try:
+                    img_exif = image._getexif()
+                except AttributeError as e:
+                    img_exif = None
+                    err_msg += (
+                        f"[LoadImagesAndLabels] WARNING: Get EXIF failed on {img}: {e}"
+                    )
+                    labels["info"]["msgs"][img] = err_msg  # type: ignore
+                    print(err_msg)
 
                 if (
                     img_exif is not None
@@ -508,7 +518,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
                 labels[img] = (label_list, shape)
             except Exception as e:
-                err_msg = f"[LoadImagesAndLabels] WARNING: {img}: {e}"
+                err_msg += f"[LoadImagesAndLabels] WARNING: {img}: {e}"
 
                 labels[img] = (None, None)
                 labels["info"]["msgs"][img] = err_msg  # type: ignore

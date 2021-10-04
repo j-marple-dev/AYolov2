@@ -1,3 +1,5 @@
+# Dependencies for docker image.
+
 black==19.10b0
 coverage==5.3
 flake8==3.8.3
@@ -19,3 +21,5 @@ docformatter==1.4.0
 mkdocs==1.1.2
 # mkapi==1.0.14
 mkdocs-ivory==0.4.6
+opencv-python==4.5.3.56
+wandb==0.12.3

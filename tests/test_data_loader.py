@@ -59,7 +59,7 @@ def test_load_images_and_labels(show_gui: bool = False):
     dataset_loader = DataLoader(
         dataset,
         batch_size=batch_size,
-        num_workers=multiprocessing.cpu_count() - 1,
+        # num_workers=multiprocessing.cpu_count() - 1,
         collate_fn=LoadImagesAndLabels.collate_fn,
     )
 

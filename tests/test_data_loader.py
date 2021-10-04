@@ -55,6 +55,7 @@ def test_load_images_and_labels(show_gui: bool = False):
     n_run = 0
     for (img, labels, path, shapes) in pbar:
         n_run += 1
+        import pdb; pdb.set_trace()
         for i in range(img.shape[0]):
             np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
 
@@ -66,5 +67,5 @@ def test_load_images_and_labels(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    # test_load_images_and_labels()
-    test_load_images()
+    test_load_images_and_labels(show_gui=True)
+    # test_load_images()

@@ -36,4 +36,5 @@ dependencies:
     - mkapi==1.0.14
     - mkdocs-ivory==0.4.6
     # Place your pip dependencies here
+    - p-tqdm==1.3.3
 

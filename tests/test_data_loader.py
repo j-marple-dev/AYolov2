@@ -25,7 +25,6 @@ def test_load_images(show_gui: bool = False):
         n_skip=0,
         batch_size=batch_size,
         rect=False,
-        mosaic_prob=0.0,
     )
 
     dataset_loader = DataLoader(

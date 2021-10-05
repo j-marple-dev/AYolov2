@@ -37,4 +37,5 @@ dependencies:
     - mkdocs-ivory==0.4.6
     # Place your pip dependencies here
     - p-tqdm==1.3.3
+    - albumentations==1.1.0
 

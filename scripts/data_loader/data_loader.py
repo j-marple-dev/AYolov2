@@ -46,6 +46,7 @@ class LoadImages(Dataset):
         n_skip: int = 0,
         prefix: str = "",
         preprocess: Optional[Callable] = None,
+        augmentation: Optional[Callable] = None,
     ) -> None:
         """Initialize LoadImages instance.
 
@@ -61,13 +62,15 @@ class LoadImages(Dataset):
             pad: pad size for rectangular image. This applies only when rect is True
             n_skip: Skip n images per one image. Ex) If we have 1024 images and n_skip is 1, then total 512 images will be used.
             prefix: logging prefix message
-            preprocess: preprocess function.
+            preprocess: preprocess function which takes (x: np.ndarray) and returns (np.ndarray)
+            augmentation: augmentation function which takes (x: np.ndarray) and returns (np.ndarray)
         """
         self.stride = stride
         self.img_size = img_size
         self.preprocess = preprocess
         self.rect = rect
         self.pad = pad
+        self.augmentation = augmentation
 
         # Get image paths
         self.img_files = self.__grep_all_images(path)
@@ -261,6 +264,9 @@ class LoadImages(Dataset):
         )
         img = self._letterbox(img, new_shape=shape, auto=False)[0]
 
+        if self.augmentation:
+            img = self.augmentation(img)
+
         if self.preprocess:
             img = self.preprocess(img)
 
@@ -372,6 +378,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         n_skip: int = 0,
         prefix: str = "",
         preprocess: Optional[Callable] = None,
+        augmentation: Optional[Callable] = None,
     ) -> None:
         """Initialize LoadImageAndLabels.
 
@@ -396,7 +403,10 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             pad: pad size for rectangular image. This applies only when rect is True
             n_skip: Skip n images per one image. Ex) If we have 1024 images and n_skip is 1, then total 512 images will be used.
             prefix: logging prefix message
-            preprocess: preprocess function.
+            preprocess: preprocess function which takes (x: np.ndarray) and returns (np.ndarray)
+            augmentation: augmentation function which takes (x: np.ndarray, label: np.ndarray)
+                    and returns (np.ndarray, np.ndarray).
+                    label format is xyxy with pixel coordinates.
         """
         super().__init__(
             path,
@@ -407,6 +417,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             n_skip=n_skip,
             prefix=prefix,
             preprocess=preprocess,
+            augmentation=augmentation,
             rect=rect,
             pad=pad,
         )
@@ -489,6 +500,18 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
         )
 
+        labels = self.labels[index].copy()
+        # Adjust bboxes to the letterbox.
+        labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
+
+        # Do some other augmentation with pixel coordinates label.
+
+        # Normalize bboxes
+        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=img.shape[:2][::-1], clip_eps=1e-3)
+
+        if self.augmentation:
+            img, labels = self.augmentation(img, labels)
+
         if self.preprocess:
             img = self.preprocess(img)
 
@@ -497,12 +520,6 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         shapes = (h0, w0), (h1, w1)
 
-        labels = self.labels[index].copy()
-        labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
-
-        # Do something with converted labels
-
-        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=img.shape[1::][::-1])
         n_labels = len(labels)
         labels_out = torch.zeros((n_labels, 6))
         if n_labels > 0:

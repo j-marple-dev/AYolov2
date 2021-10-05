@@ -48,7 +48,7 @@ class AugmentationPolicy:
             augmented image if labels is None.
             (augmented image, labels) if labels is not None.
         """
-        aug_labels = np.zeros((1, 5)) if labels is None else labels
+        aug_labels = np.array(((0, 0.1, 0.1, 0.1, 0.1),)) if labels is None else labels
 
         if random.random() < self.prob:
             augmented = self.transform(

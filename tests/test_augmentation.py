@@ -64,7 +64,7 @@ def test_augmentation(show_gui: bool = False):
         prob=0.5,
     )
 
-    dataset = LoadImagesAndLabels(
+    dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
         cache_images=None,
         n_skip=0,
@@ -74,24 +74,24 @@ def test_augmentation(show_gui: bool = False):
     )
 
     dataset_loader = DataLoader(
-        dataset, batch_size=batch_size, collate_fn=LoadImagesAndLabels.collate_fn
+        dataset, batch_size=batch_size, collate_fn=LoadImages.collate_fn
     )
 
     pbar = tqdm(dataset_loader, desc="Load image test.")
     n_run = 0
-    for (img, labels, path, shapes) in pbar:
+    for (img, path, shapes) in pbar:
         n_run += 1
         for i in range(img.shape[0]):
             np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
-            label_list = labels[labels[:, 0] == i][:, 1:]
+            # label_list = labels[labels[:, 0] == i][:, 1:]
 
-            np_image = plot_labels(np_image, label_list.numpy(), label2str)
+            # np_image = plot_labels(np_image, label_list.numpy(), label2str)
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(1000)
+                cv2.waitKey(500)
 
 
 if __name__ == "__main__":
-    # test_augmentation(show_gui=True)
+    test_augmentation(show_gui=True)
     test_multi_aug_policies(show_gui=True)

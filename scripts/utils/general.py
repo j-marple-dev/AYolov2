@@ -85,6 +85,8 @@ def xyxy2xywh(
         y[:, 3] = y[:, 3] + (np.minimum((y[:, 1] - (y[:, 3] / 2)), 0) * 2)
         y[:, 3] = y[:, 3] - ((np.maximum((y[:, 1] + (y[:, 3] / 2)), 1) - 1) * 2)
 
+        y = y.clip(1e-12, 1)
+
     return y
 
 

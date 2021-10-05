@@ -6,6 +6,7 @@
 
 import glob
 import os
+import random
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Union
@@ -367,8 +368,6 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         path: Union[str, List[str]],
         img_size: int = 640,
         batch_size: int = 16,
-        # augment: bool = False,
-        # hyp: Optional[dict] = None,
         rect: bool = False,
         # image_weights: bool = False,
         cache_images: Optional[str] = None,
@@ -379,6 +378,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         prefix: str = "",
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
+        mosaic_prob: float = 1.0,
     ) -> None:
         """Initialize LoadImageAndLabels.
 
@@ -431,6 +431,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             )
             for x in self.img_files
         ]
+        self.mosaic_prob = mosaic_prob
 
         # Check cache
         cache_path = str(Path(self.label_files[0]).parent) + ".cache"
@@ -488,21 +489,29 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             Image shapes (Original, Resized)
         """
         index = self.indices[index]
-        img, (h0, w0), (h1, w1) = self._load_image(index)
 
-        # TODO(jeikeilim): Add mosaic augmentation and other augmentations.
         shape = (
             self.batch_shapes[self.batch_idx[index]]
             if self.rect
             else (self.img_size, self.img_size)
         )
-        img, ratio, pad = self._letterbox(
-            img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
-        )
 
-        labels = self.labels[index].copy()
-        # Adjust bboxes to the letterbox.
-        labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
+        if random.random() < self.mosaic_prob:
+            img, labels = self._load_mosaic(index)
+            shapes = (0, 0), (0, 0)
+            # TODO(jeikeilim): Add mixup augmentation
+        else:
+            img, (h0, w0), (h1, w1) = self._load_image(index)
+            shapes = (h0, w0), (h1, w1)
+
+            img, ratio, pad = self._letterbox(
+                img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
+            )
+
+            labels = self.labels[index].copy()
+
+            # Adjust bboxes to the letterbox.
+            labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
 
         # Do some other augmentation with pixel coordinates label.
 
@@ -518,14 +527,97 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)
 
-        shapes = (h0, w0), (h1, w1)
-
         n_labels = len(labels)
         labels_out = torch.zeros((n_labels, 6))
         if n_labels > 0:
             labels_out[:, 1:] = torch.from_numpy(labels)
 
         return torch.from_numpy(img), labels_out, self.img_files[index], shapes
+
+    def _load_mosaic(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
+        img_half_size = self.img_size // 2
+        # height, width
+        mosaic_center = [
+            int(random.uniform(img_half_size, 2 * self.img_size - img_half_size))
+            for _ in range(2)
+        ]
+
+        indices = [index] + random.choices(self.indices, k=3)
+        random.shuffle(indices)
+
+        loaded_imgs = [self._load_image(idx) for idx in indices]
+
+        mosaic_img = np.full(
+            (
+                int(self.img_size * 2),
+                int(self.img_size * 2),
+                loaded_imgs[0][0].shape[2],
+            ),
+            114,
+            dtype=np.uint8,
+        )
+        mosaic_labels = []
+
+        mc_h, mc_w = mosaic_center
+        for i, (img, _, (h, w)) in enumerate(loaded_imgs):
+            if i == 0:  # top left
+                x1a, y1a, x2a, y2a = max(mc_w - w, 0), max(mc_h - h, 0), mc_w, mc_h
+                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h
+            elif i == 1:  # top right
+                x1a, y1a, x2a, y2a = (
+                    mc_w,
+                    max(mc_h - h, 0),
+                    min(mc_w + w, self.img_size * 2),
+                    mc_h,
+                )
+                x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
+            elif i == 2:  # bottom left
+                x1a, y1a, x2a, y2a = (
+                    max(mc_w - w, 0),
+                    mc_h,
+                    mc_w,
+                    min(self.img_size * 2, mc_h + h),
+                )
+                x1b, y1b, x2b, y2b = w - (x2a - x1a), 0, w, min(y2a - y1a, h)
+            elif i == 3:  # bottom right
+                x1a, y1a, x2a, y2a = (
+                    mc_w,
+                    mc_h,
+                    min(mc_w + w, self.img_size * 2),
+                    min(self.img_size * 2, mc_h + h),
+                )
+                x1b, y1b, x2b, y2b = 0, 0, min(w, x2a - x1a), min(y2a - y1a, h)
+
+            mosaic_img[y1a:y2a, x1a:x2a] = img[y1b:y2b, x1b:x2b]
+            pad_w = x1a - x1b
+            pad_h = y1a - y1b
+
+            labels = self.labels[indices[i]].copy()
+
+            if labels.size:
+                labels[:, 1:] = xywh2xyxy(labels[:, 1:], wh=(w, h), pad=(pad_w, pad_h))
+                mosaic_labels.append(labels)
+
+        mosaic_labels_np = np.concatenate(mosaic_labels, 0)
+        mosaic_labels_np[:, 1:] = np.clip(
+            mosaic_labels_np[:, 1:], 1e-3, 2 * self.img_size
+        )
+        # TODO(jeikeilim): implement copy_paste augmentation with segmentation info.
+        # TODO(jeikeilim): replace below code to random_perspective in YOLOv5
+        shape = (
+            self.batch_shapes[self.batch_idx[index]]
+            if self.rect
+            else (self.img_size, self.img_size)
+        )
+
+        resize_ratio = shape[0] / mosaic_img.shape[1], shape[1] / mosaic_img.shape[0]
+        mosaic_img = cv2.resize(
+            mosaic_img, None, fx=resize_ratio[0], fy=resize_ratio[1]
+        )
+        mosaic_labels_np[:, [1, 3]] *= resize_ratio[0]
+        mosaic_labels_np[:, [2, 4]] *= resize_ratio[1]
+
+        return mosaic_img, mosaic_labels_np
 
     @staticmethod
     def collate_fn(  # type: ignore

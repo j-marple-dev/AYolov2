@@ -25,6 +25,7 @@ def test_load_images(show_gui: bool = False):
         n_skip=0,
         batch_size=batch_size,
         rect=False,
+        mosaic_prob=0.0,
     )
 
     dataset_loader = DataLoader(
@@ -59,6 +60,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         preprocess=lambda x: (x / 255.0),
         rect=False,
         pad=0,
+        mosaic_prob=0.0,
     )
 
     dataset_loader = DataLoader(

@@ -35,6 +35,7 @@ def test_multi_aug_policies(show_gui: bool = False):
         batch_size=batch_size,
         rect=False,
         augmentation=aug_policy,
+        mosaic_prob=0.5,
     )
     dataset_loader = DataLoader(
         dataset, batch_size=batch_size, collate_fn=LoadImagesAndLabels.collate_fn
@@ -93,5 +94,5 @@ def test_augmentation(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    test_augmentation(show_gui=True)
+    # test_augmentation(show_gui=True)
     test_multi_aug_policies(show_gui=True)

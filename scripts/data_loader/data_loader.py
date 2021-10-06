@@ -9,7 +9,7 @@ import os
 import random
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np

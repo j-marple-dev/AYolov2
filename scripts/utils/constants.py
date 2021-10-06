@@ -4,7 +4,11 @@
 - Contact: limjk@jmarple.ai
 """
 
+import logging
+
 import numpy as np
+
+LOG_LEVEL = logging.DEBUG
 
 """Label names for datasets."""
 LABELS = {

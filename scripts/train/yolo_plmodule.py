@@ -3,58 +3,59 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
-import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 import torch
 import torch.nn as nn
-import torch.optim.lr_scheduler as lr_scheduler
+from torch.optim import lr_scheduler
 
+from scripts.loss.losses import ComputeLoss
 from scripts.train.abstract_pl_module import AbstractPLModule
-from scripts.utils.torch_utils import select_device
+from scripts.utils.general import get_logger
 
-logger = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 
 class YoloPLModule(AbstractPLModule):
     """Yolo model trainer."""
 
-    def __init__(
-        self,
-        model: nn.Module,
-        hyp: Dict[str, Any],
-        epochs: int,
-        device: Optional[Union[torch.device, str]],
-    ) -> None:
+    def __init__(self, model: nn.Module, cfg: Dict[str, Any],) -> None:
         """Initialize YoloTrainer class.
 
         Args:
             model: yolo model to train.
-            hyp: hyper parameter config.
-            epochs: number of epochs to train.
-            device: torch device to train on.
+            cfg: model trainining hyper parameter config.
         """
-        if isinstance(device, str):
-            torch_device = select_device(device)
-        elif device is None:
-            torch_device = torch.device("cpu")
-        else:
-            torch_device = device
-        super().__init__(model, hyp, epochs, torch_device)
-        self.loss = eval(self.hyp["loss"])
-        # self.optimizer: torch.optim.Optimizer
-        # self.scheduler: lr_scheduler.LambdaLR
-        # Important: This property activates manual optimization.
-        self.optimizer, self.scheduler = self.init_optimizer()
+        self.cfg_hyp, self.cfg_train = cfg["hyper_params"], cfg["train"]
+        super().__init__(model, cfg)
 
-    def init_optimizer(
+        self.model.hyp = self.cfg_hyp
+        self.loss = ComputeLoss(self.model)
+
+    def _lr_function(self, x: float) -> float:
+        return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (
+            1 - self.cfg_hyp["lrf"]
+        ) + self.cfg_hyp["lrf"]
+
+    def _init_optimizer(
         self,
     ) -> Tuple[List[torch.optim.Optimizer], List[lr_scheduler.LambdaLR]]:
-        """Initialize optimizer and scheduler."""
+        """Initialize optimizer and scheduler.
+
+        Returns:
+            List of optimizers
+            List of learning rate schedulers
+        """
+        nbs = 64
+        accumulate = max(round(nbs / self.cfg_train["batch_size"]), 1)
+        self.cfg_hyp["weight_decay"] *= self.cfg_train["batch_size"] * accumulate / nbs
+        LOGGER.info(f"Scaled weight_decay = {self.cfg_hyp['weight_decay']}")
+
         pg0: List[torch.Tensor] = []
         pg1: List[torch.Tensor] = []
         pg2: List[torch.Tensor] = []
+
         for _, v in self.model.named_modules():
             if hasattr(v, "bias") and isinstance(v.bias, torch.Tensor):
                 pg2.append(v.bias)
@@ -62,29 +63,23 @@ class YoloPLModule(AbstractPLModule):
                 pg0.append(v.weight)
             elif hasattr(v, "weight") and isinstance(v.weight, torch.Tensor):
                 pg1.append(v.weight)
+
         for _, v in self.model.named_parameters():
             v.requires_grad = True
-        # TODO(ulken94): find fancy way to create optimizer
-        optimizer: torch.optim.Optimizer = eval(self.hyp["optimizer"])(
-            params=pg0, **self.hyp["optimizer_params"]
-        )
+
+        optimizer = getattr(
+            __import__("torch.optim", fromlist=[""]), self.cfg_hyp["optimizer"]
+        )(params=pg0, **self.cfg_hyp["optimizer_params"])
         optimizer.add_param_group(
-            {"params": pg1, "weight_decay": self.hyp["weight_decay"]}
+            {"params": pg1, "weight_decay": self.cfg_hyp["weight_decay"]}
         )
         optimizer.add_param_group({"params": pg2})
-        logger.info(
+        LOGGER.info(
             "Optimizer groups: %g .bias, %g conv.weight, %g other"
             % (len(pg2), len(pg1), len(pg0))
         )
 
-        lf = (
-            lambda x: ((1 + math.cos(x * math.pi / self.epochs)) / 2)
-            * (1 - self.hyp["lrf"])
-            + self.hyp["lrf"]
-        )
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
-        # self.optimizer = optimizer
-        # self.scheduler = scheduler
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
         return [optimizer], [scheduler]
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -93,7 +88,14 @@ class YoloPLModule(AbstractPLModule):
         return output
 
     def training_step(
-        self, train_batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
+        self,
+        train_batch: Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            Tuple[str, ...],
+            Tuple[Tuple[Tuple[int, int], Tuple[int, int]], ...],
+        ],
+        batch_idx: int,
     ) -> torch.Tensor:
         """Train a step (a batch).
 
@@ -104,8 +106,7 @@ class YoloPLModule(AbstractPLModule):
         Returns:
             Result of loss function.
         """
-        x, y = train_batch
-        self.model.train()
+        img, label, path, shape = train_batch
 
         """
         TODO: This part should be out of class.
@@ -125,29 +126,54 @@ class YoloPLModule(AbstractPLModule):
                 )
 
         """
-        # mloss = torch.zeros(4, device=self.device)
-        output = self.model(x)
-        loss = self.loss(output, y)  # type: ignore
+        output = self.model(img)
+        loss = self.loss(output, label)  # type: ignore
 
-        return loss
+        self.log_dict(
+            {
+                "loss": loss[0],
+                "loss_box": loss[1][0],
+                "loss_obj": loss[1][1],
+                "loss_cls": loss[1][2],
+            },
+            prog_bar=True,
+        )
+
+        return loss[0]
 
     def validation_step(
-        self, val_batch: Tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self,
+        val_batch: Tuple[
+            torch.Tensor,
+            torch.Tensor,
+            Tuple[str, ...],
+            Tuple[Tuple[Tuple[int, int], Tuple[int, int]], ...],
+        ],
+        batch_idx: int,
+    ) -> None:
         """Validate a step (a batch).
 
         Args:
             val_batch: validation data batch in tuple (input_x, true_y).
             batch_idx: current batch index.
-
-        Returns:
-            Result of loss function.
         """
-        x, y = val_batch
-        output = self.model(x)
-        loss = self.loss(output, y)  # type: ignore
+        img, label, path, shape = val_batch
 
-        return loss
+        output = self.model(img)
+        bboxes, train_out = output
+
+        loss = self.loss(train_out, label)  # type: ignore
+
+        self.log_dict(
+            {
+                "val_loss": loss[0],
+                "val_loss_box": loss[1][0],
+                "val_loss_obj": loss[1][1],
+                "val_loss_cls": loss[1][2],
+            },
+            prog_bar=True,
+            on_epoch=True,
+        )
 
     def compute_loss(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Compute loss."""

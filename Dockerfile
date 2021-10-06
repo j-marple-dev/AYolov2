@@ -4,8 +4,8 @@ LABEL maintainer="Jongkuk Lim <limjk@jmarple.ai>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG	UID=1000
-ARG	GID=1000
+ARG	UID=1001
+ARG	GID=1001
 RUN	groupadd -g $GID -o user && useradd -m -u $UID -g $GID -o -s /bin/bash user
 
 RUN apt-get update && apt-get install -y sudo dialog apt-utils

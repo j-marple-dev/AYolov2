@@ -3,13 +3,15 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
-import logging
 import os
 from typing import Optional
 
 import torch
+from torch import nn
 
-logger = logging.getLogger(__name__)
+from scripts.utils.general import get_logger
+
+LOGGER = get_logger(__name__)
 
 
 def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.device:
@@ -42,13 +44,29 @@ def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.d
         for i in range(0, ng):
             if i == 1:
                 s = " " * len(s)
-                logger.info(
+                LOGGER.info(
                     "%sdevice%g _CudaDeviceProperties(name='%s', total_memory=%dMB)"
                     % (s, i, x[i].name, x[i].total_memory / c)
                 )
 
     else:
-        logger.info("Using CPU")
+        LOGGER.info("Using CPU")
 
-    logger.info("")
+    LOGGER.info("")
     return torch.device("cuda:0" if cuda else "cpu")
+
+
+def is_parallel(model: nn.Module) -> bool:
+    """Check if the model is DP or DDP.
+
+    Args:
+        model: PyTorch nn.Module
+
+    Return:
+        True if the model is DP or DDP,
+        False otherwise.
+    """
+    return type(model) in (
+        nn.parallel.DataParallel,
+        nn.parallel.DistributedDataParallel,
+    )

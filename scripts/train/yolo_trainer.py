@@ -3,7 +3,6 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
-import logging
 import math
 from typing import Any, Dict, List, Tuple
 
@@ -13,8 +12,9 @@ import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 
 from scripts.train.abstract_trainer import AbstractTrainer
+from scripts.utils.general import get_logger
 
-logger = logging.getLogger(__name__)
+LOGGER = get_logger(__name__)
 
 
 class YoloTrainer(AbstractTrainer):
@@ -52,7 +52,7 @@ class YoloTrainer(AbstractTrainer):
             {"params": pg1, "weight_decay": self.hyp["weight_decay"]}
         )
         optimizer.add_param_group({"params": pg2})
-        logger.info(
+        LOGGER.info(
             "Optimizer groups: %g .bias, %g conv.weight, %g other"
             % (len(pg2), len(pg1), len(pg0))
         )

@@ -35,8 +35,9 @@ dependencies:
     - mkdocs==1.1.2
     - mkapi==1.0.14
     - mkdocs-ivory==0.4.6
-    - pytorch-lightning
+    - pytorch-lightning==1.4.9
     # Place your pip dependencies here
     - p-tqdm==1.3.3
     - albumentations==1.1.0
+	- kindle>=0.4.3
 

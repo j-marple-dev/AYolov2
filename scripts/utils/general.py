@@ -4,13 +4,38 @@
 - Contact: limjk@jmarple.ai
 """
 
+import logging
 from typing import Dict, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import torch
 
-from scripts.utils.constants import PLOT_COLOR
+from scripts.utils.constants import LOG_LEVEL, PLOT_COLOR
+
+
+def get_logger(name: str, log_level: Optional[int] = None) -> logging.Logger:
+    """Get logger with formatter.
+
+    Args:
+        name: logger name
+        log_level: logging level if None is given, constants.LOG_LEVEL will be used.
+
+    Return:
+        logger with string formatter.
+    """
+    logger = logging.getLogger(name)
+    logger.setLevel(LOG_LEVEL)
+
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    ch = logging.StreamHandler()
+    ch.setFormatter(formatter)
+    ch.setLevel(LOG_LEVEL if log_level is None else log_level)
+
+    logger.addHandler(ch)
+
+    return logger
 
 
 def clip_coords(

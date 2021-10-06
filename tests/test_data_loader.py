@@ -35,9 +35,6 @@ def test_load_images(show_gui: bool = False):
     n_run = 0
     for (img, path, shapes) in pbar:
         n_run += 1
-        import pdb
-
-        pdb.set_trace()
         for i in range(img.shape[0]):
             np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
 

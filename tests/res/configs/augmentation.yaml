@@ -1,0 +1,10 @@
+augmentation:
+  - policy:
+      Blur: {p: 0.5}
+      Flip: {p: 0.5}
+      ToGray: {p: 0.5}
+    prob: 1.0
+  - policy:
+      RandomGamma: {p: 0.5}
+      HorizontalFlip: {p: 0.5}
+    prob: 1.0

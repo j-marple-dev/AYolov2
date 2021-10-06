@@ -1,5 +1,5 @@
 # Chnage project name. We recommend you to match this name to the name of the GitHub repository
-name: pytorch_template 
+name: AYolov2 
 channels:
   - conda-forge
   - defaults
@@ -24,8 +24,10 @@ dependencies:
   - pytest-mypy=0.7.0
   - pytest-pylint=0.17.0
   # Place your conda dependencies here
-  - pytorch=1.8.0
-  - torchvision=0.9.0
+  - pytorch=1.7.1
+  - torchvision=0.8.2
+  - cudatoolkit=11.0
+  - opencv=4.1.0
   - pip:
     - flake8-annotations==2.4.0
     - flake8-polyfill==1.0.2
@@ -34,4 +36,6 @@ dependencies:
     - mkapi==1.0.14
     - mkdocs-ivory==0.4.6
     # Place your pip dependencies here
+    - p-tqdm==1.3.3
+    - albumentations==1.1.0
 

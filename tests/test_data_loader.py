@@ -59,7 +59,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         preprocess=lambda x: (x / 255.0),
         rect=False,
         pad=0,
-        mosaic_prob=1.0,
+        label_type="segments",
     )
 
     dataset_loader = DataLoader(

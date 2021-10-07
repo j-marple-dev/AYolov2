@@ -8,7 +8,7 @@ import logging
 import math
 import random
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import matplotlib.pyplot as plt
@@ -17,6 +17,28 @@ import torch
 
 from scripts.utils.constants import LOG_LEVEL, PLOT_COLOR
 from scripts.utils.plot_utils import hist2d
+
+
+def resample_segments(segments: List[np.ndarray], n: int = 1000) -> List[np.ndarray]:
+    """Interpolate segments by (n, 2) segment points.
+
+    Args:
+        segments: segmentation coordinates list [(m, 2), ...]
+        n: number of interpolation.
+
+    Return:
+        Interpolated segmentation (n, 2)
+    """
+    for i, s in enumerate(segments):
+        x = np.linspace(0, len(s) - 1, n)
+        xp = np.arange(len(s))
+        segments[i] = (
+            np.concatenate([np.interp(x, xp, s[:, i]) for i in range(2)])
+            .reshape(2, -1)
+            .T
+        )  # segment xy
+
+    return segments
 
 
 def make_divisible(x: int, divisor: int, minimum_check_number: int = 0) -> int:
@@ -53,6 +75,74 @@ def check_img_size(img_size: int, s: int = 32) -> int:
             % (img_size, s, new_size)
         )
     return new_size
+
+
+def segment2box(segment: np.ndarray, width: int = 640, height: int = 640) -> np.ndarray:
+    """Convert 1 segment label to 1 box label.
+
+    Applying inside-image constraint, i.e. (xy1, xy2, ...) to (xyxy)
+
+    Args:
+        segment: one segmentation coordinates. (n, 2)
+        width: width constraint.
+        height: height constraint
+
+    Return:
+        bounding box contrained by (width, height)
+    """
+    x, y = segment.T  # segment xy
+    inside = (x >= 0) & (y >= 0) & (x <= width) & (y <= height)
+    x, y, = x[inside], y[inside]
+    return (
+        np.array([x.min(), y.min(), x.max(), y.max()]) if any(x) else np.zeros((1, 4))
+    )  # xyxy
+
+
+def segments2boxes(segments: List[np.ndarray]) -> np.ndarray:
+    """Convert segment labels to box labels, i.e. (xy1, xy2, ...) to (xywh).
+
+    Args:
+        segments: List of segments. [(n1, 2), (n2, 2), ...]
+
+    Return:
+        box labels (n, 4)
+    """
+    boxes = []
+    for s in segments:
+        x, y = s.T  # segment xy
+        boxes.append([x.min(), y.min(), x.max(), y.max()])  # cls, xyxy
+    return xyxy2xywh(np.array(boxes), clip_eps=None, check_validity=False)  # cls, xywh
+
+
+def box_candidates(
+    box1: np.ndarray,
+    box2: np.ndarray,
+    wh_thr: float = 2,
+    ar_thr: float = 20,
+    area_thr: float = 0.1,
+    eps: float = 1e-16,
+) -> np.ndarray:  # box1(4,n), box2(4,n)
+    """Compute candidate boxes.
+
+    Args:
+        box1: before augment
+        box2: after augment
+        wh_thr: width and height threshold (pixels),
+        ar_thr: aspect ratio threshold
+        area_thr: area_ratio
+
+    Return:
+        Boolean mask index of the box candidates.
+    """
+    w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
+    w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
+    ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
+    return (
+        (w2 > wh_thr)
+        & (h2 > wh_thr)
+        & (w2 * h2 / (w1 * h1 + eps) > area_thr)
+        & (ar < ar_thr)
+    )  # candidates
 
 
 def plot_label_histogram(labels: np.ndarray, save_dir: Union[str, Path] = "") -> None:
@@ -169,6 +259,23 @@ def clip_coords(
     return boxes
 
 
+def xyn2xy(
+    x: Union[torch.Tensor, np.ndarray],
+    wh: Tuple[float, float] = (640, 640),
+    pad: Tuple[float, float] = (0.0, 0.0),
+):
+    """Convert normalized xy (n, 2) to pixel coordinates xy.
+
+    wh: Image size (width and height). If normalized xywh to pixel xyxy format, place image size here.
+    pad: image padded size (width and height).
+    """
+    # Convert normalized segments into pixel segments, shape (n,2)
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = wh[0] * x[:, 0] + pad[0]  # top left x
+    y[:, 1] = wh[1] * x[:, 1] + pad[1]  # top left y
+    return y
+
+
 def xyxy2xywh(
     x: Union[torch.Tensor, np.ndarray],
     wh: Tuple[float, float] = (1.0, 1.0),
@@ -230,7 +337,7 @@ def xywh2xyxy(
         x: (n, 4) xywh coordinates
         ratio: label ratio adjustment. Default value won't change anything other than xywh to xyxy.
         wh: Image size (width and height). If normalized xywh to pixel xyxy format, place image size here.
-        pad: image padded size.
+        pad: image padded size (width and height).
 
     Return:
         return coordinates will be (ratio * wh * xyxy + pad)

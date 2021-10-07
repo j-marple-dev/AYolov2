@@ -47,6 +47,10 @@ hyper_params:
   anchor_t: 4.0  # anchor-multiple threshold
   # anchors: 3  # anchors per output layer (0 to ignore)
   fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+
+
+yolo_augmentation:
+  augment: true  # Use augmentation
   hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
   hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
   hsv_v: 0.4  # image HSV-Value augmentation (fraction)
@@ -58,17 +62,21 @@ hyper_params:
   flipud: 0.0  # image flip up-down (probability)
   fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
-  mixup: 0.0  # image mixup (probability)
-  copy_paste: 0.0  # segment copy-paste (probability)
+  mixup: 0.1  # image mixup (probability)
+  copy_paste: 0.5  # segment copy-paste (probability)
 
 
 augmentation:
   - policy:
-      Blur: {p: 0.5}
-      Flip: {p: 0.5}
-      ToGray: {p: 0.5}
+      Blur: {p: 0.01}
+      MedianBlur: {p: 0.01}
+      ToGray: {p: 0.01}
+      CLAHE: {p: 0.01}
+      RandomBrightnessContrast: {p: 0.0}
+      RandomGamma: {p: 0.0}
+      ImageCompression: {quality_lower: 75, p: 0.0}
     prob: 1.0
   - policy:
-      RandomGamma: {p: 0.5}
       HorizontalFlip: {p: 0.5}
+      VerticalFlip: {p: 0.0}
     prob: 1.0

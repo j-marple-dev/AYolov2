@@ -43,7 +43,6 @@ def test_train_model_builder() -> None:
         preprocess=lambda x: (x / 255.0).astype(np.float32),
         rect=False,
         pad=0,
-        mosaic_prob=cfg["hyper_params"]["mosaic"],
     )
     train_loader = DataLoader(
         train_dataset,

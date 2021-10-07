@@ -19,6 +19,7 @@ train:
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
+  log_dir: "exp"
 
 
 hyper_params:

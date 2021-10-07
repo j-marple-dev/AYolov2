@@ -16,7 +16,7 @@ from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS
-from scripts.utils.general import plot_labels
+from scripts.utils.general import draw_labels
 
 
 def test_multi_aug_policies(show_gui: bool = False):
@@ -49,7 +49,7 @@ def test_multi_aug_policies(show_gui: bool = False):
             np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
             label_list = labels[labels[:, 0] == i][:, 1:]
 
-            np_image = plot_labels(np_image, label_list.numpy(), label2str)
+            np_image = draw_labels(np_image, label_list.numpy(), label2str)
 
             if show_gui:
                 cv2.imshow("test", np_image)
@@ -86,7 +86,7 @@ def test_augmentation(show_gui: bool = False):
             np_image = img[i].numpy()[::-1].transpose((1, 2, 0))
             # label_list = labels[labels[:, 0] == i][:, 1:]
 
-            # np_image = plot_labels(np_image, label_list.numpy(), label2str)
+            # np_image = draw_labels(np_image, label_list.numpy(), label2str)
 
             if show_gui:
                 cv2.imshow("test", np_image)

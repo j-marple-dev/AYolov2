@@ -4,7 +4,7 @@
 - Contact: hekim@jmarple.ai
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -25,7 +25,9 @@ class AbstractTrainer(ABC):
 
     @abstractmethod
     def training_step(
-        self, batch: Union[List[torch.Tensor], torch.Tensor], batch_idx: int
+        self,
+        batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
+        batch_idx: int,
     ) -> torch.Tensor:
         """Train a step.
 

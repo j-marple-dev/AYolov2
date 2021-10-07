@@ -56,8 +56,12 @@ class AbstractPLModule(pl.LightningModule):
         """Initialize optimizer and scheduler.
 
         Returns:
-            List of optimizer,
-            List of learning rate scheduler
+            Any of these 6 options.
+            A Single optimizer.
+            Two lists - The first list has multiple optimizers, and the second has multiple LR schedulers (for multiple lr_scheduler_config).
+            Dictionary - with and "optimizer" key, and (optionally) a "lr_scheduler" key whose value is a single LR scheduler or lr_sceduler_config.
+            Tuple of dictionaries - as described above, with an optional "frequency" key.
+            None - Fit will run without any optimizer.
         """
 
     @abstractmethod
@@ -71,8 +75,8 @@ class AbstractPLModule(pl.LightningModule):
         """Train a step (a batch).
 
         Args:
-            train_batch: train batch in tuple (input_x, y_true).
-            batch_idx: current batch index.
+            train_batch: Train batch in tuple (input_x, y_true).
+            batch_idx: Current batch index.
 
         Returns:
             Result of loss function.
@@ -86,8 +90,8 @@ class AbstractPLModule(pl.LightningModule):
         """Validate a step (a batch).
 
         Args:
-            val_batch: validation data batch in tuple (input_x, true_y).
-            batch_idx: current batch index.
+            val_batch: Validation data batch in tuple (input_x, true_y).
+            batch_idx: Current batch index.
 
         Returns:
             Result of loss function.

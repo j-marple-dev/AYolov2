@@ -70,21 +70,27 @@ def test_train_model_builder() -> None:
     )
 
     if not torch.cuda.is_available():
-        cfg["train"]["device"] = 0  # Switch to CPU mode
+        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
-    pl_model = YoloPLModule(model, cfg)
-    # TODO(jeikeilim): DP does not work but DDP work for some reason.
-    trainer = pl.Trainer(
-        gpus=cfg["train"]["device"],
-        accelerator="ddp",
-        max_epochs=cfg["train"]["epochs"],
-        check_val_every_n_epoch=cfg["train"]["validate_period"],
+    device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
+
+    model, ema = TrainModelBuilder(model, cfg, device, "exp")(
+        train_dataset, train_loader
     )
-    val_result0 = trainer.validate(pl_model, val_loader)
-    trainer.fit(pl_model, train_loader, val_loader)
-    val_result1 = trainer.validate(pl_model, val_loader)
 
-    assert (val_result0[0]["val_loss"] - val_result1[0]["val_loss"]) > 10
+    # pl_model = YoloPLModule(model, cfg)
+    # TODO(jeikeilim): DP does not work but DDP work for some reason.
+    # trainer = pl.Trainer(
+    #     gpus=cfg["train"]["device"],
+    #     accelerator="ddp",
+    #     max_epochs=cfg["train"]["epochs"],
+    #     check_val_every_n_epoch=cfg["train"]["validate_period"],
+    # )
+    # val_result0 = trainer.validate(pl_model, val_loader)
+    # trainer.fit(pl_model, train_loader, val_loader)
+    # val_result1 = trainer.validate(pl_model, val_loader)
+
+    # assert (val_result0[0]["val_loss"] - val_result1[0]["val_loss"]) > 10
 
 
 if __name__ == "__main__":

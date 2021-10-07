@@ -80,4 +80,4 @@ RUN python3 -m pip install --extra-index-url https://developer.download.nvidia.c
 
 # Add PATH
 RUN echo "export PATH=/home/user/.local/bin:\$PATH" >> /home/user/.bashrc
-
+RUN echo "export LC_ALL=C.UTF-8 && export LANG=C.UTF-8" >> /home/user/.bashrc

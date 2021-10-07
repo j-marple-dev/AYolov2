@@ -3,7 +3,6 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
-import logging
 import math
 import os
 from copy import deepcopy
@@ -92,6 +91,13 @@ def init_torch_seeds(seed: int = 0) -> None:
     else:
         cudnn.deterministic = False
         cudnn.benchmark = True
+
+
+def init_seeds(seed: int = 0) -> None:
+    """Initialize random seeds."""
+    random.seed(seed)
+    np.random.seed(seed)
+    init_torch_seeds(seed)
 
 
 def intersect_dicts(

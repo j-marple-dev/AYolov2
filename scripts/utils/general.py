@@ -17,14 +17,6 @@ import torch
 
 from scripts.utils.constants import LOG_LEVEL, PLOT_COLOR
 from scripts.utils.plot_utils import hist2d
-from scripts.utils.torch_utils import init_torch_seeds
-
-
-def init_seeds(seed: int = 0) -> None:
-    """Initialize random seeds."""
-    random.seed(seed)
-    np.random.seed(seed)
-    init_torch_seeds(seed)
 
 
 def make_divisible(x: int, divisor: int, minimum_check_number: int = 0) -> int:

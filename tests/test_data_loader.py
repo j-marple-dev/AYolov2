@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS, PLOT_COLOR
-from scripts.utils.general import plot_labels, xywh2xyxy
+from scripts.utils.general import draw_labels, xywh2xyxy
 
 
 def test_load_images(show_gui: bool = False):
@@ -59,7 +59,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         preprocess=lambda x: (x / 255.0),
         rect=False,
         pad=0,
-        mosaic_prob=0.0,
+        mosaic_prob=1.0,
     )
 
     dataset_loader = DataLoader(
@@ -83,15 +83,15 @@ def test_load_images_and_labels(show_gui: bool = False):
             )
             label_list = labels[labels[:, 0] == i][:, 1:]
 
-            np_image = plot_labels(np_image, label_list.numpy(), label2str)
+            np_image = draw_labels(np_image, label_list.numpy(), label2str)
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(100)
+                cv2.waitKey(0)
 
     assert n_run == 7
 
 
 if __name__ == "__main__":
-    # test_load_images(show_gui=True)
+    # test_load_images(show_gui=False)
     test_load_images_and_labels(show_gui=True)

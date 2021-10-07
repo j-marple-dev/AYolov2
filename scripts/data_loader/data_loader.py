@@ -9,7 +9,7 @@ import os
 import random
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
@@ -138,7 +138,41 @@ class LoadImages(Dataset):
 
             return shape
 
-        shapes = p_map(__get_img_shape, self.img_files)
+        cache_path = str(Path(self.img_files[0]).parent) + ".cache"
+
+        cache: Optional[
+            Dict[
+                str,
+                Union[
+                    Tuple[Optional[np.ndarray], Optional[Tuple[int, int]]],
+                    Dict[str, Union[float, str, Dict[str, str]]],
+                ],
+            ]
+        ] = None
+
+        files_hash = get_files_hash(self.img_files)
+        if os.path.isfile(cache_path):
+            cache = torch.load(cache_path)
+
+            if (
+                "info" not in cache  # type: ignore
+                or "hash" not in cache["info"]  # type: ignore
+                or cache["info"]["hash"] != files_hash  # type: ignore
+                or cache["info"]["version"] != CACHE_VERSION  # type: ignore
+            ):
+                cache = None
+
+        if cache is None:
+            shapes = p_map(
+                __get_img_shape, self.img_files, desc="Getting image shapes ..."
+            )
+            cache = {
+                "info": {"version": CACHE_VERSION, "hash": files_hash},
+                "shapes": shapes,
+            }
+            torch.save(cache, cache_path)
+        else:
+            shapes = cache["shapes"]
 
         return np.array(shapes)
 
@@ -464,6 +498,8 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         else:
             label_cache = cache
 
+        # img_files = [path for path in self.img_files if label_cache[path][0] is not None]
+
         labels, shapes = zip(*[label_cache[x] for x in self.img_files])
         # self.shapes = np.array(shapes, dtype=np.float64)
         self.labels = list(labels)
@@ -508,15 +544,24 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
             )
 
-            labels = self.labels[index].copy()
+            if self.labels[index] is None:
+                labels = np.empty((0, 5), dtype=np.float32)
+            else:
+                labels = self.labels[index].copy()
 
             # Adjust bboxes to the letterbox.
-            labels[:, 1:] = xywh2xyxy(labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad)
+            if labels.size:
+                labels[:, 1:] = xywh2xyxy(
+                    labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad
+                )
 
         # Do some other augmentation with pixel coordinates label.
 
         # Normalize bboxes
-        labels[:, 1:] = xyxy2xywh(labels[:, 1:], wh=img.shape[:2][::-1], clip_eps=1e-3)
+        if labels.size:
+            labels[:, 1:] = xyxy2xywh(
+                labels[:, 1:], wh=img.shape[:2][::-1], clip_eps=1e-3
+            )
 
         if self.augmentation:
             img, labels = self.augmentation(img, labels)
@@ -592,7 +637,10 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             pad_w = x1a - x1b
             pad_h = y1a - y1b
 
-            labels = self.labels[indices[i]].copy()
+            if self.labels[indices[i]] is None:
+                labels = np.empty((0, 5), dtype=np.float32)
+            else:
+                labels = self.labels[indices[i]].copy()
 
             if labels.size:
                 labels[:, 1:] = xywh2xyxy(labels[:, 1:], wh=(w, h), pad=(pad_w, pad_h))
@@ -656,12 +704,63 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 ...
             }
         """
-        pbar = tqdm(
-            zip(self.img_files, self.label_files),
-            desc="Scanning images ...",
-            total=len(self.img_files),
-        )
 
+        def _get_label(_img_path: str, _label_path: str) -> Dict[str, Any]:
+            _label: Dict[str, Any] = {}
+            _err_msg = ""
+            try:
+                _image = Image.open(_img_path)
+                _image.verify()
+
+                _shape = _image.size
+
+                try:
+                    _img_exif = _image._getexif()
+                except AttributeError as e:
+                    _img_exif = None
+                    _err_msg += f"[LoadImagesAndLabels] WARNING: Get EXIF failed on {_img_path}: {e}"
+                    _label["info"] = {"msgs": {_img_path: _err_msg}}
+                    print(_err_msg)
+
+                if (
+                    _img_exif is not None
+                    and EXIF_REVERSE_TAGS["Orientation"] in _img_exif.keys()
+                ):
+                    _orientation = _img_exif[EXIF_REVERSE_TAGS["Orientation"]]
+
+                    if _orientation in (6, 8):  # Rotation 270 or 90 degree
+                        _shape = _shape[::-1]
+
+                assert (_shape[0] > 9) and (
+                    _shape[1] > 9
+                ), f"Image size <10 pixels, ({_shape[0]}, {_shape[1]})"
+
+                if os.path.isfile(_label_path):
+                    with open(_label_path, "r") as _f:
+                        _label_list = np.array(
+                            [_x.split() for _x in _f.read().splitlines()],
+                            dtype=np.float32,
+                        )
+
+                    if len(_label_list) == 0:
+                        _label_list = np.zeros((0, 5), dtype=np.float32)
+
+                    _label[_img_path] = (_label_list, _shape)
+                else:
+                    _label[_img_path] = (None, None)
+            except Exception as e:
+                _err_msg += f"[LoadImagesAndLabels] WARNING: {_img_path}: {e}"
+
+                _label[_img_path] = (None, None)
+                _label["info"] = {"msgs": {_img_path: _err_msg}}  # type: ignore
+
+                print(_err_msg)
+
+            return _label
+
+        label_list = p_map(
+            _get_label, self.img_files, self.label_files, desc="Scanning images ..."
+        )
         labels: Dict[
             str,
             Union[
@@ -669,57 +768,11 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 Dict[str, Union[float, str, Dict[str, str]]],
             ],
         ] = {"info": {"version": CACHE_VERSION, "msgs": {}}}
-
-        for (img, label) in pbar:
-            err_msg = ""
-            try:
-                image = Image.open(img)
-                image.verify()
-
-                shape = image.size
-
-                try:
-                    img_exif = image._getexif()
-                except AttributeError as e:
-                    img_exif = None
-                    err_msg += (
-                        f"[LoadImagesAndLabels] WARNING: Get EXIF failed on {img}: {e}"
-                    )
-                    labels["info"]["msgs"][img] = err_msg  # type: ignore
-                    print(err_msg)
-
-                if (
-                    img_exif is not None
-                    and EXIF_REVERSE_TAGS["Orientation"] in img_exif.keys()
-                ):
-                    orientation = img_exif[EXIF_REVERSE_TAGS["Orientation"]]
-
-                    if orientation in (6, 8):  # Rotation 270 or 90 degree
-                        shape = shape[::-1]
-
-                assert (shape[0] > 9) and (
-                    shape[1] > 9
-                ), f"Image size <10 pixels, ({shape[0]}, {shape[1]})"
-
-                if os.path.isfile(label):
-                    with open(label, "r") as f:
-                        label_list = np.array(
-                            [x.split() for x in f.read().splitlines()], dtype=np.float32
-                        )
-
-                    if len(label_list) == 0:
-                        label_list = np.zeros((0, 5), dtype=np.float32)
-
-                labels[img] = (label_list, shape)
-            except Exception as e:
-                err_msg += f"[LoadImagesAndLabels] WARNING: {img}: {e}"
-
-                labels[img] = (None, None)
-                labels["info"]["msgs"][img] = err_msg  # type: ignore
-
-                print(err_msg)
-
-        pbar.close()
+        for label in label_list:
+            if "info" in label:
+                labels["info"]["msgs"].update(label["info"]["msgs"])  # type: ignore
+                label.pop("info")
+            labels.update(label)
 
         labels["info"]["hash"] = get_files_hash(self.label_files + self.img_files)  # type: ignore
         torch.save(labels, path)

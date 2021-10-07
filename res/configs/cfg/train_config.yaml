@@ -1,0 +1,73 @@
+train:
+  weights: ''  # Model weight path
+  epochs: 300 
+  batch_size: 64
+  image_size: 640   # Train, val image size
+  rect: false  # Use rectangular training
+  resume: false  # resume previous training
+  validate_period: 3  # Run validation on every x epoch
+  auto_anchor: true  # Check anchors and auto-fix anchors
+  cache_image: 'disk'  # Use caching images. This should be among 'ram', 'disk', or null
+  n_skip: 0  # skip image by n which reduces images to be used
+  image_weights: false  # Use weighted image selection for training
+  device: ""  # CUDA device to use. '' will use all GPUs. EX) "0,2" or "cpu"
+  multi_scale: false  # Use multi scaled training (+/- 50% image size)
+  single_cls: false  # Train multi-class data as single-class
+  sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
+  workers: 8  # Maximum number of dataloader workers
+  linear_lr: false  # Use linear learning rate
+  label_smoothing: 0.0  # Label smoothing epsilon
+  freeze: 0  # Number of layers to freeze.
+  save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
+
+
+hyper_params:
+  optimizer: 'SGD'
+  optimizer_params:
+    lr: 0.01  # lr0
+    momentum: 0.937
+    nesterov: true
+  # optimizer: 'Adam'
+  # optimizer_param:
+  #   betas: [0.937, 0.999]
+
+  lrf: 0.2  # final OneCycleLR learning rate (lr0 * lrf)
+  momentum: 0.937  # SGD momentum/Adam beta1
+  weight_decay: 0.0005  # optimizer weight decay 5e-4
+  warmup_epochs: 3.0  # warmup epochs (fractions ok)
+  warmup_momentum: 0.8  # warmup initial momentum
+  warmup_bias_lr: 0.1  # warmup initial bias lr
+  box: 0.05  # box loss gain
+  cls: 0.5  # cls loss gain
+  cls_pw: 1.0  # cls BCELoss positive_weight
+  obj: 1.0  # obj loss gain (scale with pixels)
+  obj_pw: 1.0  # obj BCELoss positive_weight
+  iou_t: 0.20  # IoU training threshold
+  anchor_t: 4.0  # anchor-multiple threshold
+  # anchors: 3  # anchors per output layer (0 to ignore)
+  fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+  hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
+  hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
+  hsv_v: 0.4  # image HSV-Value augmentation (fraction)
+  degrees: 0.0  # image rotation (+/- deg)
+  translate: 0.1  # image translation (+/- fraction)
+  scale: 0.5  # image scale (+/- gain)
+  shear: 0.0  # image shear (+/- deg)
+  perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
+  flipud: 0.0  # image flip up-down (probability)
+  fliplr: 0.5  # image flip left-right (probability)
+  mosaic: 1.0  # image mosaic (probability)
+  mixup: 0.0  # image mixup (probability)
+  copy_paste: 0.0  # segment copy-paste (probability)
+
+
+augmentation:
+  - policy:
+      Blur: {p: 0.5}
+      Flip: {p: 0.5}
+      ToGray: {p: 0.5}
+    prob: 1.0
+  - policy:
+      RandomGamma: {p: 0.5}
+      HorizontalFlip: {p: 0.5}
+    prob: 1.0

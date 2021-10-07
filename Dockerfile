@@ -4,8 +4,8 @@ LABEL maintainer="Jongkuk Lim <limjk@jmarple.ai>"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-ARG	UID=1000
-ARG	GID=1000
+ARG	UID=1001
+ARG	GID=1001
 RUN	groupadd -g $GID -o user && useradd -m -u $UID -g $GID -o -s /bin/bash user
 
 RUN apt-get update && apt-get install -y sudo dialog apt-utils
@@ -80,4 +80,4 @@ RUN python3 -m pip install --extra-index-url https://developer.download.nvidia.c
 
 # Add PATH
 RUN echo "export PATH=/home/user/.local/bin:\$PATH" >> /home/user/.bashrc
-
+RUN echo "export LC_ALL=C.UTF-8 && export LANG=C.UTF-8" >> /home/user/.bashrc

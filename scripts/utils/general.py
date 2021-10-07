@@ -115,6 +115,26 @@ def labels_to_class_weights(
     return torch.from_numpy(weights)
 
 
+def labels_to_image_weights(
+    labels: Union[list, np.ndarray],
+    nc: int = 80,
+    class_weights: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Produce image weights based on class mAPs."""
+    if class_weights is None:
+        np_class_weights: np.ndarray = np.ones(80)
+    else:
+        np_class_weights = class_weights
+
+    n = len(labels)
+    class_counts = np.array(
+        [np.bincount(labels[i][:, 0].astype(int), minlength=nc) for i in range(n)]
+    )
+    image_weights = (np_class_weights.reshape(1, nc) * class_counts).sum(1)
+    # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
+    return image_weights
+
+
 def get_logger(name: str, log_level: Optional[int] = None) -> logging.Logger:
     """Get logger with formatter.
 

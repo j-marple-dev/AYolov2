@@ -23,7 +23,14 @@ class YoloTrainer(AbstractTrainer):
     def __init__(
         self, model: nn.Module, hyp: Dict[str, Any], epochs: int, device: torch.device
     ) -> None:
-        """Initialize YoloTrainer class."""
+        """Initialize YoloTrainer class.
+
+        Args:
+            model: yolo model to train.
+            hyp: hyper parameter config.
+            epochs: number of epochs to train.
+            device: torch device to train on.
+        """
         super().__init__(model, hyp, epochs, device)
         self.loss = eval(self.hyp["loss"])
         self.optimizer, self.scheduler = self.init_optimizer()
@@ -63,11 +70,14 @@ class YoloTrainer(AbstractTrainer):
             + self.hyp["lrf"]
         )
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
-        # self.optimizer = optimizer
-        # self.scheduler = scheduler
         return [optimizer], [scheduler]
 
     def compute_loss(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Compute loss."""
         y_hat = self.model(x)
         return self.loss(y_hat, y)
+
+    # def training_step(
+    #     self, batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
+    #     batch_idx: int
+    # ) -> torch.Tensor:

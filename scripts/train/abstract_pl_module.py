@@ -15,21 +15,27 @@ class AbstractPLModule(pl.LightningModule):
     """Abstract traniner class."""
 
     def __init__(
-        self, model: nn.Module, hyp: Dict[str, Any], epochs: int, device: torch.device
+        self,
+        model: nn.Module,
+        hyp: Dict[str, Any],
+        epochs: int,
+        device: torch.device,
+        batch_size: int,
     ) -> None:
         """Initialize AbstractTrainer class.
 
         Args:
-            model: torch model to train.
-            hyp: hyper parameter config.
-            epochs: number of epochs to train.
-            device: torch device to train on.
+            model: Torch model to train. The pretrained weights should be loaded before if you attempt to use the weights.
+            hyp: Hyper parameter config.
+            epochs: Number of epochs to train.
+            device: Torch device to train on.
         """
         super().__init__()
         self.model = model
         self.hyp = hyp
         self.epochs = epochs
-        self.torch_device = device
+        self.device = device
+        self.batch_size = batch_size
 
     @abstractmethod
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any) -> torch.Tensor:  # type: ignore
@@ -38,6 +44,23 @@ class AbstractPLModule(pl.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         """Configure optimizers and return optimizer."""
+        if self.automatic_optimization:
+            return self.init_optimizer()
+        else:
+            pass
+
+    @abstractmethod
+    def init_optimizer(self) -> Any:
+        """Initialize optimizer and scheduler.
+
+        Returns:
+            Any of these 6 options.
+            A Single optimizer.
+            Two lists - The first list has multiple optimizers, and the second has multiple LR schedulers (for multiple lr_scheduler_config).
+            Dictionary - with and "optimizer" key, and (optionally) a "lr_scheduler" key whose value is a single LR scheduler or lr_sceduler_config.
+            Tuple of dictionaries - as described above, with an optional "frequency" key.
+            None - Fit will run without any optimizer.
+        """
         pass
 
     @abstractmethod
@@ -51,8 +74,8 @@ class AbstractPLModule(pl.LightningModule):
         """Train a step (a batch).
 
         Args:
-            train_batch: train batch in tuple (input_x, y_true).
-            batch_idx: current batch index.
+            train_batch: Train batch in tuple (input_x, y_true).
+            batch_idx: Current batch index.
 
         Returns:
             Result of loss function.
@@ -66,8 +89,8 @@ class AbstractPLModule(pl.LightningModule):
         """Validate a step (a batch).
 
         Args:
-            val_batch: validation data batch in tuple (input_x, true_y).
-            batch_idx: current batch index.
+            val_batch: Validation data batch in tuple (input_x, true_y).
+            batch_idx: Current batch index.
 
         Returns:
             Result of loss function.

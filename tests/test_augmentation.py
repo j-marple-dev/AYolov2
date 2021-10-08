@@ -16,7 +16,7 @@ from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS
-from scripts.utils.general import draw_labels
+from scripts.utils.plot_utils import draw_labels
 
 
 def test_multi_aug_policies(show_gui: bool = False):

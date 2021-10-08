@@ -14,7 +14,8 @@ from tqdm import tqdm
 
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS, PLOT_COLOR
-from scripts.utils.general import draw_labels, xywh2xyxy
+from scripts.utils.general import xywh2xyxy
+from scripts.utils.plot_utils import draw_labels
 
 
 def test_load_images(show_gui: bool = False):
@@ -56,7 +57,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         cache_images=None,
         n_skip=0,
         batch_size=batch_size,
-        preprocess=lambda x: (x / 255.0),
+        preprocess=lambda x: (x / 255.0).astype(np.float32),
         rect=False,
         pad=0,
         mosaic_prob=1.0,

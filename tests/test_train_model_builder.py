@@ -111,7 +111,7 @@ def test_train() -> None:
         cache_images=cfg["train"]["cache_image"],
         n_skip=cfg["train"]["n_skip"],
         batch_size=cfg["train"]["batch_size"],
-        preprocess=lambda x: (x / 255.0).astype(np.float32),
+        # preprocess=lambda x: (x / 255.0).astype(np.float32),
         rect=False,
         pad=0,
         mosaic_prob=cfg["hyper_params"]["mosaic"],

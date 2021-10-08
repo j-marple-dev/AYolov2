@@ -6,17 +6,12 @@
 
 import logging
 import math
-import random
-from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import Optional, Tuple, Union
 
-import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from scripts.utils.constants import LOG_LEVEL, PLOT_COLOR
-from scripts.utils.plot_utils import hist2d
+from scripts.utils.constants import LOG_LEVEL
 
 
 def make_divisible(x: int, divisor: int, minimum_check_number: int = 0) -> int:
@@ -53,45 +48,6 @@ def check_img_size(img_size: int, s: int = 32) -> int:
             % (img_size, s, new_size)
         )
     return new_size
-
-
-def plot_label_histogram(labels: np.ndarray, save_dir: Union[str, Path] = "") -> None:
-    """Plot dataset labels."""
-    c, b = labels[:, 0], labels[:, 1:].transpose()
-    nc = int(c.max() + 1)  # number of classes
-
-    fig, ax = plt.subplots(2, 2, figsize=(8, 8), tight_layout=True)
-    ax = ax.ravel()
-    ax[0].hist(c, bins=np.linspace(0, nc, nc + 1) - 0.5, rwidth=0.8)
-    ax[0].set_xlabel("classes")
-    ax[1].scatter(b[0], b[1], c=hist2d(b[0], b[1], 90), cmap="jet")
-    ax[1].set_xlabel("x")
-    ax[1].set_ylabel("y")
-    ax[2].scatter(b[2], b[3], c=hist2d(b[2], b[3], 90), cmap="jet")
-    ax[2].set_xlabel("width")
-    ax[2].set_ylabel("height")
-    plt.savefig(Path(save_dir) / "labels.png", dpi=200)
-    plt.close()
-
-    # seaborn correlogram
-    try:
-        import pandas as pd
-        import seaborn as sns
-
-        x = pd.DataFrame(b.transpose(), columns=["x", "y", "width", "height"])
-        sns.pairplot(
-            x,
-            corner=True,
-            diag_kind="hist",
-            kind="scatter",
-            markers="o",
-            plot_kws=dict(s=3, edgecolor=None, linewidth=1, alpha=0.02),
-            diag_kws=dict(bins=50),
-        )
-        plt.savefig(Path(save_dir) / "labels_correlogram.png", dpi=200)
-        plt.close()
-    except Exception:
-        pass
 
 
 def labels_to_class_weights(
@@ -261,59 +217,3 @@ def xywh2xyxy(
     y[:, 2] = ratio[0] * wh[0] * (x[:, 0] + x[:, 2] / 2) + pad[0]  # bottom right x
     y[:, 3] = ratio[1] * wh[1] * (x[:, 1] + x[:, 3] / 2) + pad[1]  # bottom right y
     return y
-
-
-def draw_labels(
-    img: np.ndarray, label_list: np.ndarray, label_info: Dict[int, str]
-) -> np.ndarray:
-    """Draw label informations on the image.
-
-    Args:
-        img: image to draw labels
-        label_list: (n, 5) label informations of img with normalized xywh format.
-                    (class_id, centered x, centered y, width, height)
-        label_info: label names. Ex) {0: 'Person', 1:'Car', ...}
-
-    Returns:
-        label drawn image.
-    """
-    overlay_alpha = 0.3
-    label_list = np.copy(label_list)
-    label_list[:, 1:] = xywh2xyxy(
-        label_list[:, 1:], wh=(float(img.shape[1]), float(img.shape[0]))
-    )
-
-    for label in label_list:
-        class_id = int(label[0])
-        class_str = label_info[class_id]
-
-        xy1 = tuple(label[1:3].astype("int"))
-        xy2 = tuple(label[3:5].astype("int"))
-        plot_color = tuple(map(int, PLOT_COLOR[class_id]))
-
-        overlay = img.copy()
-        overlay = cv2.rectangle(overlay, xy1, xy2, plot_color, -1)
-        img = cv2.addWeighted(overlay, overlay_alpha, img, 1 - overlay_alpha, 0)
-        img = cv2.rectangle(img, xy1, xy2, plot_color, 1)
-
-        (text_width, text_height), baseline = cv2.getTextSize(class_str, 3, 0.5, 1)
-        overlay = img.copy()
-        overlay = cv2.rectangle(
-            overlay,
-            (xy1[0], xy1[1] - text_height),
-            (xy1[0] + text_width, xy1[1]),
-            (plot_color[0] // 0.3, plot_color[1] // 0.3, plot_color[2] // 0.3),
-            -1,
-        )
-        img = cv2.addWeighted(overlay, overlay_alpha + 0.2, img, 0.8 - overlay_alpha, 0)
-        cv2.putText(
-            img,
-            class_str,
-            xy1,
-            3,
-            0.5,
-            (plot_color[0] // 3, plot_color[1] // 3, plot_color[2] // 3),
-            1,
-            cv2.LINE_AA,
-        )
-    return img

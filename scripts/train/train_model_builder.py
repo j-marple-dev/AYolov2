@@ -16,8 +16,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from scripts.utils.anchors import check_anchors
 from scripts.utils.general import (check_img_size, get_logger,
-                                   labels_to_class_weights,
-                                   plot_label_histogram)
+                                   labels_to_class_weights)
+from scripts.utils.plot_utils import plot_label_histogram
 from scripts.utils.torch_utils import ModelEMA, intersect_dicts, is_parallel
 
 # TODO(jeikeilim): Double check if check RANK is required in real-time

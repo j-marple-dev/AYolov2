@@ -32,6 +32,7 @@ class AbstractTrainer(ABC):
         self.device = select_device(self.cfg_train["device"])
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
+        self.cuda = self.device.type != "cpu"
 
     @abstractmethod
     def training_step(
@@ -107,3 +108,15 @@ class AbstractTrainer(ABC):
     def on_end_epoch(self) -> None:
         """Run on epoch ends."""
         pass
+
+    def prepare_img(self, img: torch.Tensor) -> torch.Tensor:
+        """Prepare image to float32 and normalize image.
+
+        Args:
+            img: input image tensor.
+        """
+        if img.dtype == torch.uint8:
+            img = (
+                img.to(self.device, non_blocking=True).float() / 255.0
+            )  # uint8 to float32, 0-255 to 0.0-1.0
+        return img

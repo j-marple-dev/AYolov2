@@ -59,7 +59,9 @@ class ModelConverter:
         self.model = model
         self.batch_size = batch_size
         self.device = next(self.model.parameters()).device
-        self.test_input = torch.zeros(batch_size, 3, *input_size, device=self.device)
+        self.test_input = torch.zeros(
+            batch_size, 3, *input_size, device=self.device
+        )
 
     def dry_run(self) -> None:
         """Dry run the model for memory load purpose."""
@@ -373,3 +375,4 @@ class ModelConverter:
         else:
             print("Failed to build the TensorRT engine.")
             return False
+

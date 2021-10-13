@@ -123,11 +123,12 @@ class ModelConverter:
         dla_core_id: int = -1,
         workspace_size_gib: int = 1,
         int8_calibrator: Optional[Any] = None,
+        build_nms: bool = True,
         conf_thres: float = 0.1,
         iou_thres: float = 0.6,
         top_k: int = 512,
         keep_top_k: int = 100,
-    ) -> None:
+    ) -> bool:
         """Convert model to TensorRT model.
 
         Args:
@@ -135,10 +136,14 @@ class ModelConverter:
             opset_version: ONNX op set version. Recommended to stick with 11.
             int8: convert model to INT8 precision. int8_calibrator must be provided.
             int8_calibrator: int8 calibrator instance. (tensorrt.IInt8EntropyCalibrator2)
+            build_nms: build TRT model with NMS layer.
             conf_thres: Confidence threshold for Batch NMS.
             iou_thres: IoU threshold for Batch NMS.
             top_k: top k parameter for Batch NMS.
             keep_top_k: keep top k number of bboxes for Batch NMS.
+
+        Return:
+            True if converting is success
         """
         try:
             import tensorrt as trt  # pylint: disable=import-outside-toplevel, import-error
@@ -151,7 +156,7 @@ class ModelConverter:
         self.to_onnx(onnx_path, opset_version=opset_version)
 
         if not os.path.isfile(onnx_path):
-            return
+            return False
         with open(onnx_path, "rb") as f:
             onnx_data = f.read()
 
@@ -179,7 +184,7 @@ class ModelConverter:
                 print("Failed to parse the ONNX file.")
                 for i in range(parser.num_errors):
                     print(parser.get_error(i))
-                return
+                return False
 
             network.get_input(0).shape = (self.batch_size,) + network.get_input(
                 0
@@ -236,116 +241,126 @@ class ModelConverter:
                 print(f"Using DLA Core id {dla_core_id}")
 
             # Add Batched NMS layer  ---- START
-            previous_output = network.get_output(0)
-            network.unmark_output(previous_output)
+            if build_nms:
+                previous_output = network.get_output(0)
+                network.unmark_output(previous_output)
 
-            strides = trt.Dims([1, 1, 1])
-            starts = trt.Dims([0, 0, 0])
+                strides = trt.Dims([1, 1, 1])
+                starts = trt.Dims([0, 0, 0])
 
-            bs, num_boxes, n_out = previous_output.shape
-            num_classes = n_out - 5
-            shapes = trt.Dims([bs, num_boxes, 4])
+                bs, num_boxes, n_out = previous_output.shape
+                num_classes = n_out - 5
+                shapes = trt.Dims([bs, num_boxes, 4])
 
-            boxes = network.add_slice(previous_output, starts, shapes, strides)
+                # bs, num_boxes, 4
+                boxes = network.add_slice(previous_output, starts, shapes, strides)
 
-            starts[2] = 4
-            shapes[2] = 1
-            obj_score = network.add_slice(previous_output, starts, shapes, strides)
+                starts[2] = 4
+                shapes[2] = 1
+                # bs, num_boxes, 1
+                obj_score = network.add_slice(previous_output, starts, shapes, strides)
 
-            starts[2] = 5
-            shapes[2] = num_classes
-            scores = network.add_slice(previous_output, starts, shapes, strides)
-            indices = network.add_constant(
-                trt.Dims([num_classes]), trt.Weights(np.zeros(num_classes, np.int32))
-            )
-            gather_layer = network.add_gather(
-                obj_score.get_output(0), indices.get_output(0), 2
-            )
-            updated_scores = network.add_elementwise(
-                gather_layer.get_output(0),
-                scores.get_output(0),
-                trt.ElementWiseOperation.PROD,
-            )
+                starts[2] = 5
+                shapes[2] = num_classes
+                # bs, num_boxes, num_classes
+                scores = network.add_slice(previous_output, starts, shapes, strides)
+                indices = network.add_constant(
+                    trt.Dims([num_classes]),
+                    trt.Weights(np.zeros(num_classes, np.int32)),
+                )
+                gather_layer = network.add_gather(
+                    obj_score.get_output(0), indices.get_output(0), 2
+                )
+                updated_scores = network.add_elementwise(
+                    gather_layer.get_output(0),
+                    scores.get_output(0),
+                    trt.ElementWiseOperation.PROD,
+                )
 
-            # reshape box to [bs, num_boxes, 1, 4]
-            reshaped_boxes = network.add_shuffle(boxes.get_output(0))
-            reshaped_boxes.reshape_dims = trt.Dims([0, 0, 1, 4])
+                # reshape box to [bs, num_boxes, 1, 4]
+                reshaped_boxes = network.add_shuffle(boxes.get_output(0))
+                reshaped_boxes.reshape_dims = trt.Dims([0, 0, 1, 4])
 
-            # add batchedNMSPlugin, inputs:[boxes:(bs, num, 1, 4), scores:(bs, num, 1)]
-            trt.init_libnvinfer_plugins(trt_logger, "")
-            registry = trt.get_plugin_registry()
-            assert registry
-            creator = registry.get_plugin_creator("BatchedNMS_TRT", "1")
-            assert creator
-            fc = []
-            fc.append(
-                trt.PluginField(
-                    "shareLocation", np.array([1], dtype=int), trt.PluginFieldType.INT32
+                # add batchedNMSPlugin, inputs:[boxes:(bs, num, 1, 4), scores:(bs, num, 1)]
+                trt.init_libnvinfer_plugins(trt_logger, "")
+                registry = trt.get_plugin_registry()
+                assert registry
+                creator = registry.get_plugin_creator("BatchedNMS_TRT", "1")
+                assert creator
+                fc = []
+                fc.append(
+                    trt.PluginField(
+                        "shareLocation",
+                        np.array([1], dtype=int),
+                        trt.PluginFieldType.INT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "backgroundLabelId",
-                    np.array([-1], dtype=int),
-                    trt.PluginFieldType.INT32,
+                fc.append(
+                    trt.PluginField(
+                        "backgroundLabelId",
+                        np.array([-1], dtype=int),
+                        trt.PluginFieldType.INT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "numClasses",
-                    np.array([num_classes], dtype=int),
-                    trt.PluginFieldType.INT32,
+                fc.append(
+                    trt.PluginField(
+                        "numClasses",
+                        np.array([num_classes], dtype=int),
+                        trt.PluginFieldType.INT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "topK", np.array([top_k], dtype=int), trt.PluginFieldType.INT32
+                fc.append(
+                    trt.PluginField(
+                        "topK", np.array([top_k], dtype=int), trt.PluginFieldType.INT32
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "keepTopK",
-                    np.array([keep_top_k], dtype=int),
-                    trt.PluginFieldType.INT32,
+                fc.append(
+                    trt.PluginField(
+                        "keepTopK",
+                        np.array([keep_top_k], dtype=int),
+                        trt.PluginFieldType.INT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "scoreThreshold",
-                    np.array([conf_thres], dtype=np.float32),
-                    trt.PluginFieldType.FLOAT32,
+                fc.append(
+                    trt.PluginField(
+                        "scoreThreshold",
+                        np.array([conf_thres], dtype=np.float32),
+                        trt.PluginFieldType.FLOAT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "iouThreshold",
-                    np.array([iou_thres], dtype=np.float32),
-                    trt.PluginFieldType.FLOAT32,
+                fc.append(
+                    trt.PluginField(
+                        "iouThreshold",
+                        np.array([iou_thres], dtype=np.float32),
+                        trt.PluginFieldType.FLOAT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "isNormalized", np.array([0], dtype=int), trt.PluginFieldType.INT32
+                fc.append(
+                    trt.PluginField(
+                        "isNormalized",
+                        np.array([0], dtype=int),
+                        trt.PluginFieldType.INT32,
+                    )
                 )
-            )
-            fc.append(
-                trt.PluginField(
-                    "clipBoxes", np.array([0], dtype=int), trt.PluginFieldType.INT32
+                fc.append(
+                    trt.PluginField(
+                        "clipBoxes", np.array([0], dtype=int), trt.PluginFieldType.INT32
+                    )
                 )
-            )
 
-            fc = trt.PluginFieldCollection(fc)
-            nms_layer = creator.create_plugin("nms_layer", fc)
-            layer = network.add_plugin_v2(
-                [reshaped_boxes.get_output(0), updated_scores.get_output(0)], nms_layer
-            )
-            layer.get_output(0).name = "num_detections"
-            layer.get_output(1).name = "nmsed_boxes"
-            layer.get_output(2).name = "nmsed_scores"
-            layer.get_output(3).name = "nmsed_classes"
-            for i in range(4):
-                network.mark_output(layer.get_output(i))
-            # Add Batched NMS layer  ---- END
+                fc = trt.PluginFieldCollection(fc)
+                nms_layer = creator.create_plugin("nms_layer", fc)
+                layer = network.add_plugin_v2(
+                    [reshaped_boxes.get_output(0), updated_scores.get_output(0)],
+                    nms_layer,
+                )
+                layer.get_output(0).name = "num_detections"
+                layer.get_output(1).name = "nmsed_boxes"
+                layer.get_output(2).name = "nmsed_scores"
+                layer.get_output(3).name = "nmsed_classes"
+                for i in range(4):
+                    network.mark_output(layer.get_output(i))
+                # Add Batched NMS layer  ---- END
 
             engine = builder.build_engine(network, config)
 
@@ -354,5 +369,7 @@ class ModelConverter:
             with open(path, "wb") as f:
                 f.write(engine.serialize())
             print(f"Completed converting to TensorRT model file to {path}")
+            return True
         else:
             print("Failed to build the TensorRT engine.")
+            return False

@@ -64,9 +64,13 @@ def test_model_converter_onnx() -> None:
     os.remove(os.path.join("tests", ".model.onnx"))
 
 
+<<<<<<< HEAD
 def test_model_converter_tensorrt(
     keep_trt: bool = False, check_trt_exists: bool = False
 ) -> None:
+=======
+def test_model_converter_tensorrt(keep_trt: bool = False) -> None:
+>>>>>>> Add TensorRT conversion with NMS
     test_input = torch.rand((8, 3, 640, 640))
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     if not torch.cuda.is_available():
@@ -78,8 +82,11 @@ def test_model_converter_tensorrt(
 
     import tensorrt as trt
 
+<<<<<<< HEAD
     from scripts.utils.tensorrt_runner import TrtWrapper
 
+=======
+>>>>>>> Add TensorRT conversion with NMS
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
@@ -98,6 +105,7 @@ def test_model_converter_tensorrt(
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
     converter.dry_run()
 
+<<<<<<< HEAD
     if not (check_trt_exists and os.path.isfile(os.path.join("tests", ".model.trt"))):
         convert_ok = converter.to_tensorrt(
             os.path.join("tests", ".model.trt"),
@@ -127,10 +135,33 @@ def test_model_converter_tensorrt(
     assert torch.isclose(torch_out[0][:, :, :4], trt_out[:, :, :4], rtol=0.15).all()
     # Object and class scores
     assert torch.isclose(torch_out[0][:, :, 4:], trt_out[:, :, 4:], rtol=0.1).all()
+=======
+    converter.to_tensorrt(
+        os.path.join("tests", ".model.trt"), fp16=True, opset_version=11
+    )
+    trt_logger = trt.Logger(trt.Logger.VERBOSE)
+    trt.init_libnvinfer_plugins(None, "")
+    with open(os.path.join("tests", ".model.trt"), "rb") as f, trt.Runtime(
+        trt_logger
+    ) as runtime:
+        trt_engine = runtime.deserialize_cuda_engine(f.read())
+
+    if not keep_trt:
+        os.remove(os.path.join("tests", ".model.trt"))
+
+    assert trt_engine is not None
+
+    context = trt_engine.create_execution_context()
+    assert context is not None
+>>>>>>> Add TensorRT conversion with NMS
 
 
 if __name__ == "__main__":
     # test_model_converter_torchscript()
     # test_model_converter_onnx()
+<<<<<<< HEAD
     test_model_converter_tensorrt(keep_trt=True, check_trt_exists=True)
 
+=======
+    test_model_converter_tensorrt(keep_trt=True)
+>>>>>>> Add TensorRT conversion with NMS

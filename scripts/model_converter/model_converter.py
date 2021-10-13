@@ -86,7 +86,7 @@ class ModelConverter:
         #                     data = data.replace(b"cpu", b"cuda:0")
         #                 zipwrite.writestr(item, data)
 
-    def to_onnx(self, path: str, opset_version: int = 11, **kwargs) -> None:
+    def to_onnx(self, path: str, opset_version: int = 11, **kwargs: Any) -> None:
         """Export model to ONNX model.
 
         Args:
@@ -123,6 +123,10 @@ class ModelConverter:
         dla_core_id: int = -1,
         workspace_size_gib: int = 1,
         int8_calibrator: Optional[Any] = None,
+        conf_thres: float = 0.1,
+        iou_thres: float = 0.6,
+        top_k: int = 512,
+        keep_top_k: int = 100,
     ) -> None:
         """Convert model to TensorRT model.
 
@@ -131,6 +135,10 @@ class ModelConverter:
             opset_version: ONNX op set version. Recommended to stick with 11.
             int8: convert model to INT8 precision. int8_calibrator must be provided.
             int8_calibrator: int8 calibrator instance. (tensorrt.IInt8EntropyCalibrator2)
+            conf_thres: Confidence threshold for Batch NMS.
+            iou_thres: IoU threshold for Batch NMS.
+            top_k: top k parameter for Batch NMS.
+            keep_top_k: keep top k number of bboxes for Batch NMS.
         """
         try:
             import tensorrt as trt  # pylint: disable=import-outside-toplevel, import-error
@@ -227,8 +235,7 @@ class ModelConverter:
                 config.set_flag(trt.BuilderFlag.STRICT_TYPES)
                 print(f"Using DLA Core id {dla_core_id}")
 
-            engine = builder.build_engine(network, config)
-
+            # Add Batched NMS layer  ---- START
             previous_output = network.get_output(0)
             network.unmark_output(previous_output)
 
@@ -259,9 +266,88 @@ class ModelConverter:
                 scores.get_output(0),
                 trt.ElementWiseOperation.PROD,
             )
+
+            # reshape box to [bs, num_boxes, 1, 4]
             reshaped_boxes = network.add_shuffle(boxes.get_output(0))
             reshaped_boxes.reshape_dims = trt.Dims([0, 0, 1, 4])
-            print("")
+
+            # add batchedNMSPlugin, inputs:[boxes:(bs, num, 1, 4), scores:(bs, num, 1)]
+            trt.init_libnvinfer_plugins(trt_logger, "")
+            registry = trt.get_plugin_registry()
+            assert registry
+            creator = registry.get_plugin_creator("BatchedNMS_TRT", "1")
+            assert creator
+            fc = []
+            fc.append(
+                trt.PluginField(
+                    "shareLocation", np.array([1], dtype=int), trt.PluginFieldType.INT32
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "backgroundLabelId",
+                    np.array([-1], dtype=int),
+                    trt.PluginFieldType.INT32,
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "numClasses",
+                    np.array([num_classes], dtype=int),
+                    trt.PluginFieldType.INT32,
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "topK", np.array([top_k], dtype=int), trt.PluginFieldType.INT32
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "keepTopK",
+                    np.array([keep_top_k], dtype=int),
+                    trt.PluginFieldType.INT32,
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "scoreThreshold",
+                    np.array([conf_thres], dtype=np.float32),
+                    trt.PluginFieldType.FLOAT32,
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "iouThreshold",
+                    np.array([iou_thres], dtype=np.float32),
+                    trt.PluginFieldType.FLOAT32,
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "isNormalized", np.array([0], dtype=int), trt.PluginFieldType.INT32
+                )
+            )
+            fc.append(
+                trt.PluginField(
+                    "clipBoxes", np.array([0], dtype=int), trt.PluginFieldType.INT32
+                )
+            )
+
+            fc = trt.PluginFieldCollection(fc)
+            nms_layer = creator.create_plugin("nms_layer", fc)
+            layer = network.add_plugin_v2(
+                [reshaped_boxes.get_output(0), updated_scores.get_output(0)], nms_layer
+            )
+            layer.get_output(0).name = "num_detections"
+            layer.get_output(1).name = "nmsed_boxes"
+            layer.get_output(2).name = "nmsed_scores"
+            layer.get_output(3).name = "nmsed_classes"
+            for i in range(4):
+                network.mark_output(layer.get_output(i))
+            # Add Batched NMS layer  ---- END
+
+            engine = builder.build_engine(network, config)
 
         os.remove(onnx_path)
         if engine is not None:

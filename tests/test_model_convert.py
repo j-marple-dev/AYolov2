@@ -63,7 +63,8 @@ def test_model_converter_onnx() -> None:
     os.remove(os.path.join("tests", ".model.onnx"))
 
 
-def test_model_converter_tensorrt() -> None:
+def test_model_converter_tensorrt(keep_trt: bool = False) -> None:
+    test_input = torch.rand((8, 3, 640, 640))
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     if not torch.cuda.is_available():
         print("CUDA is not available. Skip test_model_converter_tensorrt")
@@ -71,6 +72,8 @@ def test_model_converter_tensorrt() -> None:
     if importlib.util.find_spec("tensorrt") is None:
         print("TensorRT is not installed. Skip test_model_converter_tensorrt")
         return
+
+    import tensorrt as trt
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -82,14 +85,26 @@ def test_model_converter_tensorrt() -> None:
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
     converter.dry_run()
 
-    converter.to_torch_script(os.path.join("tests", ".model.ts"))
-    # converter.to_onnx(os.path.join("tests", ".model.onnx"))
     converter.to_tensorrt(
         os.path.join("tests", ".model.trt"), fp16=True, opset_version=11
     )
+    trt_logger = trt.Logger(trt.Logger.VERBOSE)
+    trt.init_libnvinfer_plugins(None, "")
+    with open(os.path.join("tests", ".model.trt"), "rb") as f, trt.Runtime(
+        trt_logger
+    ) as runtime:
+        trt_engine = runtime.deserialize_cuda_engine(f.read())
+
+    if not keep_trt:
+        os.remove(os.path.join("tests", ".model.trt"))
+
+    assert trt_engine is not None
+
+    context = trt_engine.create_execution_context()
+    assert context is not None
 
 
 if __name__ == "__main__":
     # test_model_converter_torchscript()
     # test_model_converter_onnx()
-    test_model_converter_tensorrt()
+    test_model_converter_tensorrt(keep_trt=True)

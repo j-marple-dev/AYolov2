@@ -9,8 +9,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
+from kindle.modules import YOLOHead
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
+
+from scripts.data_loader import LoadImagesAndLabels
 
 
 def check_anchor_order(m: nn.Module) -> None:
@@ -179,7 +182,7 @@ def check_anchors(
         assert isinstance(
             model.module.model, nn.Sequential
         ), "Model must be a sequential"
-        m: "Detect" = model.module.model[-1]  # noqa
+        m: "YOLOHead" = model.module.model[-1]  # noqa
     else:
         m = model.model[-1]
 

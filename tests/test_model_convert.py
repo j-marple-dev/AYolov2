@@ -63,7 +63,9 @@ def test_model_converter_onnx() -> None:
     os.remove(os.path.join("tests", ".model.onnx"))
 
 
-def test_model_converter_tensorrt(keep_trt: bool = False) -> None:
+def test_model_converter_tensorrt(
+    keep_trt: bool = False, check_trt_exists: bool = False
+) -> None:
     test_input = torch.rand((8, 3, 640, 640))
     # device = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     if not torch.cuda.is_available():
@@ -75,36 +77,50 @@ def test_model_converter_tensorrt(keep_trt: bool = False) -> None:
 
     import tensorrt as trt
 
+    from scripts.utils.tensorrt_runner import TrtWrapper
+
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
 
     model.eval().export()
+    torch_out = model(test_input)
+    obj_score = (
+        torch.max(torch_out[0][:, :, 5:], dim=2, keepdim=True)[0]
+        * torch_out[0][:, :, 4:5]
+    )
+
     profiler = model.profile(verbose=True, n_run=1, input_size=(640, 640), batch_size=8)
 
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
     converter.dry_run()
 
-    converter.to_tensorrt(
-        os.path.join("tests", ".model.trt"), fp16=True, opset_version=11
+    if not (check_trt_exists and os.path.isfile(os.path.join("tests", ".model.trt"))):
+        convert_ok = converter.to_tensorrt(
+            os.path.join("tests", ".model.trt"),
+            fp16=True,
+            opset_version=11,
+            build_nms=False,
+        )
+        assert convert_ok
+
+    trt_model = TrtWrapper(
+        os.path.join("tests", ".model.trt"), 8, torch.device("cuda:0")
     )
-    trt_logger = trt.Logger(trt.Logger.VERBOSE)
-    trt.init_libnvinfer_plugins(None, "")
-    with open(os.path.join("tests", ".model.trt"), "rb") as f, trt.Runtime(
-        trt_logger
-    ) as runtime:
-        trt_engine = runtime.deserialize_cuda_engine(f.read())
+    test_input = test_input.to(torch.device("cuda:0"), non_blocking=True).contiguous()
+    trt_out = trt_model(test_input, raw_out=True)[0]
+    trt_out = trt_out.cpu()
 
     if not keep_trt:
         os.remove(os.path.join("tests", ".model.trt"))
 
-    assert trt_engine is not None
-
-    context = trt_engine.create_execution_context()
-    assert context is not None
+    # Bounding boxes
+    assert torch.isclose(torch_out[0][:, :, :4], trt_out[:, :, :4], rtol=0.15).all()
+    # Object and class scores
+    assert torch.isclose(torch_out[0][:, :, 4:], trt_out[:, :, 4:], rtol=0.1).all()
 
 
 if __name__ == "__main__":
     # test_model_converter_torchscript()
     # test_model_converter_onnx()
-    test_model_converter_tensorrt(keep_trt=True)
+    test_model_converter_tensorrt(keep_trt=False, check_trt_exists=False)

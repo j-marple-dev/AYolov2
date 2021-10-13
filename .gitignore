@@ -130,4 +130,7 @@ dmypy.json
 
 # Docker related
 .last_exec_cont_id.txt
+
+# unit test related
+tests/.*
 *.cache

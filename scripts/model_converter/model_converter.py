@@ -8,17 +8,18 @@ Converts PyTorch model into TorchScript, ONNX and, TensorRT.
 import os
 from typing import Any, Optional, Tuple, Union
 
+import numpy as np
 import onnx
-from onnxsim import simplify
 import torch
+from onnxsim import simplify
 from torch import nn
-from scripts.utils.activations import SiLU, Hardswish
 
 # from src.tensorrt.int8_calibrator import Int8Calibrator
 
 
 def simplify_onnx(onnx_path: str) -> None:
     """Simplify ONNX model.
+
     Args:
         onnx_path: ONNX model path to simplify.
     """
@@ -41,6 +42,7 @@ class ModelConverter:
         verbose: int = 1,
     ) -> None:
         """Initialize ModelConverter instance.
+
         Args:
             model: PyTorch module.
             batch_size: batch size is required when converting to TensorRT model.
@@ -57,9 +59,7 @@ class ModelConverter:
         self.model = model
         self.batch_size = batch_size
         self.device = next(self.model.parameters()).device
-        self.test_input = torch.zeros(
-            batch_size, 3, *input_size, device=self.device
-        )
+        self.test_input = torch.zeros(batch_size, 3, *input_size, device=self.device)
 
     def dry_run(self) -> None:
         """Dry run the model for memory load purpose."""
@@ -68,6 +68,7 @@ class ModelConverter:
 
     def to_torch_script(self, path: str) -> None:
         """Export model to TorchScript.
+
         Args:
             path: export path.
         """
@@ -87,18 +88,12 @@ class ModelConverter:
 
     def to_onnx(self, path: str, opset_version: int = 11, **kwargs) -> None:
         """Export model to ONNX model.
+
         Args:
            path: export path
            opset_version: ONNX op set version.
+           kwargs: keyword arguments for torch.onnx.export
         """
-        # temp convert model
-        for k, m in self.model.named_modules():
-            if hasattr(m, "activation"):
-                if isinstance(m.activation, nn.Hardswish):
-                    m.activation = Hardswish()
-                elif isinstance(m.activation, nn.SiLU):
-                    m.activation = SiLU()
-
         torch.onnx.export(
             self.model,
             self.test_input,
@@ -130,6 +125,7 @@ class ModelConverter:
         int8_calibrator: Optional[Any] = None,
     ) -> None:
         """Convert model to TensorRT model.
+
         Args:
             path: export path
             opset_version: ONNX op set version. Recommended to stick with 11.
@@ -140,6 +136,8 @@ class ModelConverter:
             import tensorrt as trt  # pylint: disable=import-outside-toplevel, import-error
         except ModuleNotFoundError as error:
             raise Exception("TensorRT is not installed.") from error
+
+        trt.init_libnvinfer_plugins(None, "")
 
         onnx_path = f"{path}.onnx"
         self.to_onnx(onnx_path, opset_version=opset_version)
@@ -154,12 +152,7 @@ class ModelConverter:
         else:
             trt_logger = trt.Logger()
 
-        if trt.__version__[0] < "7":
-            explicit_batch = []
-        else:
-            explicit_batch = [
-                1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
-            ]
+        explicit_batch = [1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)]
 
         with trt.Builder(trt_logger) as builder, builder.create_network(
             *explicit_batch
@@ -174,83 +167,106 @@ class ModelConverter:
                 print("INT8 calibrator must be provided. Switching to float precision.")
                 int8 = False
 
-            import pdb; pdb.set_trace()
             if not parser.parse(onnx_data):
                 print("Failed to parse the ONNX file.")
                 for i in range(parser.num_errors):
                     print(parser.get_error(i))
                 return
 
-            if trt.__version__[0] >= "7":
-                network.get_input(0).shape = (self.batch_size,) + network.get_input(
-                    0
-                ).shape[1:]
+            network.get_input(0).shape = (self.batch_size,) + network.get_input(
+                0
+            ).shape[1:]
             # Add custom layer here if deisred.
 
-            builder.max_batch_size = self.TRT_MAX_BATCH_SIZE
-            # builder.max_batch_size = self.batch_size
-            if trt.__version__[0] < "7":
-                if dla_core_id >= 0:
-                    raise RuntimeError(
-                        "DLA core is not supported by older version API. "
-                        f"Current TensorRT version: {trt.__version__}"
-                    )
-                builder.max_workspace_size = workspace_size_gib << 30
-                builder.fp16_mode = builder.platform_has_fast_fp16 if fp16 else False
-                if int8:
-                    builder.int8_mode = True
-                    builder.int8_calibrator = int8_calibrator
-                engine = builder.build_cuda_engine(network)
-            else:
-                config = builder.create_builder_config()
-                config.max_workspace_size = workspace_size_gib << 30
-                config.set_flag(trt.BuilderFlag.GPU_FALLBACK)
-                if fp16:
-                    config.set_flag(trt.BuilderFlag.FP16)
-                profile = builder.create_optimization_profile()
-                profile.set_shape(
-                    "images",
-                    (
-                        # self.TRT_MAX_BATCH_SIZE,
-                        self.batch_size,
-                        3,
-                        self.test_input.shape[2],
-                        self.test_input.shape[3],
-                    ),
-                    (
-                        # self.TRT_MAX_BATCH_SIZE,
-                        self.batch_size,
-                        3,
-                        self.test_input.shape[2],
-                        self.test_input.shape[3],
-                    ),
-                    (
-                        # self.TRT_MAX_BATCH_SIZE,
-                        self.batch_size,
-                        3,
-                        self.test_input.shape[2],
-                        self.test_input.shape[3],
-                    ),
-                )
-                config.add_optimization_profile(profile)
+            # builder.max_batch_size = self.TRT_MAX_BATCH_SIZE
+            builder.max_batch_size = self.batch_size
+            config = builder.create_builder_config()
+            config.max_workspace_size = workspace_size_gib << 30
+            config.set_flag(trt.BuilderFlag.GPU_FALLBACK)
 
-                if int8:
-                    config.set_flag(trt.BuilderFlag.INT8)
-                    config.int8_calibrator = int8_calibrator
-                    config.set_calibration_profile(profile)
-                if dla_core_id >= 0:
-                    config.default_device_type = trt.DeviceType.DLA
-                    config.DLA_core = dla_core_id
-                    config.set_flag(trt.BuilderFlag.STRICT_TYPES)
-                    print(f"Using DLA Core id {dla_core_id}")
-                engine = builder.build_engine(network, config)
+            profile = builder.create_optimization_profile()
+            profile.set_shape(
+                input="images",
+                min=(
+                    # self.TRT_MAX_BATCH_SIZE,
+                    self.batch_size,
+                    3,
+                    self.test_input.shape[2],
+                    self.test_input.shape[3],
+                ),
+                opt=(
+                    # self.TRT_MAX_BATCH_SIZE,
+                    self.batch_size,
+                    3,
+                    self.test_input.shape[2],
+                    self.test_input.shape[3],
+                ),
+                max=(
+                    # self.TRT_MAX_BATCH_SIZE,
+                    self.batch_size,
+                    3,
+                    self.test_input.shape[2],
+                    self.test_input.shape[3],
+                ),
+            )
+            config.add_optimization_profile(profile)
+
+            if fp16:
+                config.set_flag(trt.BuilderFlag.FP16)
+                builder.fp16_mode = True
+
+            if int8:
+                # TODO(jeikeilim): This won't work for now.
+                config.set_flag(trt.BuilderFlag.INT8)
+                config.int8_calibrator = int8_calibrator
+                config.set_calibration_profile(profile)
+
+            if dla_core_id >= 0:
+                config.default_device_type = trt.DeviceType.DLA
+                config.DLA_core = dla_core_id
+                config.set_flag(trt.BuilderFlag.STRICT_TYPES)
+                print(f"Using DLA Core id {dla_core_id}")
+
+            engine = builder.build_engine(network, config)
+
+            previous_output = network.get_output(0)
+            network.unmark_output(previous_output)
+
+            strides = trt.Dims([1, 1, 1])
+            starts = trt.Dims([0, 0, 0])
+
+            bs, num_boxes, n_out = previous_output.shape
+            num_classes = n_out - 5
+            shapes = trt.Dims([bs, num_boxes, 4])
+
+            boxes = network.add_slice(previous_output, starts, shapes, strides)
+
+            starts[2] = 4
+            shapes[2] = 1
+            obj_score = network.add_slice(previous_output, starts, shapes, strides)
+
+            starts[2] = 5
+            shapes[2] = num_classes
+            scores = network.add_slice(previous_output, starts, shapes, strides)
+            indices = network.add_constant(
+                trt.Dims([num_classes]), trt.Weights(np.zeros(num_classes, np.int32))
+            )
+            gather_layer = network.add_gather(
+                obj_score.get_output(0), indices.get_output(0), 2
+            )
+            updated_scores = network.add_elementwise(
+                gather_layer.get_output(0),
+                scores.get_output(0),
+                trt.ElementWiseOperation.PROD,
+            )
+            reshaped_boxes = network.add_shuffle(boxes.get_output(0))
+            reshaped_boxes.reshape_dims = trt.Dims([0, 0, 1, 4])
+            print("")
 
         os.remove(onnx_path)
-
         if engine is not None:
             with open(path, "wb") as f:
                 f.write(engine.serialize())
             print(f"Completed converting to TensorRT model file to {path}")
         else:
             print("Failed to build the TensorRT engine.")
-

@@ -131,7 +131,7 @@ def test_train() -> None:
         preprocess=lambda x: (x / 255.0).astype(np.float32),
         rect=False,
         pad=0,
-        mosaic_prob=cfg["hyper_params"]["mosaic"],
+        mosaic_prob=0,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -151,7 +151,12 @@ def test_train() -> None:
     )
 
     trainer = YoloTrainer(
-        model, cfg, train_dataloader=train_loader, val_dataloader=val_loader
+        model,
+        cfg,
+        train_dataloader=train_loader,
+        val_dataloader=val_loader,
+        ema=ema,
+        device=device,
     )
     trainer.train()
     # pl_model = YoloPLModule(model, cfg)

@@ -93,14 +93,15 @@ class YoloPLModule(AbstractPLModule):
         self.mlc = mlc
         self.nb = nb
         self.ema: Optional[ModelEMA] = None
+        self.accumulate: int
 
     def init_optimizer(
         self,
     ) -> Tuple[List[torch.optim.Optimizer], List[lr_scheduler.LambdaLR]]:
         """Initialize optimizer and scheduler."""
         nbs = 64  # nominal batch size.
-        accumulate = max(round(nbs / self.total_batch_size), 1)
-        self.hyp["weights_decay"] *= self.total_batch_size * accumulate / nbs
+        self.accumulate = max(round(nbs / self.total_batch_size), 1)
+        self.hyp["weights_decay"] *= self.total_batch_size * self.accumulate / nbs
 
         pg0: List[torch.Tensor] = []  # batch normalization
         pg1: List[torch.Tensor] = []  # weights
@@ -248,7 +249,7 @@ class YoloPLModule(AbstractPLModule):
         self.freeze_params(freeze)
         self.start_epoch = 0
         self.best_fitness: Union[float, np.ndarray] = 0.0
-        if pretrained:
+        if pretrained and self.ckpt is not None:
             if self.ckpt.get("training_results") is not None:
                 with open(self.results_file, "w") as file:
                     file.write(self.ckpt["training_results"])  # write results.txt
@@ -272,9 +273,9 @@ class YoloPLModule(AbstractPLModule):
         imgsz, imgsz_test = [check_img_size(x, gs) for x in self.opt["img_size"]]
 
         if self.rank in [-1, 0] and self.ema is not None:
-            ema.updates = self.start_epoch * self.nb // accumulate
+            self.ema.updates = self.start_epoch * self.nb // self.accumulate
             if not self.opt["resume"]:
-                labels = np.concatenate()
+                labels = np.concatenate()  # noqa
 
         # TODO(ulken94): How to get number of classes.
         self.hyp["cls"] *= self.model.nc / 80.0
@@ -282,4 +283,5 @@ class YoloPLModule(AbstractPLModule):
         self.model.gr = 1.0
 
     def prepare_ema(self) -> None:
+        """Prepare ema."""
         self.ema = ModelEMA(self.model) if self.rank in [-1, 0] else None

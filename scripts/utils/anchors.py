@@ -58,9 +58,7 @@ def kmean_anchors(
 
     def metric(
         k: Union[torch.Tensor, np.ndarray], wh: Union[torch.Tensor, np.ndarray]
-    ) -> Tuple[
-        Union[torch.Tensor, np.ndarray], Union[torch.Tensor, np.ndarray]
-    ]:  # compute metrics
+    ) -> Tuple[Union[torch.Tensor], Union[torch.Tensor]]:  # compute metrics
         r = wh[:, None] / k[None]
         x = torch.min(r, 1.0 / r).min(2)[0]  # ratio metric
         # x = wh_iou(wh, torch.tensor(k))  # iou metric

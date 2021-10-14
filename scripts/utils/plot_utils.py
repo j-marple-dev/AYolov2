@@ -295,7 +295,7 @@ def draw_labels(
 
 def plot_pr_curve(
     px: np.ndarray,
-    py: np.ndarray,
+    py: list,
     ap: np.ndarray,
     save_dir: str = "pr_curve.png",
     names: list = [],  # noqa: B006
@@ -311,19 +311,19 @@ def plot_pr_curve(
     """
     # Precision-recall curve
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
-    py = np.stack(py, axis=1)
+    n_py = np.stack(py, axis=1)
 
     if 0 < len(names) < 21:  # display per-class legend if < 21 classes
-        for i, y in enumerate(py.T):
+        for i, y in enumerate(n_py.T):
             ax.plot(
                 px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}"
             )  # plot(recall, precision)
     else:
-        ax.plot(px, py, linewidth=1, color="grey")  # plot(recall, precision)
+        ax.plot(px, n_py, linewidth=1, color="grey")  # plot(recall, precision)
 
     ax.plot(
         px,
-        py.mean(1),
+        n_py.mean(1),
         linewidth=3,
         color="blue",
         label="all classes %.3f mAP@0.5" % ap[:, 0].mean(),

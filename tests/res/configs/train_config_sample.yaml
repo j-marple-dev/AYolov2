@@ -21,6 +21,7 @@ train:
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
   log_dir: "exp"
+  plot: true
 
 
 hyper_params:
@@ -44,6 +45,7 @@ hyper_params:
   cls_pw: 1.0  # cls BCELoss positive_weight
   obj: 1.0  # obj loss gain (scale with pixels)
   obj_pw: 1.0  # obj BCELoss positive_weight
+  conf_t: 0.1  # confidence threshold
   iou_t: 0.20  # IoU training threshold
   anchor_t: 4.0  # anchor-multiple threshold
   # anchors: 3  # anchors per output layer (0 to ignore)

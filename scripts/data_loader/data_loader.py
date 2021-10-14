@@ -19,15 +19,15 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from scripts.utils.constants import LABELS
 from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
                                                     mixup, random_perspective)
+from scripts.utils.constants import LABELS
 from scripts.utils.general import (get_logger, segments2boxes, xyn2xy,
                                    xywh2xyxy, xyxy2xywh)
 
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
 EXIF_REVERSE_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
-CACHE_VERSION = "v0.2.2"
+CACHE_VERSION = "v0.2.3"
 NUM_THREADS = os.cpu_count()
 
 LOGGER = get_logger(__name__)
@@ -446,7 +446,6 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         yolo_augmentation: Optional[Dict[str, Any]] = None,
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
-        mosaic_prob: float = 1.0,
         dataset_name: str = "COCO",
     ) -> None:
         """Initialize LoadImageAndLabels.
@@ -572,7 +571,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             else (self.img_size, self.img_size)
         )
 
-        if random.random() < self.yolo_augmentation.get("mosaic", 1.0):
+        if random.random() < self.yolo_augmentation.get("mosaic", 0.0):
             img, labels = self._load_mosaic(index)
             shapes = (0, 0), (0, 0)
             if random.random() < self.yolo_augmentation.get("mixup", 1.0):
@@ -601,7 +600,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                     labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad
                 )
 
-            if self.yolo_augmentation.get("augment", True):
+            if self.yolo_augmentation.get("augment", False):
                 img, labels = random_perspective(
                     img,
                     labels,
@@ -700,7 +699,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             pad_w = x1a - x1b
             pad_h = y1a - y1b
 
-            if self.labels[indices[i]] is None:
+            if self.labels[indices[i]].shape[0] == 0:
                 labels = np.empty((0, 5), dtype=np.float32)
                 segments = []
             else:
@@ -817,11 +816,11 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
                     _label[_img_path] = (_label_list, _segments)
                 else:
-                    _label[_img_path] = (None, None)
+                    _label[_img_path] = (np.zeros((0, 5), dtype=np.float32), None)
             except Exception as e:
                 _err_msg += f"[LoadImagesAndLabels] WARNING: {_img_path}: {e}"
 
-                _label[_img_path] = (None, None)
+                _label[_img_path] = (np.zeros((0, 5), dtype=np.float32), None)
                 _label["info"] = {"msgs": {_img_path: _err_msg}}  # type: ignore
 
                 LOGGER.warn(_err_msg)

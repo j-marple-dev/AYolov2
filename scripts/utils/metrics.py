@@ -31,7 +31,6 @@ def bbox_ioa(box1: np.ndarray, box2: np.ndarray, eps: float = 1e-7) -> np.ndarra
     Return:
         shape (n)
     """
-
     box2 = box2.transpose()
 
     # Get the coordinates of bounding boxes

@@ -6,9 +6,7 @@
 
 import logging
 import math
-import random
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -108,7 +106,7 @@ def segments2boxes(segments: List[np.ndarray]) -> np.ndarray:
     for s in segments:
         x, y = s.T  # segment xy
         boxes.append([x.min(), y.min(), x.max(), y.max()])  # cls, xyxy
-    return xyxy2xywh(np.array(boxes), clip_eps=None, check_validity=False)  # cls, xywh
+    return xyxy2xywh(np.array(boxes), clip_eps=None, check_validity=False)  # type: ignore
 
 
 def box_candidates(
@@ -140,45 +138,6 @@ def box_candidates(
         & (w2 * h2 / (w1 * h1 + eps) > area_thr)
         & (ar < ar_thr)
     )  # candidates
-
-
-def plot_label_histogram(labels: np.ndarray, save_dir: Union[str, Path] = "") -> None:
-    """Plot dataset labels."""
-    c, b = labels[:, 0], labels[:, 1:].transpose()
-    nc = int(c.max() + 1)  # number of classes
-
-    fig, ax = plt.subplots(2, 2, figsize=(8, 8), tight_layout=True)
-    ax = ax.ravel()
-    ax[0].hist(c, bins=np.linspace(0, nc, nc + 1) - 0.5, rwidth=0.8)
-    ax[0].set_xlabel("classes")
-    ax[1].scatter(b[0], b[1], c=hist2d(b[0], b[1], 90), cmap="jet")
-    ax[1].set_xlabel("x")
-    ax[1].set_ylabel("y")
-    ax[2].scatter(b[2], b[3], c=hist2d(b[2], b[3], 90), cmap="jet")
-    ax[2].set_xlabel("width")
-    ax[2].set_ylabel("height")
-    plt.savefig(Path(save_dir) / "labels.png", dpi=200)
-    plt.close()
-
-    # seaborn correlogram
-    try:
-        import pandas as pd
-        import seaborn as sns
-
-        x = pd.DataFrame(b.transpose(), columns=["x", "y", "width", "height"])
-        sns.pairplot(
-            x,
-            corner=True,
-            diag_kind="hist",
-            kind="scatter",
-            markers="o",
-            plot_kws=dict(s=3, edgecolor=None, linewidth=1, alpha=0.02),
-            diag_kws=dict(bins=50),
-        )
-        plt.savefig(Path(save_dir) / "labels_correlogram.png", dpi=200)
-        plt.close()
-    except Exception:
-        pass
 
 
 def labels_to_class_weights(
@@ -280,7 +239,7 @@ def xyn2xy(
     x: Union[torch.Tensor, np.ndarray],
     wh: Tuple[float, float] = (640, 640),
     pad: Tuple[float, float] = (0.0, 0.0),
-):
+) -> Union[torch.Tensor, np.ndarray]:
     """Convert normalized xy (n, 2) to pixel coordinates xy.
 
     wh: Image size (width and height). If normalized xywh to pixel xyxy format, place image size here.

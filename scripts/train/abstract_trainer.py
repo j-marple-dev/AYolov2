@@ -4,7 +4,10 @@
 - Contact: hekim@jmarple.ai
 """
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+
+if TYPE_CHECKING:
+    from tqdm import tqdm
 
 import torch
 from torch import nn
@@ -32,12 +35,15 @@ class AbstractTrainer(ABC):
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.cuda = self.device.type != "cpu"
+        self.start_epoch = 0
+        self.pbar: tqdm
 
     @abstractmethod
     def training_step(
         self,
         batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
         batch_idx: int,
+        epoch: int,
     ) -> torch.Tensor:
         """Train a step.
 
@@ -89,23 +95,33 @@ class AbstractTrainer(ABC):
 
     def train(self) -> None:
         """Train model."""
-        for epoch in range(self.epochs):
-            print(f"Epoch {epoch} starts.")
-            self.on_start_epoch()
-            self.model.train()
-            for i, batch in enumerate(self.train_dataloader):
-                self.training_step(batch, i)
-            self.model.eval()
-            for i, batch in enumerate(self.val_dataloader):
-                self.validation_step(batch, i)
-            self.on_end_epoch()
+        self.on_train_start()
 
-    def on_start_epoch(self) -> None:
+        self.model.to(self.device)
+        for epoch in range(self.start_epoch, self.epochs):
+            is_final_epoch = epoch + 1 == self.epochs
+            self.on_start_epoch(epoch)
+            self.model.train()
+            for i, batch in (
+                self.pbar if self.pbar else enumerate(self.train_dataloader)
+            ):
+                self.training_step(batch, i, epoch)
+            self.on_end_epoch(epoch)
+            if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
+                self.model.eval()
+                self.validation()
+
+    def on_start_epoch(self, epoch: int) -> None:
         """Run on epoch starts."""
         pass
 
-    def on_end_epoch(self) -> None:
+    def on_end_epoch(self, epoch: int) -> None:
         """Run on epoch ends."""
+        pass
+
+    def on_train_start(self) -> None:
+        """Run on start training."""
+        self.start_epoch = 0
         pass
 
     def prepare_img(self, img: torch.Tensor) -> torch.Tensor:

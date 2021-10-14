@@ -74,7 +74,6 @@ class YoloTrainer(AbstractTrainer):
             0,
         )  # P, R, mAP@0.5, mAP@0.5-0.95, val_loss(box, obj, cls)
         self.scaler: amp.GradScaler
-        self.pbar: tqdm
         self.mloss: torch.Tensor
         self.num_warmups = max(
             round(self.cfg_hyp["warmup_epochs"] * len(self.train_dataloader)), 1e3
@@ -372,8 +371,9 @@ class YoloTrainer(AbstractTrainer):
         """
         self.update_image_weights()
         self.set_datasampler(epoch)
-        self.log_train_info()
+        self.log_train_stats()
         self.set_trainloader_tqdm()
+        self.mloss = torch.zeros(4, device=self.device)
         for optimizer in self.optimizer:
             optimizer.zero_grad()
 
@@ -383,6 +383,8 @@ class YoloTrainer(AbstractTrainer):
         Args:
             epoch: current epoch.
         """
+        for optimizer in self.optimizer:  # for tensorboard
+            lr = [x["lr"] for x in optimizer.param_groups]  # noqa
         self.scheduler_step()
         if self.rank in [-1, 0] and self.ema is not None:
             self.update_ema_attr()
@@ -413,46 +415,22 @@ class YoloTrainer(AbstractTrainer):
             enumerate(self.train_dataloader), total=len(self.train_dataloader)
         )
 
-    def on_after_batch(self, epoch: int) -> None:
-        """Execute after every batches.
-
-        Args:
-            epoch: current epoch.
-        """
-        # TODO(ulken94): Log params below.
-        for optimizer in self.optimizer:  # for tensorboard
-            lr = [x["lr"] for x in optimizer.param_groups]  # noqa
-        for scheduler in self.scheduler:
-            scheduler.step()
-
-        if self.rank in [-1, 0] and self.ema is not None:
-            # mAP
-            self.ema.update_attr(
-                self.model, include=["yaml", "nc", "hyp", "gr", "names", "stride"]
-            )
-
-    def log_train_info(self) -> None:
+    def log_train_stats(self) -> None:
         """Log train information table headers."""
         LOGGER.info(
             ("\n" + "%10s" * 8)
             % ("Epoch", "gpu_mem", "box", "obj", "cls", "total", "targets", "img_size")
         )
 
-    def train(self, test_every_epoch: int = 1) -> None:
-        """Train model.
-
-        Args:
-            test_every_epoch: validate model in every {test_every_epoch} epochs.
-        """
-        start_epoch = 0
-
+    def on_train_start(self) -> None:
+        """Run on start training."""
         for scheduler in self.scheduler:
-            scheduler.last_epoch = start_epoch - 1  # type: ignore
+            scheduler.last_epoch = self.start_epoch - 1  # type: ignore
 
         self.scaler = self.set_grad_scaler()
 
-        self.model.to(self.device)
-
+    def log_train_cfg(self) -> None:
+        """Log train configurations."""
         LOGGER.info(
             "Image sizes %g train, %g test\n"
             "Using %g dataloader workers\nLogging results to %s\n"
@@ -466,17 +444,24 @@ class YoloTrainer(AbstractTrainer):
             )
         )
 
-        # train epochs
-        for epoch in range(start_epoch, self.epochs):
-            is_final_epoch = epoch + 1 == self.epochs
-            self.mloss = torch.zeros(4, device=self.device)
-            self.on_start_epoch(epoch)
-            self.model.train()
+    # def train(self, test_every_epoch: int = 1) -> None:
+    #     """Train model.
 
-            # train batch
-            for i, batch in self.pbar:
-                _loss = self.training_step(batch, i, epoch)  # noqa
-            self.on_end_epoch(epoch)
-            if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
-                self.model.eval()
-                self.validation()  # TODO(ulken94): Save model and save validation logs.
+    #     Args:
+    #         test_every_epoch: validate model in every {test_every_epoch} epochs.
+    #     """
+    #     self.start_epoch = 0
+
+    #     # train epochs
+    #     for epoch in range(self.start_epoch, self.epochs):
+    #         is_final_epoch = epoch + 1 == self.epochs
+    #         self.on_start_epoch(epoch)
+    #         self.model.train()
+
+    #         # train batch
+    #         for i, batch in self.pbar:
+    #             _loss = self.training_step(batch, i, epoch)  # noqa
+    #         self.on_end_epoch(epoch)
+    #         if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
+    #             self.model.eval()
+    #             self.validation()  # TODO(ulken94): Save model and save validation logs.

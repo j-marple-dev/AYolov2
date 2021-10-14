@@ -109,7 +109,7 @@ class YoloValidator(AbstractValidator):
         self.set_confusion_matrix()
         self.init_statistics()
         self.seen = 0
-        self.tqdm = tqdm(enumerate(self.dataloader), desc=s)
+        self.tqdm = tqdm(enumerate(self.dataloader), desc=s, total=len(self.dataloader))
 
     def prepare_img(self, img: torch.Tensor) -> torch.Tensor:
         """Prepare img for model."""

@@ -57,6 +57,10 @@ class AbstractTrainer(ABC):
         pass
 
     @abstractmethod
+    def validation(self) -> None:
+        """Validate model."""
+        pass
+
     def validation_step(
         self, batch: Union[List[torch.Tensor], torch.Tensor], batch_idx: int
     ) -> torch.Tensor:

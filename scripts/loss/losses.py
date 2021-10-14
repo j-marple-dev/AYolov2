@@ -294,8 +294,9 @@ class ComputeLoss:
         lobj *= self.hyp["obj"]
         lcls *= self.hyp["cls"]
         bs = tobj.shape[0]  # batch size
+        loss = lbox + lobj + lcls
 
-        return (lbox + lobj + lcls) * bs, torch.cat((lbox, lobj, lcls)).detach()
+        return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
 
     def build_targets(
         self, preds: torch.Tensor, targets: torch.Tensor

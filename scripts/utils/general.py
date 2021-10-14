@@ -6,17 +6,34 @@
 
 import logging
 import math
-import random
-from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
-import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from scripts.utils.constants import LOG_LEVEL, PLOT_COLOR
-from scripts.utils.plot_utils import hist2d
+from scripts.utils.constants import LOG_LEVEL
+
+
+def resample_segments(segments: List[np.ndarray], n: int = 1000) -> List[np.ndarray]:
+    """Interpolate segments by (n, 2) segment points.
+
+    Args:
+        segments: segmentation coordinates list [(m, 2), ...]
+        n: number of interpolation.
+
+    Return:
+        Interpolated segmentation (n, 2)
+    """
+    for i, s in enumerate(segments):
+        x = np.linspace(0, len(s) - 1, n)
+        xp = np.arange(len(s))
+        segments[i] = (
+            np.concatenate([np.interp(x, xp, s[:, i]) for i in range(2)])
+            .reshape(2, -1)
+            .T
+        )  # segment xy
+
+    return segments
 
 
 def make_divisible(x: int, divisor: int, minimum_check_number: int = 0) -> int:
@@ -55,43 +72,72 @@ def check_img_size(img_size: int, s: int = 32) -> int:
     return new_size
 
 
-def plot_label_histogram(labels: np.ndarray, save_dir: Union[str, Path] = "") -> None:
-    """Plot dataset labels."""
-    c, b = labels[:, 0], labels[:, 1:].transpose()
-    nc = int(c.max() + 1)  # number of classes
+def segment2box(segment: np.ndarray, width: int = 640, height: int = 640) -> np.ndarray:
+    """Convert 1 segment label to 1 box label.
 
-    fig, ax = plt.subplots(2, 2, figsize=(8, 8), tight_layout=True)
-    ax = ax.ravel()
-    ax[0].hist(c, bins=np.linspace(0, nc, nc + 1) - 0.5, rwidth=0.8)
-    ax[0].set_xlabel("classes")
-    ax[1].scatter(b[0], b[1], c=hist2d(b[0], b[1], 90), cmap="jet")
-    ax[1].set_xlabel("x")
-    ax[1].set_ylabel("y")
-    ax[2].scatter(b[2], b[3], c=hist2d(b[2], b[3], 90), cmap="jet")
-    ax[2].set_xlabel("width")
-    ax[2].set_ylabel("height")
-    plt.savefig(Path(save_dir) / "labels.png", dpi=200)
-    plt.close()
+    Applying inside-image constraint, i.e. (xy1, xy2, ...) to (xyxy)
 
-    # seaborn correlogram
-    try:
-        import pandas as pd
-        import seaborn as sns
+    Args:
+        segment: one segmentation coordinates. (n, 2)
+        width: width constraint.
+        height: height constraint
 
-        x = pd.DataFrame(b.transpose(), columns=["x", "y", "width", "height"])
-        sns.pairplot(
-            x,
-            corner=True,
-            diag_kind="hist",
-            kind="scatter",
-            markers="o",
-            plot_kws=dict(s=3, edgecolor=None, linewidth=1, alpha=0.02),
-            diag_kws=dict(bins=50),
-        )
-        plt.savefig(Path(save_dir) / "labels_correlogram.png", dpi=200)
-        plt.close()
-    except Exception:
-        pass
+    Return:
+        bounding box contrained by (width, height)
+    """
+    x, y = segment.T  # segment xy
+    inside = (x >= 0) & (y >= 0) & (x <= width) & (y <= height)
+    x, y, = x[inside], y[inside]
+    return (
+        np.array([x.min(), y.min(), x.max(), y.max()]) if any(x) else np.zeros((1, 4))
+    )  # xyxy
+
+
+def segments2boxes(segments: List[np.ndarray]) -> np.ndarray:
+    """Convert segment labels to box labels, i.e. (xy1, xy2, ...) to (xywh).
+
+    Args:
+        segments: List of segments. [(n1, 2), (n2, 2), ...]
+
+    Return:
+        box labels (n, 4)
+    """
+    boxes = []
+    for s in segments:
+        x, y = s.T  # segment xy
+        boxes.append([x.min(), y.min(), x.max(), y.max()])  # cls, xyxy
+    return xyxy2xywh(np.array(boxes), clip_eps=None, check_validity=False)  # type: ignore
+
+
+def box_candidates(
+    box1: np.ndarray,
+    box2: np.ndarray,
+    wh_thr: float = 2,
+    ar_thr: float = 20,
+    area_thr: float = 0.1,
+    eps: float = 1e-16,
+) -> np.ndarray:  # box1(4,n), box2(4,n)
+    """Compute candidate boxes.
+
+    Args:
+        box1: before augment
+        box2: after augment
+        wh_thr: width and height threshold (pixels),
+        ar_thr: aspect ratio threshold
+        area_thr: area_ratio
+
+    Return:
+        Boolean mask index of the box candidates.
+    """
+    w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
+    w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
+    ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
+    return (
+        (w2 > wh_thr)
+        & (h2 > wh_thr)
+        & (w2 * h2 / (w1 * h1 + eps) > area_thr)
+        & (ar < ar_thr)
+    )  # candidates
 
 
 def labels_to_class_weights(
@@ -113,6 +159,26 @@ def labels_to_class_weights(
     weights = 1 / weights  # number of targets per class
     weights /= weights.sum()  # normalize
     return torch.from_numpy(weights)
+
+
+def labels_to_image_weights(
+    labels: Union[list, np.ndarray],
+    nc: int = 80,
+    class_weights: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Produce image weights based on class mAPs."""
+    if class_weights is None:
+        np_class_weights: np.ndarray = np.ones(80)
+    else:
+        np_class_weights = class_weights
+
+    n = len(labels)
+    class_counts = np.array(
+        [np.bincount(labels[i][:, 0].astype(int), minlength=nc) for i in range(n)]
+    )
+    image_weights = (np_class_weights.reshape(1, nc) * class_counts).sum(1)
+    # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
+    return image_weights
 
 
 def get_logger(name: str, log_level: Optional[int] = None) -> logging.Logger:
@@ -167,6 +233,23 @@ def clip_coords(
         boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, wh[1])  # y1, y2
 
     return boxes
+
+
+def xyn2xy(
+    x: Union[torch.Tensor, np.ndarray],
+    wh: Tuple[float, float] = (640, 640),
+    pad: Tuple[float, float] = (0.0, 0.0),
+) -> Union[torch.Tensor, np.ndarray]:
+    """Convert normalized xy (n, 2) to pixel coordinates xy.
+
+    wh: Image size (width and height). If normalized xywh to pixel xyxy format, place image size here.
+    pad: image padded size (width and height).
+    """
+    # Convert normalized segments into pixel segments, shape (n,2)
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = wh[0] * x[:, 0] + pad[0]  # top left x
+    y[:, 1] = wh[1] * x[:, 1] + pad[1]  # top left y
+    return y
 
 
 def xyxy2xywh(
@@ -230,7 +313,7 @@ def xywh2xyxy(
         x: (n, 4) xywh coordinates
         ratio: label ratio adjustment. Default value won't change anything other than xywh to xyxy.
         wh: Image size (width and height). If normalized xywh to pixel xyxy format, place image size here.
-        pad: image padded size.
+        pad: image padded size (width and height).
 
     Return:
         return coordinates will be (ratio * wh * xyxy + pad)
@@ -243,57 +326,38 @@ def xywh2xyxy(
     return y
 
 
-def draw_labels(
-    img: np.ndarray, label_list: np.ndarray, label_info: Dict[int, str]
-) -> np.ndarray:
-    """Draw label informations on the image.
+def scale_coords(
+    img1_shape: Tuple[float, float],
+    coords: Union[torch.Tensor, np.ndarray],
+    img0_shape: Tuple[float, float],
+    ratio_pad: Optional[Union[tuple, list, np.ndarray]] = None,
+) -> Union[torch.Tensor, np.ndarray]:
+    """Rescale coords (xyxy) from img1_shape to img0_shape.
 
     Args:
-        img: image to draw labels
-        label_list: (n, 5) label informations of img with normalized xywh format.
-                    (class_id, centered x, centered y, width, height)
-        label_info: label names. Ex) {0: 'Person', 1:'Car', ...}
+        img1_shape: current image shape.
+        coords: (xyxy) coordinates.
+        img0_shape: target image shape.
+        ratio_pad: padding ratio.
 
     Returns:
-        label drawn image.
+        scaled coordinates.
     """
-    overlay_alpha = 0.3
-    label_list = np.copy(label_list)
-    label_list[:, 1:] = xywh2xyxy(
-        label_list[:, 1:], wh=(float(img.shape[1]), float(img.shape[0]))
-    )
+    # Rescale coords (xyxy) from img1_shape to img0_shape
+    if ratio_pad is None:  # calculate from img0_shape
+        gain = min(
+            img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1]
+        )  # gain  = old / new
+        pad = (
+            (img1_shape[1] - img0_shape[1] * gain) / 2,
+            (img1_shape[0] - img0_shape[0] * gain) / 2,
+        )  # wh padding
+    else:
+        gain = ratio_pad[0][0]
+        pad = ratio_pad[1]
 
-    for label in label_list:
-        class_id = int(label[0])
-        class_str = label_info[class_id]
-
-        xy1 = tuple(label[1:3].astype("int"))
-        xy2 = tuple(label[3:5].astype("int"))
-        plot_color = tuple(map(int, PLOT_COLOR[class_id]))
-
-        overlay = img.copy()
-        overlay = cv2.rectangle(overlay, xy1, xy2, plot_color, -1)
-        img = cv2.addWeighted(overlay, overlay_alpha, img, 1 - overlay_alpha, 0)
-        img = cv2.rectangle(img, xy1, xy2, plot_color, 1)
-
-        (text_width, text_height), baseline = cv2.getTextSize(class_str, 3, 0.5, 1)
-        overlay = img.copy()
-        overlay = cv2.rectangle(
-            overlay,
-            (xy1[0], xy1[1] - text_height),
-            (xy1[0] + text_width, xy1[1]),
-            (plot_color[0] // 0.3, plot_color[1] // 0.3, plot_color[2] // 0.3),
-            -1,
-        )
-        img = cv2.addWeighted(overlay, overlay_alpha + 0.2, img, 0.8 - overlay_alpha, 0)
-        cv2.putText(
-            img,
-            class_str,
-            xy1,
-            3,
-            0.5,
-            (plot_color[0] // 3, plot_color[1] // 3, plot_color[2] // 3),
-            1,
-            cv2.LINE_AA,
-        )
-    return img
+    coords[:, [0, 2]] -= pad[0]  # x padding
+    coords[:, [1, 3]] -= pad[1]  # y padding
+    coords[:, :4] /= gain
+    clip_coords(coords, img0_shape)
+    return coords

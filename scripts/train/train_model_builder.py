@@ -16,8 +16,8 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 from scripts.utils.anchors import check_anchors
 from scripts.utils.general import (check_img_size, get_logger,
-                                   labels_to_class_weights,
-                                   plot_label_histogram)
+                                   labels_to_class_weights)
+from scripts.utils.plot_utils import plot_label_histogram
 from scripts.utils.torch_utils import ModelEMA, intersect_dicts, is_parallel
 
 # TODO(jeikeilim): Double check if check RANK is required in real-time
@@ -44,7 +44,7 @@ class TrainModelBuilder:
             device: torch device.
             log_dir: logging root directory
         """
-        self.model = model
+        self.model = model.to(device)
         self.cfg = cfg
         self.device = device
         self.cuda = self.device.type != "cpu"
@@ -117,14 +117,15 @@ class TrainModelBuilder:
         )  # YOLOHead module
 
         # TODO(jeikeilim): Re-visit here
-        self.model.nc = nc  # TODO(jeikeilim): Double check if the model contains nc
+        # TODO(jeikeilim): Double check if the model contains nc
+        self.model.nc = nc  # type: ignore
         self.model.hyp = self.cfg["hyper_params"]
-        self.model.gr = 1.0
-        self.model.class_weights = labels_to_class_weights(dataset.labels, nc).to(
+        self.model.gr = 1.0  # type: ignore
+        self.model.class_weights = labels_to_class_weights(dataset.labels, nc).to(  # type: ignore
             self.device
         )
-        self.model.names = names
-        self.model.stride = head.stride
+        self.model.names = names  # type: ignore
+        self.model.stride = head.stride  # type: ignore
 
     def __call__(
         self,
@@ -150,7 +151,11 @@ class TrainModelBuilder:
             ckpt = torch.load(self.cfg["train"]["weights"], map_location=self.device)
 
             # TODO(jeikeilim): Re-visit here.
-            exclude = ["anchor"] if self.cfg["cfg"] or self.hyp.get("anchors") else []
+            exclude = (
+                ["anchor"]
+                if self.cfg["cfg"] or self.cfg["hyper_params"].get("anchors")
+                else []
+            )
             self.model = self.load_model_weights(weights=ckpt, exclude=exclude)
             start_epoch = ckpt["epoch"] + 1
             if self.cfg["train"]["resume"]:
@@ -212,21 +217,21 @@ class TrainModelBuilder:
         # TODO(jeikeilim): Re-visit here to check if
         # dataset, dataloader, nc argument is really necessary.
         # TODO(jeikeilim): mlc does not need to be called here. This can go outside of this method.
-        mlc = np.concatenate(dataset.labels, 0)[:, 0].max()
+        mlc = np.concatenate(dataset.labels, 0)[:, 0].max()  # type: ignore
         nb = len(dataloader)
         assert mlc < nc, (
             "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
             % (mlc, nc, self.cfg["data"], nc - 1)
         )
         nbs = 64  # nominal batch size
-        gs = int(max(self.model.stride))
+        gs = int(max(self.model.stride))  # type: ignore
         imgsz, _ = [check_img_size(x, gs) for x in self.cfg["train"]["image_size"]]
         if rank in [-1, 0] and ema is not None:
             accumulate = max(round(nbs / self.cfg["train"]["batch_size"]), 1)
             ema.updates = start_epoch * nb // accumulate
 
             if not self.cfg["train"]["resume"]:
-                labels = np.concatenate(dataset.labels, 0)
+                labels = np.concatenate(dataset.labels, 0)  # type: ignore
                 c = torch.tensor(labels[:, 0])  # noqa
                 plot_label_histogram(labels, save_dir=self.log_dir)
 

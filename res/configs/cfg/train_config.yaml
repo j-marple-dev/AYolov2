@@ -7,7 +7,7 @@ train:
   resume: false  # resume previous training
   validate_period: 3  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
-  cache_image: 'disk'  # Use caching images. This should be among 'ram', 'disk', or null
+  cache_image: null  # Use caching images. This should be among 'ram', 'disk', or null
   n_skip: 0  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
   device: ""  # CUDA device to use. '' will use all GPUs. EX) "0,2" or "cpu"
@@ -19,6 +19,7 @@ train:
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
+  log_dir: "exp"
 
 
 hyper_params:

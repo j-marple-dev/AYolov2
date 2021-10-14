@@ -9,14 +9,15 @@ import multiprocessing
 import os
 
 import numpy as np
-import pytorch_lightning as pl
 import yaml
 from kindle import YOLOModel
 from torch.utils.data import DataLoader
 
 from scripts.augmentation.augmentation import MultiAugmentationPolicies
 from scripts.data_loader.data_loader import LoadImagesAndLabels
-from scripts.train.yolo_plmodule import YoloPLModule
+from scripts.train.train_model_builder import TrainModelBuilder
+from scripts.train.yolo_trainer import YoloTrainer
+from scripts.utils.torch_utils import select_device
 
 
 def get_parser() -> argparse.Namespace:
@@ -95,16 +96,18 @@ if __name__ == "__main__":
         collate_fn=LoadImagesAndLabels.collate_fn,
     )
 
-    model = YOLOModel(args.model, verbose=True)
-    pl_model = YoloPLModule(model, train_cfg)
-
-    trainer = pl.Trainer(
-        gpus=train_cfg["train"]["device"],
-        accelerator="ddp",
-        max_epochs=train_cfg["train"]["epochs"],
-        check_val_every_n_epoch=train_cfg["train"]["validate_period"],
+    device = select_device(
+        train_cfg["train"]["device"], train_cfg["train"]["batch_size"]
     )
-    val_result = trainer.validate(pl_model, val_loader)
+    model = YOLOModel(args.model, verbose=True)
+    model, ema = TrainModelBuilder(model, train_cfg, device, "exp")
 
-    trainer.fit(pl_model, train_loader, val_loader)
-    val_result = trainer.validate(pl_model, val_loader)
+    trainer = YoloTrainer(
+        model,
+        train_cfg,
+        train_dataloader=train_loader,
+        val_dataloader=val_loader,
+        ema=ema,
+        device=device,
+    )
+    trainer.train()

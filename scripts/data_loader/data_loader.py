@@ -19,12 +19,18 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from scripts.utils.general import xywh2xyxy, xyxy2xywh
+from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
+                                                    mixup, random_perspective)
+from scripts.utils.constants import LABELS
+from scripts.utils.general import (get_logger, segments2boxes, xyn2xy,
+                                   xywh2xyxy, xyxy2xywh)
 
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
 EXIF_REVERSE_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
-CACHE_VERSION = "v0.1.0"
+CACHE_VERSION = "v0.2.3"
 NUM_THREADS = os.cpu_count()
+
+LOGGER = get_logger(__name__)
 
 
 def get_files_hash(files: List[str]) -> float:
@@ -131,12 +137,38 @@ class LoadImages(Dataset):
             pbar.close()
 
     def _get_shapes(self) -> np.ndarray:
-        def __get_img_shape(path: str) -> Tuple[int, int]:
-            image = Image.open(path)
-            image.verify()
-            shape = image.size
+        def __get_img_shape(_path: str) -> Tuple[int, int]:
+            _err_msg = ""
+            try:
+                _image = Image.open(_path)
+                _image.verify()
+                _shape = _image.size
 
-            return shape
+                try:
+                    _img_exif = _image._getexif()
+                except AttributeError as e:
+                    _err_msg += f"[LoadImages] WARNING: Get EXIF failed on {_path}: {e}"
+                    _img_exif = None
+
+                if (
+                    _img_exif is not None
+                    and EXIF_REVERSE_TAGS["Orientation"] in _img_exif.keys()
+                ):
+                    _orientation = _img_exif[EXIF_REVERSE_TAGS["Orientation"]]
+
+                    if _orientation in (6, 8):  # Rotation 270 or 90 degree
+                        _shape = _shape[::-1]
+
+                    assert (_shape[0] > 9) and (
+                        _shape[1] > 9
+                    ), f"Image size <10 pixels, ({_shape[0]}, {_shape[1]})"
+            except Exception as e:
+                _err_msg += f"[LoadImages] WARNING: {_path}: {e}"
+
+            if _err_msg != "":
+                LOGGER.warn(_err_msg)
+
+            return _shape
 
         cache_path = str(Path(self.img_files[0]).parent) + ".cache"
 
@@ -403,6 +435,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         img_size: int = 640,
         batch_size: int = 16,
         rect: bool = False,
+        label_type: str = "segments",
         # image_weights: bool = False,
         cache_images: Optional[str] = None,
         single_cls: bool = False,
@@ -410,9 +443,10 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         pad: float = 0.0,
         n_skip: int = 0,
         prefix: str = "",
+        yolo_augmentation: Optional[Dict[str, Any]] = None,
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
-        mosaic_prob: float = 1.0,
+        dataset_name: str = "COCO",
     ) -> None:
         """Initialize LoadImageAndLabels.
 
@@ -430,12 +464,14 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             img_size: Minimum width or height size.
             batch_size: Batch size
             rect: use rectangular image.
+            label_type: label directory name. This should be either 'labels' or 'segments'
             cache_images: use caching images. if None, caching will not be used.
                 'mem': Caching images in memory.
                 'disk': Caching images in disk.
             stride: Stride value
             pad: pad size for rectangular image. This applies only when rect is True
             n_skip: Skip n images per one image. Ex) If we have 1024 images and n_skip is 1, then total 512 images will be used.
+            yolo_augmentation: augmentation parameters for YOLO augmentation.
             prefix: logging prefix message
             preprocess: preprocess function which takes (x: np.ndarray) and returns (np.ndarray)
             augmentation: augmentation function which takes (x: np.ndarray, label: np.ndarray)
@@ -456,16 +492,21 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             pad=pad,
         )
 
+        self.label_type = label_type
         # Define label paths
         substring_a = f"{os.sep}images{os.sep}"
-        substring_b = f"{os.sep}labels{os.sep}"
+        self.names = LABELS[dataset_name]
+        substring_b = f"{os.sep}{self.label_type}{os.sep}"
+
         self.label_files = [
             x.replace(substring_a, substring_b, 1).replace(
                 os.path.splitext(x)[-1], ".txt"
             )
             for x in self.img_files
         ]
-        self.mosaic_prob = mosaic_prob
+        self.yolo_augmentation = (
+            yolo_augmentation if yolo_augmentation is not None else {}
+        )
 
         # Check cache
         cache_path = str(Path(self.label_files[0]).parent) + ".cache"
@@ -498,11 +539,9 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         else:
             label_cache = cache
 
-        # img_files = [path for path in self.img_files if label_cache[path][0] is not None]
-
-        labels, shapes = zip(*[label_cache[x] for x in self.img_files])
-        # self.shapes = np.array(shapes, dtype=np.float64)
+        labels, segments = zip(*[label_cache[x] for x in self.img_files])
         self.labels = list(labels)
+        self.segments = segments
 
         if single_cls:
             for label in self.labels:
@@ -532,10 +571,16 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             else (self.img_size, self.img_size)
         )
 
-        if random.random() < self.mosaic_prob:
+        if random.random() < self.yolo_augmentation.get("mosaic", 0.0):
             img, labels = self._load_mosaic(index)
             shapes = (0, 0), (0, 0)
-            # TODO(jeikeilim): Add mixup augmentation
+            if random.random() < self.yolo_augmentation.get("mixup", 1.0):
+                img, labels = mixup(
+                    img,
+                    labels,
+                    *self._load_mosaic(random.randint(0, len(self.img_files) - 1)),
+                )
+
         else:
             img, (h0, w0), (h1, w1) = self._load_image(index)
             shapes = (h0, w0), (h1, w1)
@@ -555,7 +600,16 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                     labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad
                 )
 
-        # Do some other augmentation with pixel coordinates label.
+            if self.yolo_augmentation.get("augment", False):
+                img, labels = random_perspective(
+                    img,
+                    labels,
+                    degrees=self.yolo_augmentation.get("degrees", 0.0),
+                    translate=self.yolo_augmentation.get("translate", 0.1),
+                    scale=self.yolo_augmentation.get("scale", 0.5),
+                    shear=self.yolo_augmentation.get("shear", 0.0),
+                    perspective=self.yolo_augmentation.get("perspective", 0.0),
+                )  # border to remove
 
         # Normalize bboxes
         if labels.size:
@@ -565,6 +619,13 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         if self.augmentation:
             img, labels = self.augmentation(img, labels)
+
+            augment_hsv(
+                img,
+                self.yolo_augmentation.get("hsv_h", 0.015),
+                self.yolo_augmentation.get("hsv_s", 0.7),
+                self.yolo_augmentation.get("hsv_v", 0.4),
+            )
 
         if self.preprocess:
             img = self.preprocess(img)
@@ -602,6 +663,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             dtype=np.uint8,
         )
         mosaic_labels = []
+        mosaic_segments = []
 
         mc_h, mc_w = mosaic_center
         for i, (img, _, (h, w)) in enumerate(loaded_imgs):
@@ -637,33 +699,41 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             pad_w = x1a - x1b
             pad_h = y1a - y1b
 
-            if self.labels[indices[i]] is None:
+            if self.labels[indices[i]].shape[0] == 0:
                 labels = np.empty((0, 5), dtype=np.float32)
+                segments = []
             else:
                 labels = self.labels[indices[i]].copy()
+                segments = self.segments[indices[i]].copy()
 
             if labels.size:
                 labels[:, 1:] = xywh2xyxy(labels[:, 1:], wh=(w, h), pad=(pad_w, pad_h))
-                mosaic_labels.append(labels)
+                segments = [xyn2xy(x, wh=(w, h), pad=(pad_w, pad_h)) for x in segments]
+            mosaic_labels.append(labels)
+            mosaic_segments.extend(segments)
 
         mosaic_labels_np = np.concatenate(mosaic_labels, 0)
-        mosaic_labels_np[:, 1:] = np.clip(
-            mosaic_labels_np[:, 1:], 1e-3, 2 * self.img_size
-        )
-        # TODO(jeikeilim): implement copy_paste augmentation with segmentation info.
-        # TODO(jeikeilim): replace below code to random_perspective in YOLOv5
-        shape = (
-            self.batch_shapes[self.batch_idx[index]]
-            if self.rect
-            else (self.img_size, self.img_size)
-        )
 
-        resize_ratio = shape[0] / mosaic_img.shape[1], shape[1] / mosaic_img.shape[0]
-        mosaic_img = cv2.resize(
-            mosaic_img, None, fx=resize_ratio[0], fy=resize_ratio[1]
+        for x in (mosaic_labels_np[:, 1:], *mosaic_segments):
+            np.clip(x, 1e-3, 2 * self.img_size, out=x)
+
+        mosaic_img, mosaic_labels_np, mosaic_segments = copy_paste(
+            mosaic_img,
+            mosaic_labels_np,
+            mosaic_segments,
+            p=self.yolo_augmentation.get("copy_paste", 0.0),
         )
-        mosaic_labels_np[:, [1, 3]] *= resize_ratio[0]
-        mosaic_labels_np[:, [2, 4]] *= resize_ratio[1]
+        mosaic_img, mosaic_labels_np = random_perspective(
+            mosaic_img,
+            mosaic_labels_np,
+            mosaic_segments,
+            degrees=self.yolo_augmentation.get("degrees", 0.0),
+            translate=self.yolo_augmentation.get("translate", 0.1),
+            scale=self.yolo_augmentation.get("scale", 0.5),
+            shear=self.yolo_augmentation.get("shear", 0.0),
+            perspective=self.yolo_augmentation.get("perspective", 0.0),
+            border=(-img_half_size, -img_half_size),
+        )  # border to remove
 
         return mosaic_img, mosaic_labels_np
 
@@ -707,60 +777,63 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         def _get_label(_img_path: str, _label_path: str) -> Dict[str, Any]:
             _label: Dict[str, Any] = {}
+            _segments: List[np.ndarray] = []
             _err_msg = ""
             try:
-                _image = Image.open(_img_path)
-                _image.verify()
-
-                _shape = _image.size
-
-                try:
-                    _img_exif = _image._getexif()
-                except AttributeError as e:
-                    _img_exif = None
-                    _err_msg += f"[LoadImagesAndLabels] WARNING: Get EXIF failed on {_img_path}: {e}"
-                    _label["info"] = {"msgs": {_img_path: _err_msg}}
-                    print(_err_msg)
-
-                if (
-                    _img_exif is not None
-                    and EXIF_REVERSE_TAGS["Orientation"] in _img_exif.keys()
-                ):
-                    _orientation = _img_exif[EXIF_REVERSE_TAGS["Orientation"]]
-
-                    if _orientation in (6, 8):  # Rotation 270 or 90 degree
-                        _shape = _shape[::-1]
-
-                assert (_shape[0] > 9) and (
-                    _shape[1] > 9
-                ), f"Image size <10 pixels, ({_shape[0]}, {_shape[1]})"
-
                 if os.path.isfile(_label_path):
                     with open(_label_path, "r") as _f:
-                        _label_list = np.array(
-                            [_x.split() for _x in _f.read().splitlines()],
-                            dtype=np.float32,
-                        )
+                        _label_split_list = [
+                            _x.split() for _x in _f.read().splitlines()
+                        ]
 
-                    if len(_label_list) == 0:
+                    if any([len(x) > 8 for x in _label_split_list]):  # is segment
+                        _classes = np.array(
+                            [_x[0] for _x in _label_split_list], dtype=np.float32
+                        )
+                        _segments = [
+                            np.array(_x[1:], dtype=np.float32).reshape(-1, 2)
+                            for _x in _label_split_list
+                        ]  # (cls, xy1...)
+                        _label_list = np.concatenate(
+                            (_classes.reshape(-1, 1), segments2boxes(_segments)), 1
+                        )  # (cls, xywh)
+                    else:
+                        _label_list = np.array(_label_split_list, dtype=np.float32)
+                    if len(_label_list):
+                        assert (
+                            _label_list.shape[1] == 5
+                        ), "labels require 5 columns each"
+                        assert (_label_list >= 0).all(), "negative labels"
+                        assert (
+                            _label_list[:, 1:] <= 1
+                        ).all(), "non-normalized or out of bounds coordinate labels"
+                        assert (
+                            np.unique(_label_list, axis=0).shape[0]
+                            == _label_list.shape[0]
+                        ), "duplicate labels"
+                    else:
                         _label_list = np.zeros((0, 5), dtype=np.float32)
 
-                    _label[_img_path] = (_label_list, _shape)
+                    _label[_img_path] = (_label_list, _segments)
                 else:
-                    _label[_img_path] = (None, None)
+                    _label[_img_path] = (np.zeros((0, 5), dtype=np.float32), None)
             except Exception as e:
                 _err_msg += f"[LoadImagesAndLabels] WARNING: {_img_path}: {e}"
 
-                _label[_img_path] = (None, None)
+                _label[_img_path] = (np.zeros((0, 5), dtype=np.float32), None)
                 _label["info"] = {"msgs": {_img_path: _err_msg}}  # type: ignore
 
-                print(_err_msg)
+                LOGGER.warn(_err_msg)
 
             return _label
 
+        # Multi core
         label_list = p_map(
             _get_label, self.img_files, self.label_files, desc="Scanning images ..."
         )
+        # Single core
+        # label_list = [_get_label(img_path, label_path) for img_path, label_path in tqdm(zip(self.img_files, self.label_files), desc="Scanning images ...")]
+
         labels: Dict[
             str,
             Union[

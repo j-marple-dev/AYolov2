@@ -34,7 +34,14 @@ LOGGER = get_logger(__name__)
 
 
 def get_files_hash(files: List[str]) -> float:
-    """Return a single hash value of a list of files."""
+    """Return a single hash value of a list of files.
+
+    Args:
+        files: list of file paths
+
+    Return:
+        hash value
+    """
     return sum(os.path.getsize(f) for f in files if os.path.isfile(f))
 
 

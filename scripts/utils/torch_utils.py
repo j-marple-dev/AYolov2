@@ -6,17 +6,30 @@
 import math
 import os
 import random
+from contextlib import contextmanager
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
+import torch.distributed as dist
 from torch import nn
 
 from scripts.utils.general import get_logger
 
 LOGGER = get_logger(__name__)
+
+
+@contextmanager
+def torch_distributed_zero_first(local_rank: int):
+    """Decorator to make all processes in distributed training wait for each
+    local_master to do something."""
+    if local_rank not in [-1, 0]:
+        dist.barrier(device_ids=[local_rank])
+    yield
+    if local_rank == 0:
+        dist.barrier(device_ids=[0])
 
 
 def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.device:
@@ -122,8 +135,14 @@ def copy_attr(
     include: Union[List[str], Tuple[str, ...]] = (),
     exclude: Union[List[str], Tuple[str, ...]] = (),
 ) -> None:
-    """Copy attributes from b to a, options to only include and to exclude."""
-    # Copy attributes from b to a, options to only include [...] and to exclude [...]
+    """Copy attributes from b to a, options to only include and to exclude.
+
+    Args:
+        a: destination
+        b: source
+        include: key names to copy
+        exclude: key names NOT to copy
+    """
     for k, v in b.__dict__.items():
         if (len(include) and k not in include) or k.startswith("_") or k in exclude:
             continue
@@ -168,8 +187,9 @@ class ModelEMA:
             msd = model.state_dict()  # model state_dict
             for k, v in self.ema.state_dict().items():
                 if v.dtype.is_floating_point:
+                    key = k if k in msd else f"module.{k}"
                     v *= d
-                    v += (1.0 - d) * msd[k].detach()
+                    v += (1.0 - d) * msd[key].detach()
 
     def update_attr(
         self,

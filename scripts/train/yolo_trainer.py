@@ -29,6 +29,12 @@ from scripts.utils.train_utils import YoloValidator
 if TYPE_CHECKING:
     from scripts.utils.torch_utils import ModelEMA
 
+LOCAL_RANK = int(
+    os.getenv("LOCAL_RANK", -1)
+)  # https://pytorch.org/docs/stable/elastic/run.html
+RANK = int(os.getenv("RANK", -1))
+WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
+
 LOGGER = get_logger(__name__)
 
 
@@ -40,10 +46,9 @@ class YoloTrainer(AbstractTrainer):
         model: nn.Module,
         cfg: Dict[str, Any],
         train_dataloader: DataLoader,
-        val_dataloader: DataLoader,
+        val_dataloader: Optional[DataLoader],
         ema: Optional["ModelEMA"],
         device: torch.device,
-        rank: int = -1,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -52,7 +57,6 @@ class YoloTrainer(AbstractTrainer):
             cfg: config.
             train_dataloader: dataloader for training.
             val_dataloader: dataloader for validation.
-            rank: CUDA rank for DDP.
         """
         super().__init__(model, cfg, train_dataloader, val_dataloader, device=device)
 
@@ -60,7 +64,6 @@ class YoloTrainer(AbstractTrainer):
         self.nbs = 64
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
-        self.rank = rank
         self.maps = np.zeros(self.model.nc)  # map per class
         self.results = (
             {
@@ -88,9 +91,11 @@ class YoloTrainer(AbstractTrainer):
             int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
         )
         self.ema = ema
-        self.validator = YoloValidator(
-            self.model, self.val_dataloader, self.device, cfg
-        )
+
+        if self.val_dataloader is not None:
+            self.validator = YoloValidator(
+                self.model, self.val_dataloader, self.device, cfg
+            )
 
     def _lr_function(self, x: float) -> float:
         return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (
@@ -228,7 +233,8 @@ class YoloTrainer(AbstractTrainer):
             img_shape[-1],
         )
 
-        self.pbar.set_description(s)
+        if self.pbar:
+            self.pbar.set_description(s)
 
         return s
 
@@ -268,7 +274,7 @@ class YoloTrainer(AbstractTrainer):
         with amp.autocast(enabled=self.cuda):
             pred = self.model(imgs)
             loss, loss_items = self.loss(pred, labels)
-            if self.rank != -1:
+            if RANK != -1:
                 loss *= self.cfg_train["world_size"]
 
         # backward
@@ -283,7 +289,7 @@ class YoloTrainer(AbstractTrainer):
                 if self.ema:
                     self.ema.update(self.model)
 
-        if self.rank in [-1, 0]:
+        if RANK in [-1, 0]:
             # TODO(ulken94): Log intermediate results to wandb. And then, remove noqa.
             print_string = self.print_intermediate_results(  # noqa
                 loss_items, labels.shape, imgs.shape, epoch, batch_idx
@@ -328,7 +334,7 @@ class YoloTrainer(AbstractTrainer):
         """Update image weights."""
         if self.cfg_train["image_weights"]:
             # Generate indices
-            if self.rank in [-1, 0]:
+            if RANK in [-1, 0]:
                 # number of total images
                 n_imgs = len(self.train_dataloader.dataset.img_files)
 
@@ -348,20 +354,21 @@ class YoloTrainer(AbstractTrainer):
                 )
 
             # Broadcast if DDP
-            if self.rank != -1:
+            if RANK != -1:
                 indices = (
                     torch.tensor(self.train_dataloader.dataset.indices)
-                    if self.rank == 0
+                    if RANK == 0
                     else torch.zeros(n_imgs)
                 ).int()
                 dist.broadcast(indices, 0)
-                if self.rank != 0:
+                if RANK != 0:
                     self.train_dataloader.dataset.indices = indices.cpu().numpy()
 
     def set_datasampler(self, epoch: int) -> None:
         """Set dataloader's sampler epoch."""
-        if self.rank != -1:
-            self.train_dataloader.sampler.set_epoch(epoch)
+        # if RANK != -1:
+        #     self.train_dataloader.sampler.set_epoch(epoch)
+        pass
 
     def on_start_epoch(self, epoch: int) -> None:
         """Run on an epoch starts.
@@ -386,7 +393,7 @@ class YoloTrainer(AbstractTrainer):
         for optimizer in self.optimizer:  # for tensorboard
             lr = [x["lr"] for x in optimizer.param_groups]  # noqa
         self.scheduler_step()
-        if self.rank in [-1, 0] and self.ema is not None:
+        if RANK in [-1, 0] and self.ema is not None:
             self.update_ema_attr()
 
     def scheduler_step(self) -> None:
@@ -401,7 +408,7 @@ class YoloTrainer(AbstractTrainer):
             include: a list of string which contains attributes.
         """
         if not include:
-            include = ["yaml", "nc", "hyp", "gr", "names", "stride"]
+            include = ["yaml", "nc", "hyp", "gr", "names", "stride", "cfg"]
         if self.ema:
             self.ema.update_attr(self.model, include=include)
 
@@ -411,16 +418,27 @@ class YoloTrainer(AbstractTrainer):
 
     def set_trainloader_tqdm(self) -> None:
         """Set tqdm object of train dataloader."""
-        self.pbar = tqdm(
-            enumerate(self.train_dataloader), total=len(self.train_dataloader)
-        )
+        if RANK in [-1, 0]:
+            self.pbar = tqdm(
+                enumerate(self.train_dataloader), total=len(self.train_dataloader)
+            )
 
     def log_train_stats(self) -> None:
         """Log train information table headers."""
-        LOGGER.info(
-            ("\n" + "%10s" * 8)
-            % ("Epoch", "gpu_mem", "box", "obj", "cls", "total", "targets", "img_size")
-        )
+        if RANK in [-1, 0]:
+            LOGGER.info(
+                ("\n" + "%10s" * 8)
+                % (
+                    "Epoch",
+                    "gpu_mem",
+                    "box",
+                    "obj",
+                    "cls",
+                    "total",
+                    "targets",
+                    "img_size",
+                )
+            )
 
     def on_train_start(self) -> None:
         """Run on start training."""
@@ -431,18 +449,19 @@ class YoloTrainer(AbstractTrainer):
 
     def log_train_cfg(self) -> None:
         """Log train configurations."""
-        LOGGER.info(
-            "Image sizes %g train, %g test\n"
-            "Using %g dataloader workers\nLogging results to %s\n"
-            "Starting training for %g epochs..."
-            % (
-                self.cfg_train["image_size"][0],
-                self.cfg_train["image_size"][0],
-                self.train_dataloader.num_workers,
-                self.cfg_train["log_dir"] if self.cfg_train["log_dir"] else "exp",
-                self.epochs,
+        if RANK in [-1, 0]:
+            LOGGER.info(
+                "Image sizes %g train, %g test\n"
+                "Using %g dataloader workers\nLogging results to %s\n"
+                "Starting training for %g epochs..."
+                % (
+                    self.cfg_train["image_size"][0],
+                    self.cfg_train["image_size"][0],
+                    self.train_dataloader.num_workers,
+                    self.cfg_train["log_dir"] if self.cfg_train["log_dir"] else "exp",
+                    self.epochs,
+                )
             )
-        )
 
     # def train(self, test_every_epoch: int = 1) -> None:
     #     """Train model.

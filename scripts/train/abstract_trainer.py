@@ -4,7 +4,7 @@
 - Contact: hekim@jmarple.ai
 """
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from tqdm import tqdm
@@ -22,7 +22,7 @@ class AbstractTrainer(ABC):
         model: nn.Module,
         cfg: Dict[str, Any],
         train_dataloader: DataLoader,
-        val_dataloader: DataLoader,
+        val_dataloader: Optional[DataLoader],
         device: torch.device,
     ) -> None:
         """Initialize AbstractTrainer class."""
@@ -36,7 +36,7 @@ class AbstractTrainer(ABC):
         self.val_dataloader = val_dataloader
         self.cuda = self.device.type != "cpu"
         self.start_epoch = 0
-        self.pbar: tqdm
+        self.pbar: Optional[tqdm] = None
 
     @abstractmethod
     def training_step(
@@ -113,7 +113,9 @@ class AbstractTrainer(ABC):
                 self.training_step(batch, i, epoch)
 
             self.on_end_epoch(epoch)
-            if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
+            if self.val_dataloader is not None and (
+                is_final_epoch or epoch % self.cfg_train["validate_period"] == 0
+            ):
                 self.model.eval()
                 self.validation()
 

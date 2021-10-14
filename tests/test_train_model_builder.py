@@ -72,9 +72,7 @@ def test_train_model_builder() -> None:
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
-    device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
-
-    model, ema = TrainModelBuilder(model, cfg, device, "exp")(
+    model, ema, device = TrainModelBuilder(model, cfg, "exp")(
         train_dataset, train_loader
     )
 
@@ -142,9 +140,7 @@ def test_train() -> None:
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
-    device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
-
-    model, ema = TrainModelBuilder(model, cfg, device, "exp")(
+    model, ema, device = TrainModelBuilder(model, cfg, "exp")(
         train_dataset, train_loader
     )
 

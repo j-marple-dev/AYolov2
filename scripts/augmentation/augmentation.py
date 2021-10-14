@@ -55,12 +55,13 @@ class AugmentationPolicy:
                 image=img, bboxes=aug_labels[:, 1:], class_labels=aug_labels[:, 0]
             )
             im = augmented["image"]
-            aug_labels = np.hstack(
-                [
-                    np.array(augmented["class_labels"]).reshape(-1, 1),
-                    np.array(augmented["bboxes"]),
-                ]
-            )
+            if len(augmented["class_labels"]) > 0:
+                aug_labels = np.hstack(
+                    [
+                        np.array(augmented["class_labels"]).reshape(-1, 1),
+                        np.array(augmented["bboxes"]),
+                    ]
+                )
         else:
             im = img
 

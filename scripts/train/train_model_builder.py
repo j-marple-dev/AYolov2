@@ -18,9 +18,9 @@ from scripts.utils.anchors import check_anchors
 from scripts.utils.general import (check_img_size, get_logger,
                                    labels_to_class_weights)
 from scripts.utils.plot_utils import plot_label_histogram
-from scripts.utils.torch_utils import ModelEMA, intersect_dicts, is_parallel
+from scripts.utils.torch_utils import (ModelEMA, init_seeds, intersect_dicts,
+                                       is_parallel, select_device)
 
-# TODO(jeikeilim): Double check if check RANK is required in real-time
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)
 )  # https://pytorch.org/docs/stable/elastic/run.html
@@ -33,27 +33,25 @@ LOGGER = get_logger(__name__)
 class TrainModelBuilder:
     """Train model builder class."""
 
-    def __init__(
-        self, model: nn.Module, cfg: Dict[str, Any], device: torch.device, log_dir: str
-    ) -> None:
+    def __init__(self, model: nn.Module, cfg: Dict[str, Any], log_dir: str) -> None:
         """Initialize TrainModelBuilder.
 
         Args:
             model: a torch model to train.
             opt: train config
-            device: torch device.
             log_dir: logging root directory
         """
-        self.model = model.to(device)
+        self.model = model
         self.cfg = cfg
-        self.device = device
+        if hasattr(self.model, "model_parser"):
+            self.yaml = self.model.model_parser.cfg
+        else:
+            self.yaml = None
+        self.device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
         self.cuda = self.device.type != "cpu"
         self.log_dir = log_dir
         self.wdir = Path(os.path.join(log_dir, "weights"))
         os.makedirs(self.wdir, exist_ok=True)
-
-        if isinstance(self.cfg["train"]["image_size"], int):
-            self.cfg["train"]["image_size"] = [self.cfg["train"]["image_size"]] * 2
 
     def to_ddp(self) -> nn.Module:
         """Convert model to DDP model."""
@@ -126,13 +124,34 @@ class TrainModelBuilder:
         )
         self.model.names = names  # type: ignore
         self.model.stride = head.stride  # type: ignore
+        self.model.cfg = self.cfg
+        self.model.yaml = self.yaml
 
-    def __call__(
+    def ddp_init(self) -> None:
+        # DDP INIT
+        if LOCAL_RANK != -1:
+            assert (
+                torch.cuda.device_count() > LOCAL_RANK
+            ), "insufficient CUDA devices for DDP command"
+            assert (
+                self.cfg["train"]["batch_size"] % WORLD_SIZE == 0
+            ), "--batch-size must be multiple of CUDA device count"
+            assert not self.cfg["train"][
+                "image_weights"
+            ], "--image-weights argument is not compatible with DDP training"
+
+            torch.cuda.set_device(LOCAL_RANK)
+            self.device = torch.device("cuda", LOCAL_RANK)
+            dist.init_process_group(
+                backend="nccl" if dist.is_nccl_available() else "gloo"
+            )
+
+    def prepare(
         self,
         dataset: torch.utils.data.Dataset,
         dataloader: torch.utils.data.DataLoader,
         nc: int = 80,
-    ) -> Tuple[nn.Module, Optional[ModelEMA]]:
+    ) -> Tuple[nn.Module, Optional[ModelEMA], torch.device]:
         """Prepare model for training.
 
         Args:
@@ -144,6 +163,11 @@ class TrainModelBuilder:
             a model which is prepared for training.
             EMA model if supports, otherwise None
         """
+        self.set_model_params(dataset, nc=nc)
+        init_seeds(1 + RANK)
+
+        self.model.to(self.device)
+
         # TODO(jeikeilim): Make load weight from wandb.
         start_epoch = 0
         pretrained = self.cfg["train"]["weights"].endswith(".pt")
@@ -177,41 +201,20 @@ class TrainModelBuilder:
                     )
                 )
 
-        # TODO(jeikeilim): Double check if check RANK is required in real-time
-        rank = int(os.environ["RANK"]) if "RANK" in os.environ else -1
+        if isinstance(self.cfg["train"]["image_size"], int):
+            self.cfg["train"]["image_size"] = [self.cfg["train"]["image_size"]] * 2
 
-        if self.cuda and rank == -1 and torch.cuda.device_count() > 1:
+        nbs = 64  # nominal batch size
+        gs = int(max(self.model.stride))  # type: ignore
+        imgsz, _ = [check_img_size(x, gs) for x in self.cfg["train"]["image_size"]]
+
+        ema = ModelEMA(self.model) if RANK in [-1, 0] else None
+
+        if self.cuda and RANK == -1 and torch.cuda.device_count() > 1:
             self.to_data_parallel()
 
-        if self.cfg["train"]["sync_bn"] and self.cuda and rank != -1:
+        if self.cfg["train"]["sync_bn"] and self.cuda and RANK != -1:
             self.to_sync_bn()
-
-        ema = ModelEMA(self.model) if rank in [-1, 0] else None
-
-        # DDP Setting START
-        if self.cuda and rank != -1:
-            self.to_ddp()
-
-        if LOCAL_RANK != -1:
-            assert (
-                torch.cuda.device_count() > LOCAL_RANK
-            ), "insufficient CUDA devices for DDP command"
-            assert (
-                self.cfg["train"]["batch_size"] % WORLD_SIZE == 0
-            ), "--batch-size must be multiple of CUDA device count"
-            assert not self.cfg["train"][
-                "image_weights"
-            ], "--image-weights argument is not compatible with DDP training"
-
-            torch.cuda.set_device(LOCAL_RANK)
-            self.device = torch.device("cuda", LOCAL_RANK)
-            dist.init_process_group(
-                backend="nccl" if dist.is_nccl_available() else "gloo"
-            )
-        # DDP Setting END
-
-        # TODO(jeikeilim): How to pass names here?
-        self.set_model_params(dataset, nc=nc)
 
         # Max label class
         # TODO(jeikeilim): Re-visit here to check if
@@ -223,10 +226,8 @@ class TrainModelBuilder:
             "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
             % (mlc, nc, self.cfg["data"], nc - 1)
         )
-        nbs = 64  # nominal batch size
-        gs = int(max(self.model.stride))  # type: ignore
-        imgsz, _ = [check_img_size(x, gs) for x in self.cfg["train"]["image_size"]]
-        if rank in [-1, 0] and ema is not None:
+        if RANK in [-1, 0] and ema is not None:
+            # TODO(jeikeilim): Double check here.
             accumulate = max(round(nbs / self.cfg["train"]["batch_size"]), 1)
             ema.updates = start_epoch * nb // accumulate
 
@@ -243,4 +244,10 @@ class TrainModelBuilder:
                         imgsz=imgsz,
                     )
 
-        return (self.model, ema)
+        if self.cuda and RANK != -1:
+            self.to_ddp()
+
+        # TODO(jeikeilim): How to pass names here?
+        self.set_model_params(dataset, nc=nc)
+
+        return (self.model, ema, self.device)

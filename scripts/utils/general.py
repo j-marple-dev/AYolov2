@@ -36,6 +36,28 @@ def resample_segments(segments: List[np.ndarray], n: int = 1000) -> List[np.ndar
     return segments
 
 
+def resample_segments(segments: List[np.ndarray], n: int = 1000) -> List[np.ndarray]:
+    """Interpolate segments by (n, 2) segment points.
+
+    Args:
+        segments: segmentation coordinates list [(m, 2), ...]
+        n: number of interpolation.
+
+    Return:
+        Interpolated segmentation (n, 2)
+    """
+    for i, s in enumerate(segments):
+        x = np.linspace(0, len(s) - 1, n)
+        xp = np.arange(len(s))
+        segments[i] = (
+            np.concatenate([np.interp(x, xp, s[:, i]) for i in range(2)])
+            .reshape(2, -1)
+            .T
+        )  # segment xy
+
+    return segments
+
+
 def make_divisible(x: int, divisor: int, minimum_check_number: int = 0) -> int:
     """Return 'x' evenly divisible by 'divisor'.
 

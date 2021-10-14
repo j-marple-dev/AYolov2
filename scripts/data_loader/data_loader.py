@@ -19,6 +19,7 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from scripts.utils.constants import LABELS
 from scripts.utils.general import xywh2xyxy, xyxy2xywh
 
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
@@ -413,6 +414,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
         mosaic_prob: float = 1.0,
+        dataset_name: str = "COCO",
     ) -> None:
         """Initialize LoadImageAndLabels.
 
@@ -459,6 +461,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         # Define label paths
         substring_a = f"{os.sep}images{os.sep}"
         substring_b = f"{os.sep}labels{os.sep}"
+        self.names = LABELS[dataset_name]
         self.label_files = [
             x.replace(substring_a, substring_b, 1).replace(
                 os.path.splitext(x)[-1], ".txt"

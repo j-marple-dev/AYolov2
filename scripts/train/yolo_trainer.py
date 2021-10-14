@@ -24,6 +24,7 @@ from scripts.train.abstract_trainer import AbstractTrainer
 from scripts.utils.general import (check_img_size, get_logger,
                                    labels_to_image_weights)
 from scripts.utils.plot_utils import plot_images
+from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
     from scripts.utils.torch_utils import ModelEMA
@@ -41,6 +42,7 @@ class YoloTrainer(AbstractTrainer):
         train_dataloader: DataLoader,
         val_dataloader: DataLoader,
         ema: Optional["ModelEMA"],
+        device: torch.device,
         rank: int = -1,
     ) -> None:
         """Initialize YoloTrainer class.
@@ -52,8 +54,11 @@ class YoloTrainer(AbstractTrainer):
             val_dataloader: dataloader for validation.
             rank: CUDA rank for DDP.
         """
-        super().__init__(model, cfg, train_dataloader, val_dataloader)
+        super().__init__(model, cfg, train_dataloader, val_dataloader, device=device)
+
         self.loss = ComputeLoss(self.model)
+        self.nbs = 64
+        self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
         self.rank = rank
         self.maps = np.zeros(self.model.nc)  # map per class
@@ -70,8 +75,7 @@ class YoloTrainer(AbstractTrainer):
         )  # P, R, mAP@0.5, mAP@0.5-0.95, val_loss(box, obj, cls)
         self.scaler: amp.GradScaler
         self.pbar: tqdm
-        self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
-        self.nbs = 64
+        self.mloss: torch.Tensor
         self.num_warmups = max(
             round(self.cfg_hyp["warmup_epochs"] * len(self.train_dataloader)), 1e3
         )
@@ -83,6 +87,10 @@ class YoloTrainer(AbstractTrainer):
         ]
         self.cfg_train["world_size"] = (
             int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
+        )
+        self.ema = ema
+        self.validator = YoloValidator(
+            self.model, self.val_dataloader, self.device, cfg
         )
 
     def _lr_function(self, x: float) -> float:
@@ -150,7 +158,7 @@ class YoloTrainer(AbstractTrainer):
                     x_intp,
                     [
                         self.cfg_hyp["warmup_bias_lr"] if j == 2 else 0.0,
-                        x["initial_lr"] * self._lr_function()(epoch),
+                        x["initial_lr"] * self._lr_function(epoch),
                     ],
                 )
                 if "momentum" in x:
@@ -183,7 +191,7 @@ class YoloTrainer(AbstractTrainer):
                 for x in imgs.shape[2:]
             ]
             imgs = F.interpolate(
-                imgs, size=new_shape, mode="bilinear", aligh_corners=False
+                imgs, size=new_shape, mode="bilinear", align_corners=False
             )
         return imgs
 
@@ -213,7 +221,7 @@ class YoloTrainer(AbstractTrainer):
             if torch.cuda.is_available()
             else 0
         )
-        s = "%10s" * 2 + "%10.4g" * 6 % (
+        s = ("%10s" * 2 + "%10.4g" * 6) % (
             "%g/%g" % (epoch, self.epochs - 1),
             mem,
             *self.mloss,
@@ -235,7 +243,7 @@ class YoloTrainer(AbstractTrainer):
         ],
         batch_idx: int,
         epoch: int,
-    ) -> None:
+    ) -> torch.Tensor:
         """Train a step.
 
         Args:
@@ -253,6 +261,7 @@ class YoloTrainer(AbstractTrainer):
 
         imgs, labels, paths, shapes = train_batch
         imgs = self.prepare_img(imgs)
+        labels = labels.to(self.device)
 
         if self.cfg_train["multi_scale"]:
             imgs = self.multi_scale(imgs)
@@ -289,12 +298,8 @@ class YoloTrainer(AbstractTrainer):
                 )
                 # TODO(ulken94): Log images to wandb. And then, remove noqa.
                 result = plot_images(  # noqa
-                    images=imgs, labels=labels, paths=paths, fname=f_name
+                    images=imgs, targets=labels, paths=paths, fname=f_name
                 )
-        for optimizer in self.optimizer:
-            lr = [x["lr"] for x in optimizer.param_groups]
-        for scheduler in self.scheduler:
-            scheduler.step()
 
         return loss[0]
 
@@ -314,15 +319,11 @@ class YoloTrainer(AbstractTrainer):
             val_batch: validation data batch in tuple (input_x, true_y).
             batch_idx: current batch index.
         """
-        img, label, path, shape = val_batch
-        img = self.prepare_img(img)
+        pass
 
-        output = self.model(img)
-        bboxes, train_out = output
-
-        loss = self.loss(train_out, label)  # type: ignore
-
-        return loss
+    def validation(self) -> None:
+        """Validate model."""
+        self.validator.validation()
 
     def update_image_weights(self) -> None:
         """Update image weights."""
@@ -342,6 +343,7 @@ class YoloTrainer(AbstractTrainer):
                     nc=self.model.nc,
                     class_weights=class_weights,
                 )
+
                 self.train_dataloader.dataset.indices = random.choices(
                     range(n_imgs), weights=image_weights, k=n_imgs
                 )
@@ -363,28 +365,71 @@ class YoloTrainer(AbstractTrainer):
             self.train_dataloader.sampler.set_epoch(epoch)
 
     def on_start_epoch(self, epoch: int) -> None:
-        """Run on epoch starts.
+        """Run on an epoch starts.
 
         Args:
             epoch: current epoch.
         """
         self.update_image_weights()
         self.set_datasampler(epoch)
-        self.set_dataloader_tqdm()
+        self.log_train_info()
+        self.set_trainloader_tqdm()
         for optimizer in self.optimizer:
             optimizer.zero_grad()
-        self.log_train_info()
+
+    def on_end_epoch(self, epoch: int) -> None:
+        """Run on an epoch ends.
+
+        Args:
+            epoch: current epoch.
+        """
+        self.scheduler_step()
+        if self.rank in [-1, 0] and self.ema is not None:
+            self.update_ema_attr()
+
+    def scheduler_step(self) -> None:
+        """Update scheduler parameters."""
+        for scheduler in self.scheduler:
+            scheduler.step()
+
+    def update_ema_attr(self, include: Optional[List[str]] = None) -> None:
+        """Update ema attributes.
+
+        Args:
+            include: a list of string which contains attributes.
+        """
+        if not include:
+            include = ["yaml", "nc", "hyp", "gr", "names", "stride"]
+        if self.ema:
+            self.ema.update_attr(self.model, include=include)
 
     def set_grad_scaler(self) -> amp.GradScaler:
         """Set GradScaler."""
-        cuda = self.device.type != "cpu"
-        return amp.GradScaler(enabled=cuda)
+        return amp.GradScaler(enabled=self.cuda)
 
-    def set_dataloader_tqdm(self) -> None:
+    def set_trainloader_tqdm(self) -> None:
         """Set tqdm object of train dataloader."""
         self.pbar = tqdm(
             enumerate(self.train_dataloader), total=len(self.train_dataloader)
         )
+
+    def on_after_batch(self, epoch: int) -> None:
+        """Execute after every batches.
+
+        Args:
+            epoch: current epoch.
+        """
+        # TODO(ulken94): Log params below.
+        for optimizer in self.optimizer:  # for tensorboard
+            lr = [x["lr"] for x in optimizer.param_groups]  # noqa
+        for scheduler in self.scheduler:
+            scheduler.step()
+
+        if self.rank in [-1, 0] and self.ema is not None:
+            # mAP
+            self.ema.update_attr(
+                self.model, include=["yaml", "nc", "hyp", "gr", "names", "stride"]
+            )
 
     def log_train_info(self) -> None:
         """Log train information table headers."""
@@ -393,17 +438,23 @@ class YoloTrainer(AbstractTrainer):
             % ("Epoch", "gpu_mem", "box", "obj", "cls", "total", "targets", "img_size")
         )
 
-    def train(self) -> None:
-        """Train model."""
+    def train(self, test_every_epoch: int = 1) -> None:
+        """Train model.
+
+        Args:
+            test_every_epoch: validate model in every {test_every_epoch} epochs.
+        """
         start_epoch = 0
 
         for scheduler in self.scheduler:
-            scheduler.last_epoch = start_epoch - 1
+            scheduler.last_epoch = start_epoch - 1  # type: ignore
 
         self.scaler = self.set_grad_scaler()
 
+        self.model.to(self.device)
+
         LOGGER.info(
-            "Image sizes %g train, %gt test\n"
+            "Image sizes %g train, %g test\n"
             "Using %g dataloader workers\nLogging results to %s\n"
             "Starting training for %g epochs..."
             % (
@@ -417,15 +468,15 @@ class YoloTrainer(AbstractTrainer):
 
         # train epochs
         for epoch in range(start_epoch, self.epochs):
-
+            is_final_epoch = epoch + 1 == self.epochs
             self.mloss = torch.zeros(4, device=self.device)
             self.on_start_epoch(epoch)
             self.model.train()
 
             # train batch
             for i, batch in self.pbar:
-                loss = self.training_step(batch, i, epoch)
-            self.model.eval()
-            for batch in self.val_dataloader:
-                self.validation_step(batch)
-            self.on_end_epoch()
+                _loss = self.training_step(batch, i, epoch)  # noqa
+            self.on_end_epoch(epoch)
+            if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
+                self.model.eval()
+                self.validation()  # TODO(ulken94): Save model and save validation logs.

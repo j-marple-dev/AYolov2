@@ -10,8 +10,6 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from scripts.utils.torch_utils import select_device
-
 
 class AbstractTrainer(ABC):
     """Abstract trainer class."""
@@ -22,6 +20,7 @@ class AbstractTrainer(ABC):
         cfg: Dict[str, Any],
         train_dataloader: DataLoader,
         val_dataloader: DataLoader,
+        device: torch.device,
     ) -> None:
         """Initialize AbstractTrainer class."""
         super().__init__()
@@ -29,7 +28,7 @@ class AbstractTrainer(ABC):
         self.cfg_train = cfg["train"]
         self.cfg_hyp = cfg["hyper_params"]
         self.epochs = self.cfg_train["epochs"]
-        self.device = select_device(self.cfg_train["device"])
+        self.device = device
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.cuda = self.device.type != "cpu"
@@ -115,8 +114,7 @@ class AbstractTrainer(ABC):
         Args:
             img: input image tensor.
         """
+        img = img.to(self.device, non_blocking=True)
         if img.dtype == torch.uint8:
-            img = (
-                img.to(self.device, non_blocking=True).float() / 255.0
-            )  # uint8 to float32, 0-255 to 0.0-1.0
+            img = img.float() / 255.0  # uint8 to float32, 0-255 to 0.0-1.0
         return img

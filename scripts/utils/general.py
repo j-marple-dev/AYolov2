@@ -217,3 +217,40 @@ def xywh2xyxy(
     y[:, 2] = ratio[0] * wh[0] * (x[:, 0] + x[:, 2] / 2) + pad[0]  # bottom right x
     y[:, 3] = ratio[1] * wh[1] * (x[:, 1] + x[:, 3] / 2) + pad[1]  # bottom right y
     return y
+
+
+def scale_coords(
+    img1_shape: Tuple[float, float],
+    coords: Union[torch.Tensor, np.ndarray],
+    img0_shape: Tuple[float, float],
+    ratio_pad: Optional[Union[tuple, list, np.ndarray]] = None,
+) -> Union[torch.Tensor, np.ndarray]:
+    """Rescale coords (xyxy) from img1_shape to img0_shape.
+
+    Args:
+        img1_shape: current image shape.
+        coords: (xyxy) coordinates.
+        img0_shape: target image shape.
+        ratio_pad: padding ratio.
+
+    Returns:
+        scaled coordinates.
+    """
+    # Rescale coords (xyxy) from img1_shape to img0_shape
+    if ratio_pad is None:  # calculate from img0_shape
+        gain = min(
+            img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1]
+        )  # gain  = old / new
+        pad = (
+            (img1_shape[1] - img0_shape[1] * gain) / 2,
+            (img1_shape[0] - img0_shape[0] * gain) / 2,
+        )  # wh padding
+    else:
+        gain = ratio_pad[0][0]
+        pad = ratio_pad[1]
+
+    coords[:, [0, 2]] -= pad[0]  # x padding
+    coords[:, [1, 3]] -= pad[1]  # y padding
+    coords[:, :4] /= gain
+    clip_coords(coords, img0_shape)
+    return coords

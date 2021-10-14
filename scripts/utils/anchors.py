@@ -3,7 +3,11 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
-from typing import Tuple, Union
+from typing import TYPE_CHECKING, Tuple, Union
+
+if TYPE_CHECKING:
+    from scripts.data_loader.data_loader import LoadImagesAndLabels
+    from kindle.modules import YOLOHead
 
 import numpy as np
 import torch
@@ -17,7 +21,7 @@ def check_anchor_order(m: nn.Module) -> None:
     """Check anchor order against stride order for YOLOv5 Detect module."""
     # anchor area
     a = m.anchor_grid.prod(-1).view(-1)  # type: ignore
-    # delta a
+    # delta
     da = a[-1] - a[0]  # type: ignore
     # delta s
     ds = m.stride[-1] - m.stride[0]  # type: ignore
@@ -179,14 +183,14 @@ def check_anchors(
         assert isinstance(
             model.module.model, nn.Sequential
         ), "Model must be a sequential"
-        m: "Detect" = model.module.model[-1]  # noqa
+        m: "YOLOHead" = model.module.model[-1]  # noqa
     else:
-        m = model.model[-1]
+        m = model.model[-1]  # type: ignore
 
-    shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
+    shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)  # type: ignore
     scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
     wh = torch.tensor(
-        np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])
+        np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])  # type: ignore
     ).float()  # wh
 
     def metric(k: Union[torch.Tensor, np.ndarray]) -> Tuple[torch.Tensor, torch.Tensor]:

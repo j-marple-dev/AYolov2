@@ -79,6 +79,7 @@ def test_model_validator() -> None:
     model, ema = TrainModelBuilder(model, cfg, device, "exp")(
         train_dataset, train_loader
     )
+    model.eval()
     validator = YoloValidator(model, val_loader, device, cfg)
 
     validator.validation()

@@ -56,11 +56,6 @@ class AbstractTrainer(ABC):
         """
         pass
 
-    @abstractmethod
-    def validation(self) -> None:
-        """Validate model."""
-        pass
-
     def validation_step(
         self, batch: Union[List[torch.Tensor], torch.Tensor], batch_idx: int
     ) -> torch.Tensor:
@@ -97,6 +92,12 @@ class AbstractTrainer(ABC):
         """Initialize optimizer."""
         pass
 
+    @torch.no_grad()
+    def validation(self) -> None:
+        """Run validation."""
+        for i, batch in self.pbar if self.pbar else enumerate(self.val_dataloader):
+            self.validation_step(batch, i)
+
     def train(self) -> None:
         """Train model."""
         self.on_train_start()
@@ -110,6 +111,7 @@ class AbstractTrainer(ABC):
                 self.pbar if self.pbar else enumerate(self.train_dataloader)
             ):
                 self.training_step(batch, i, epoch)
+
             self.on_end_epoch(epoch)
             if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
                 self.model.eval()

@@ -6,6 +6,7 @@
 
 import importlib
 import os
+import time
 
 import numpy as np
 import onnx
@@ -90,7 +91,9 @@ def test_model_converter_tensorrt(
         * torch_out[0][:, :, 4:5]
     )
 
-    profiler = model.profile(verbose=True, n_run=1, input_size=(640, 640), batch_size=8)
+    profiler = model.profile(
+        verbose=True, n_run=100, input_size=(640, 640), batch_size=8
+    )
 
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
     converter.dry_run()
@@ -108,9 +111,15 @@ def test_model_converter_tensorrt(
         os.path.join("tests", ".model.trt"), 8, torch.device("cuda:0")
     )
     test_input = test_input.to(torch.device("cuda:0"), non_blocking=True).contiguous()
-    trt_out = trt_model(test_input, raw_out=True)[0]
+    t0 = time.monotonic()
+    for _ in range(100):
+        trt_out = trt_model(test_input, raw_out=True)[0]
+    t_trt = time.monotonic() - t0
     trt_out = trt_out.cpu()
 
+    print(
+        f"Torch model time: {profiler.total_run_time:.2f}s, TensorRT model time: {t_trt:.2f}s"
+    )
     if not keep_trt:
         os.remove(os.path.join("tests", ".model.trt"))
 
@@ -123,4 +132,4 @@ def test_model_converter_tensorrt(
 if __name__ == "__main__":
     # test_model_converter_torchscript()
     # test_model_converter_onnx()
-    test_model_converter_tensorrt(keep_trt=False, check_trt_exists=False)
+    test_model_converter_tensorrt(keep_trt=True, check_trt_exists=True)

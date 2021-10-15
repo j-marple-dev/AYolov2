@@ -1,26 +1,26 @@
 train:
   weights: ''  # Model weight path
   data: ''  # data config path
-  epochs: 300 
-  batch_size: 16
+  epochs: 150
+  batch_size: 128
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
-  validate_period: 3  # Run validation on every x epoch
+  validate_period: 1  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
-  cache_image: 'ram' # Use caching images. This should be either 'ram' or 'disk'
-  n_skip: 0  # skip image by n which reduces images to be used
+  cache_image: null  # Use caching images. This should be either 'mem', 'disk', 'dynamic_mem', 'dynamic_disk'
+  n_skip: 5  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
-  device: "0"  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
+  device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
   single_cls: false  # Train multi-class data as single-class
   sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
-  workers: 8  # Maximum number of dataloader workers
+  workers: 16  # Maximum number of dataloader workers
   linear_lr: false  # Use linear learning rate
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
-  log_dir: "exp"
+  log_dir: "exp"  # Default log root directory
   plot: true
   label_type: "segments"  # Label type to use ("labels", "segments")
 
@@ -67,7 +67,7 @@ yolo_augmentation:
   fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
   mixup: 0.1  # image mixup (probability)
-  copy_paste: 0.5  # segment copy-paste (probability)
+  copy_paste: 0.1  # segment copy-paste (probability)
 
 
 augmentation:
@@ -84,3 +84,4 @@ augmentation:
       HorizontalFlip: {p: 0.5}
       VerticalFlip: {p: 0.0}
     prob: 1.0
+

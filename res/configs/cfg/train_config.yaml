@@ -1,25 +1,28 @@
 train:
   weights: ''  # Model weight path
-  epochs: 300 
+  data: ''  # data config path
+  epochs: 300
   batch_size: 64
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
-  validate_period: 3  # Run validation on every x epoch
+  validate_period: 1  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
-  cache_image: null  # Use caching images. This should be among 'ram', 'disk', or null
+  cache_image: null  # Use caching images. This should be either 'mem', 'disk', 'dynamic_mem', 'dynamic_disk'
   n_skip: 0  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
-  device: ""  # CUDA device to use. '' will use all GPUs. EX) "0,2" or "cpu"
+  device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
   single_cls: false  # Train multi-class data as single-class
   sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
-  workers: 8  # Maximum number of dataloader workers
+  workers: 16  # Maximum number of dataloader workers
   linear_lr: false  # Use linear learning rate
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
-  log_dir: "exp"
+  log_dir: "exp"  # Default log root directory
+  plot: true
+  label_type: "segments"  # Label type to use ("labels", "segments")
 
 
 hyper_params:
@@ -43,10 +46,15 @@ hyper_params:
   cls_pw: 1.0  # cls BCELoss positive_weight
   obj: 1.0  # obj loss gain (scale with pixels)
   obj_pw: 1.0  # obj BCELoss positive_weight
+  conf_t: 0.1  # confidence threshold
   iou_t: 0.20  # IoU training threshold
   anchor_t: 4.0  # anchor-multiple threshold
   # anchors: 3  # anchors per output layer (0 to ignore)
   fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+
+
+yolo_augmentation:
+  augment: true  # Use augmentation
   hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
   hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
   hsv_v: 0.4  # image HSV-Value augmentation (fraction)
@@ -58,17 +66,21 @@ hyper_params:
   flipud: 0.0  # image flip up-down (probability)
   fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
-  mixup: 0.0  # image mixup (probability)
-  copy_paste: 0.0  # segment copy-paste (probability)
+  mixup: 0.1  # image mixup (probability)
+  copy_paste: 0.1  # segment copy-paste (probability)
 
 
 augmentation:
   - policy:
-      Blur: {p: 0.5}
-      Flip: {p: 0.5}
-      ToGray: {p: 0.5}
+      Blur: {p: 0.01}
+      MedianBlur: {p: 0.01}
+      ToGray: {p: 0.01}
+      CLAHE: {p: 0.01}
+      RandomBrightnessContrast: {p: 0.0}
+      RandomGamma: {p: 0.0}
+      ImageCompression: {quality_lower: 75, p: 0.0}
     prob: 1.0
   - policy:
-      RandomGamma: {p: 0.5}
       HorizontalFlip: {p: 0.5}
+      VerticalFlip: {p: 0.0}
     prob: 1.0

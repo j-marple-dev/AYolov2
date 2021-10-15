@@ -6,12 +6,27 @@
 
 import logging
 import math
-from typing import List, Optional, Tuple, Union
+import os
+import time
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import cv2
 import numpy as np
 import torch
 
 from scripts.utils.constants import LOG_LEVEL
+
+# Settings START
+torch.set_printoptions(linewidth=320, precision=5, profile="long")
+np.set_printoptions(
+    linewidth=320, formatter={"float_kind": "{:11.5g}".format}
+)  # format short g, %precision=5
+# pd.options.display.max_columns = 10
+cv2.setNumThreads(
+    0
+)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
+os.environ["NUMEXPR_MAX_THREADS"] = str(min(os.cpu_count(), 8))  # NumExpr max threads
+# Settings END
 
 
 def resample_segments(segments: List[np.ndarray], n: int = 1000) -> List[np.ndarray]:
@@ -194,7 +209,14 @@ def get_logger(name: str, log_level: Optional[int] = None) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(LOG_LEVEL)
 
-    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    formatter = logging.Formatter(
+        "[%(asctime)s]"
+        + colorstr("yellow", "bold", "[%(levelname)s]")
+        + colorstr("green", "bold", "[%(name)s]")
+        + colorstr("cyan", "bold", "[%(filename)s:%(lineno)d]")
+        + colorstr("blue", "bold", "(%(funcName)s)")
+        + " %(message)s"
+    )
 
     ch = logging.StreamHandler()
     ch.setFormatter(formatter)
@@ -361,3 +383,185 @@ def scale_coords(
     coords[:, :4] /= gain
     clip_coords(coords, img0_shape)
     return coords
+
+
+def colorstr(*args: Any) -> str:
+    """Make color string🌈.
+
+    Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code,
+    i.e.  colorstr('blue', 'hello world')
+
+    Color codes:
+        "black",
+        "red",
+        "green",
+        "yellow",
+        "blue", (Default)
+        "magenta",
+        "cyan",
+        "white",
+        "bright_black",
+        "bright_red",
+        "bright_green",
+        "bright_yellow",
+        "bright_blue",
+        "bright_magenta",
+        "bright_cyan",
+        "bright_white",
+
+    Text format:
+        "bold",  (Default)
+        "underline",
+
+    Args:
+        *args: string with text format.
+            Ex) colorstr("red", "bold" "Hello world")
+                will print red and bold text of "Hello world"
+
+    Return:
+        text with color🌈
+    """
+    *args, string = (
+        args if len(args) > 1 else ("blue", "bold", args[0])  # type: ignore
+    )  # color arguments, string
+    colors = {
+        "black": "\033[30m",  # basic colors
+        "red": "\033[31m",
+        "green": "\033[32m",
+        "yellow": "\033[33m",
+        "blue": "\033[34m",
+        "magenta": "\033[35m",
+        "cyan": "\033[36m",
+        "white": "\033[37m",
+        "bright_black": "\033[90m",  # bright colors
+        "bright_red": "\033[91m",
+        "bright_green": "\033[92m",
+        "bright_yellow": "\033[93m",
+        "bright_blue": "\033[94m",
+        "bright_magenta": "\033[95m",
+        "bright_cyan": "\033[96m",
+        "bright_white": "\033[97m",
+        "end": "\033[0m",  # misc
+        "bold": "\033[1m",
+        "underline": "\033[4m",
+    }
+
+    return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
+
+
+class TimeChecker:
+    """Time analyzer class."""
+
+    def __init__(
+        self,
+        title: str = "",
+        ignore_thr: float = 0.05,
+        sort: bool = True,
+        add_start: bool = True,
+    ) -> None:
+        """Initialize TimeChecker class.
+
+        Args:
+            title: name of the time analysis
+            ignore_thr: time percentage that took below {ignore_thr}% will be ignored for the logging.
+            sort: log sorted by time consumption ratios
+            add_start: auto add start time
+                       TimeChecker requires at least two time checks.
+                       The first time will always be used as the start time.
+        """
+        self.times: Dict[str, List[float]] = dict()
+        self.name_idx: Dict[str, int] = dict()
+        self.idx_name: List[str] = []
+
+        self.title = title
+        self.ignore_thr = ignore_thr
+        self.sort = sort
+
+        if add_start:
+            self.add("start")
+
+    def __getitem__(self, name: str) -> Tuple[float, int]:
+        """Get time taken.
+
+        Returns:
+            time took(s)
+            Number of times that {name} event occur.
+        """
+        idx = self.name_idx[name]
+        name_p = self.idx_name[idx - 1]
+
+        times_0 = self.times[name_p]
+        times_1 = self.times[name]
+
+        n_time = min(len(times_0), len(times_1))
+        time_took = 0.0
+        for i in range(n_time):
+            time_took += times_1[i] - times_0[i]
+
+        return time_took, n_time
+
+    def add(self, name: str) -> None:
+        """Add time point."""
+        if name not in self.name_idx:
+            self.name_idx[name] = len(self.times)
+            self.idx_name.append(name)
+            self.times[name] = [time.monotonic()]
+        else:
+            self.times[name].append(time.monotonic())
+
+    def clear(self) -> None:
+        """Clear time records."""
+        self.times.clear()
+        self.name_idx.clear()
+        self.idx_name.clear()
+
+    def _convert_unit_str(self, value: float) -> Tuple[float, str]:
+        """Convert second unit to s, ms, ns metric.
+
+        Args:
+            value: time(s)
+        Returns:
+            Converted time value.
+            Unit of the time value(s, ms, ns).
+        """
+        if value < 0.001:
+            value *= 1000 * 1000
+            unit = "ns"
+        elif value < 1:
+            value *= 1000
+            unit = "ms"
+        else:
+            unit = "s"
+
+        return value, unit
+
+    @property
+    def total_time(self) -> float:
+        """Get total time."""
+        time_tooks = [self[self.idx_name[i]][0] for i in range(1, len(self.times))]
+
+        return sum(time_tooks)
+
+    def __str__(self) -> str:
+        """Convert time checks to the log string."""
+        msg = f"[{self.title[-15:]:>15}] "
+        time_total = self.total_time
+        time_tooks = [self[self.idx_name[i]] for i in range(1, len(self.times))]
+
+        if self.sort:
+            idx = np.argsort(np.array(time_tooks)[:, 0])[::-1]
+        else:
+            idx = np.arange(0, len(self.times) - 1)
+
+        for i in idx:
+            time_took = time_tooks[i][0]
+            time_ratio = time_took / time_total
+
+            time_took, unit = self._convert_unit_str(time_took)
+
+            if time_ratio > self.ignore_thr:
+                msg += f"{self.idx_name[i+1][:10]:>11}: {time_took:4.1f}{unit}({time_ratio*100:4.1f}%), "
+
+        time_total, unit = self._convert_unit_str(time_total)
+        msg += f"{'Total':>11}: {time_total:4.1f}{unit}"
+        return msg

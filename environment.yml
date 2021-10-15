@@ -24,9 +24,9 @@ dependencies:
   - pytest-mypy=0.7.0
   - pytest-pylint=0.17.0
   # Place your conda dependencies here
-  - pytorch=1.7.1
-  - torchvision=0.8.2
-  - cudatoolkit=11.0
+  - pytorch=1.9.1
+  - torchvision=0.10.1
+  - cudatoolkit=11.1
   - opencv=4.1.0
   - pip:
     - flake8-annotations==2.4.0

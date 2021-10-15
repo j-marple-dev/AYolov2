@@ -13,7 +13,7 @@ import yaml
 from kindle import YOLOModel
 from torch.utils.data import DataLoader
 
-from scripts.data_loader.data_loader import LoadImagesAndLabels
+from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_plmodule import YoloPLModule
 from scripts.train.yolo_trainer import YoloTrainer
@@ -30,54 +30,32 @@ def test_model_validator() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
 
-    model = YOLOModel(
-        os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
-    )
-
-    cfg["train"]["epochs"] = 1
-
-    train_dataset = LoadImagesAndLabels(
-        "tests/res/datasets/coco/images/train2017",
-        cache_images=cfg["train"]["cache_image"],
-        n_skip=cfg["train"]["n_skip"],
-        batch_size=cfg["train"]["batch_size"],
-        preprocess=lambda x: (x / 255.0).astype(np.float32),
-        rect=False,
-        pad=0,
-        yolo_augmentation=cfg["yolo_augmentation"],
-    )
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=cfg["train"]["batch_size"],
-        # num_workers=multiprocessing.cpu_count() - 1,
-        num_workers=8,
-        collate_fn=LoadImagesAndLabels.collate_fn,
-    )
-    val_dataset = LoadImagesAndLabels(
-        "tests/res/datasets/coco/images/val2017",
-        cache_images=cfg["train"]["cache_image"],
-        n_skip=cfg["train"]["n_skip"],
-        batch_size=cfg["train"]["batch_size"],
-        preprocess=lambda x: (x / 255.0).astype(np.float32),
-        rect=False,
-        pad=0,
-    )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=cfg["train"]["batch_size"],
-        # num_workers=multiprocessing.cpu_count() - 1,
-        num_workers=8,
-        collate_fn=LoadImagesAndLabels.collate_fn,
-    )
-
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
-    device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
-
-    model, ema = TrainModelBuilder(model, cfg, device, "exp")(
-        train_dataset, train_loader
+    model = YOLOModel(
+        os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
+    cfg["train"]["epochs"] = 1
+
+    train_builder = TrainModelBuilder(model, cfg, "exp")
+    train_builder.ddp_init()
+
+    stride_size = int(max(model.stride))  # type: ignore
+
+    train_loader, train_dataset = create_dataloader(
+        "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
+    )
+    val_loader, val_dataset = create_dataloader(
+        "tests/res/datasets/coco/images/val2017",
+        cfg,
+        stride_size,
+        prefix="[Val] ",
+        pad=0.5,
+        validation=True,
+    )
+
+    model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
     model.eval()
     validator = YoloValidator(model, val_loader, device, cfg)
 

@@ -1,8 +1,8 @@
 input_size: [640, 640]
 input_channel: 3
 
-depth_multiple: 0.33
-width_multiple: 0.5
+depth_multiple: 1.33
+width_multiple: 1.25
 
 anchors: &anchors
    - [10,13, 16,30, 33,23]  # P3/8

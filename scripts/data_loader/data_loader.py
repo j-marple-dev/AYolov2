@@ -69,7 +69,8 @@ class LoadImages(Dataset):
             img_size: Minimum width or height size.
             batch_size: batch size to use in iterator.
             rect: use rectangular image.
-            cache_images: use caching images. if None, caching will not be used.
+            cache_images: use caching images. if None, caching will not be useda
+                'dynamic_mem': Caching images once it has been loaded.
                 'mem': Caching images in memory.
                 'disk': Caching images in disk.
             stride: Stride value
@@ -85,6 +86,7 @@ class LoadImages(Dataset):
         self.rect = rect
         self.pad = pad
         self.augmentation = augmentation
+        self.cache_images = cache_images
 
         # Get image paths
         self.img_files = self.__grep_all_images(path)
@@ -104,6 +106,8 @@ class LoadImages(Dataset):
         self.indices = range(self.n_img)
         self.imgs = [None] * self.n_img
         self.img_npy: List[Optional[Path]] = [None] * self.n_img
+        self.img_hw0: List[Optional[Tuple[int, int]]] = [None] * self.n_img
+        self.img_hw: List[Optional[Tuple[int, int]]] = [None] * self.n_img
 
         self.shapes = self._get_shapes()
 
@@ -112,18 +116,16 @@ class LoadImages(Dataset):
             self.img_files = [self.img_files[i] for i in indices]
             self.shapes = self.shapes[indices]
 
-        if cache_images:
-            if cache_images == "disk":
-                self.im_cache_dir = Path(
-                    Path(self.img_files[0]).parent.as_posix() + "_npy"
-                )
-                self.img_npy = [
-                    self.im_cache_dir / Path(f).with_suffix(".npy").name
-                    for f in self.img_files
-                ]
-                self.im_cache_dir.mkdir(parents=True, exist_ok=True)
+        if cache_images and cache_images.endswith("disk"):
+            self.im_cache_dir = Path(Path(self.img_files[0]).parent.as_posix() + "_npy")
+            self.img_npy = [
+                self.im_cache_dir / Path(f).with_suffix(".npy").name
+                for f in self.img_files
+            ]
+            self.im_cache_dir.mkdir(parents=True, exist_ok=True)
+
+        if cache_images and not cache_images.startswith("dynamic"):
             gb = 0  # Gigabytes of cached images
-            self.img_hw0, self.img_hw = [None] * self.n_img, [None] * self.n_img
             results = ThreadPool(NUM_THREADS).imap(
                 lambda x: self._load_image(x), range(self.n_img)
             )
@@ -290,11 +292,19 @@ class LoadImages(Dataset):
         if im is None:  # not cached in ram
             npy = self.img_npy[index]
             if npy and npy.exists():  # load npy
-                im = np.load(npy)
-            else:  # read image
+                try:
+                    im = np.load(npy)
+                except ValueError:
+                    LOGGER.warn(
+                        f"Load npy cache filed. {npy}. Removing the cache and load from disk."
+                    )
+                    os.remove(npy)
+
+            if im is None:
                 path = self.img_files[index]
                 im = cv2.imread(path)  # BGR
                 assert im is not None, "Image Not Found " + path
+
             h0, w0 = im.shape[:2]  # orig hw
             r = self.img_size / max(h0, w0)  # ratio
             if r != 1:  # if sizes are not equal
@@ -303,6 +313,19 @@ class LoadImages(Dataset):
                     (int(w0 * r), int(h0 * r)),
                     interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR,
                 )
+
+            if self.cache_images is not None and self.cache_images.startswith(
+                "dynamic"
+            ):
+                if self.cache_images.endswith("mem"):
+                    self.imgs[index] = im
+                    self.img_hw0[index] = (h0, w0)
+                    self.img_hw[index] = im.shape[:2]
+                elif self.cache_images.endswith("disk") and npy and not npy.exists():
+                    npy_path = self.img_npy[index]
+                    if npy_path is not None:
+                        np.save(npy_path.as_posix(), im)
+
             return im, (h0, w0), im.shape[:2]  # im, hw_original, hw_resized
         else:
             return (
@@ -348,7 +371,8 @@ class LoadImages(Dataset):
         img = np.ascontiguousarray(img)
 
         shapes = (h0, w0), (h1, w1)
-        return torch.from_numpy(img), self.img_files[index], shapes
+        torch_img = torch.from_numpy(img)
+        return torch_img, self.img_files[index], shapes
 
     def _letterbox(
         self,
@@ -511,9 +535,14 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             )
             for x in self.img_files
         ]
+
         self.yolo_augmentation = (
             yolo_augmentation if yolo_augmentation is not None else {}
         )
+
+        # Disable mosaic in rectangular images
+        if self.rect:
+            self.yolo_augmentation["mosaic"] = 0.0
 
         # Check cache
         cache_path = str(Path(self.label_files[0]).parent) + ".cache"
@@ -527,6 +556,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 ],
             ]
         ] = None
+
         if os.path.isfile(cache_path):
             cache = torch.load(cache_path)
             assert cache is not None
@@ -627,12 +657,13 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         if self.augmentation:
             img, labels = self.augmentation(img, labels)
 
-            augment_hsv(
-                img,
-                self.yolo_augmentation.get("hsv_h", 0.015),
-                self.yolo_augmentation.get("hsv_s", 0.7),
-                self.yolo_augmentation.get("hsv_v", 0.4),
-            )
+            if self.yolo_augmentation.get("augment", False):
+                augment_hsv(
+                    img,
+                    self.yolo_augmentation.get("hsv_h", 0.015),
+                    self.yolo_augmentation.get("hsv_s", 0.7),
+                    self.yolo_augmentation.get("hsv_v", 0.4),
+                )
 
         if self.preprocess:
             img = self.preprocess(img)
@@ -644,8 +675,9 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         labels_out = torch.zeros((n_labels, 6))
         if n_labels > 0:
             labels_out[:, 1:] = torch.from_numpy(labels)
+        torch_img = torch.from_numpy(img)
 
-        return torch.from_numpy(img), labels_out, self.img_files[index], shapes
+        return torch_img, labels_out, self.img_files[index], shapes
 
     def _load_mosaic(self, index: int) -> Tuple[np.ndarray, np.ndarray]:
         img_half_size = self.img_size // 2

@@ -22,6 +22,7 @@ train:
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
   log_dir: "exp"
   plot: true
+  label_type: "segments"  # Label type to use ("labels", "segments")
 
 
 hyper_params:

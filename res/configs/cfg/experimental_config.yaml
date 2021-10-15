@@ -1,15 +1,15 @@
 train:
   weights: ''  # Model weight path
   data: ''  # data config path
-  epochs: 300
-  batch_size: 64
+  epochs: 150
+  batch_size: 128
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
   validate_period: 1  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
   cache_image: null  # Use caching images. This should be either 'mem', 'disk', 'dynamic_mem', 'dynamic_disk'
-  n_skip: 0  # skip image by n which reduces images to be used
+  n_skip: 5  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
   device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
@@ -80,7 +80,8 @@ augmentation:
       RandomGamma: {p: 0.0}
       ImageCompression: {quality_lower: 75, p: 0.0}
     prob: 1.0
- - policy:
-     HorizontalFlip: {p: 0.5}
-     VerticalFlip: {p: 0.0}
-   prob: 1.0
+  - policy:
+      HorizontalFlip: {p: 0.5}
+      VerticalFlip: {p: 0.0}
+    prob: 1.0
+

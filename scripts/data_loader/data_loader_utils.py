@@ -11,6 +11,7 @@ import torch
 
 from scripts.augmentation.augmentation import MultiAugmentationPolicies
 from scripts.data_loader.data_loader import LoadImagesAndLabels
+from scripts.utils.general import TimeChecker, get_logger
 from scripts.utils.torch_utils import torch_distributed_zero_first
 
 LOCAL_RANK = int(
@@ -18,6 +19,8 @@ LOCAL_RANK = int(
 )  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", -1))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
+
+LOGGER = get_logger(__name__)
 
 
 def create_dataloader(
@@ -57,9 +60,11 @@ def create_dataloader(
         torch DataLoader,
         torch Dataset
     """
+    time_checker = TimeChecker(f"{prefix}create")
     rank = LOCAL_RANK if not validation else -1
     batch_size = cfg["train"]["batch_size"] // WORLD_SIZE * (2 if validation else 1)
     workers = cfg["train"]["workers"]
+
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
         dataset = LoadImagesAndLabels(
@@ -83,11 +88,13 @@ def create_dataloader(
             else None,
             preprocess=preprocess,
         )
+    time_checker.add("dataset")
 
     batch_size = min(batch_size, len(dataset))
     n_workers = min(
         [os.cpu_count(), batch_size if batch_size > 1 else 0, workers]
     )  # number of workers
+    LOGGER.info(f"{prefix}batch_size: {batch_size}, n_workers: {n_workers}")
     sampler: Optional[torch.utils.data.Sampler] = (
         torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     )
@@ -96,6 +103,7 @@ def create_dataloader(
         if cfg["train"]["image_weights"]
         else InfiniteDataLoader
     )
+    time_checker.add("set_vars")
     # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
     dataloader = loader(
         dataset,
@@ -105,6 +113,8 @@ def create_dataloader(
         pin_memory=True,
         collate_fn=LoadImagesAndLabels.collate_fn,
     )
+    time_checker.add("dataloader")
+    LOGGER.debug(f"{time_checker}")
     return dataloader, dataset
 
 

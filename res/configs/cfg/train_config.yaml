@@ -80,7 +80,7 @@ augmentation:
       RandomGamma: {p: 0.0}
       ImageCompression: {quality_lower: 75, p: 0.0}
     prob: 1.0
- - policy:
-     HorizontalFlip: {p: 0.5}
-     VerticalFlip: {p: 0.0}
-   prob: 1.0
+  - policy:
+      HorizontalFlip: {p: 0.5}
+      VerticalFlip: {p: 0.0}
+    prob: 1.0

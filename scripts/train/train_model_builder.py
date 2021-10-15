@@ -129,6 +129,9 @@ class TrainModelBuilder:
 
     def ddp_init(self) -> None:
         """Initialize DDP device."""
+        if not torch.cuda.is_available():
+            return
+
         # DDP INIT
         if LOCAL_RANK != -1:
             assert (

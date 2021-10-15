@@ -30,6 +30,8 @@ def test_train_model_builder() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
+    if not torch.cuda.is_available():
+        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -43,9 +45,6 @@ def test_train_model_builder() -> None:
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
 
-    if not torch.cuda.is_available():
-        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
-
     model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
 
 
@@ -54,7 +53,10 @@ def test_train() -> None:
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:
         cfg = yaml.safe_load(f)
+
     cfg["train"]["epochs"] = 1
+    if not torch.cuda.is_available():
+        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -75,9 +77,6 @@ def test_train() -> None:
         pad=0.5,
         validation=True,
     )
-
-    if not torch.cuda.is_available():
-        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
     model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
 

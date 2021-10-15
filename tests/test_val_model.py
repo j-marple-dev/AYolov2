@@ -30,6 +30,9 @@ def test_model_validator() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
 
+    if not torch.cuda.is_available():
+        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
+
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
@@ -51,9 +54,6 @@ def test_model_validator() -> None:
         pad=0.5,
         validation=True,
     )
-
-    if not torch.cuda.is_available():
-        cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
     model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
     model.eval()

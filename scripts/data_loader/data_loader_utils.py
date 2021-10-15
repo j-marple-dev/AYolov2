@@ -1,3 +1,9 @@
+"""DataLoader utilities.
+
+- Author: Jongkuk Lim
+- Contact: limjk@jmarple.ai
+"""
+
 import os
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -20,12 +26,37 @@ def create_dataloader(
     stride: int,
     pad: float = 0.0,
     validation: bool = False,
-    quad: bool = False,
     preprocess: Optional[Callable] = None,
-    prefix="",
+    prefix: str = "",
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.Dataset]:
-    """"""
+    """Create YOLO dataset loader.
 
+    Args:
+        path: root directory of image. The directory structure must follow the rules.
+            Ex)  {path} = data/set/images/train
+            dataset/images/train/image001.jpg
+            dataset/images/train/image002.jpg
+            ...
+
+            dataset/labels/train/image001.txt
+            dataset/labels/train/image002.txt
+            ...
+
+            dataset/segments/train/image001.txt
+            dataset/segments/train/image002.txt
+            ...
+
+        cfg: train_config dictionary.
+        pad: padding options for rect
+        validation: Set this to True if the dataloader is validation dataset.
+        preprocess: preprocess function runs in numpy image(CPU).
+            Ex) lambda x: (x / 255.0).astype(np.float32)
+        prefix: Prefix string for dataset log.
+
+    Returns:
+        torch DataLoader,
+        torch Dataset
+    """
     rank = LOCAL_RANK if not validation else -1
     batch_size = cfg["train"]["batch_size"] // WORLD_SIZE * (2 if validation else 1)
     workers = cfg["train"]["workers"]
@@ -57,7 +88,7 @@ def create_dataloader(
     n_workers = min(
         [os.cpu_count(), batch_size if batch_size > 1 else 0, workers]
     )  # number of workers
-    sampler = (
+    sampler: Optional[torch.utils.data.Sampler] = (
         torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     )
     loader = (
@@ -78,26 +109,31 @@ def create_dataloader(
 
 
 class InfiniteDataLoader(torch.utils.data.dataloader.DataLoader):
-    """Dataloader that reuses workers Uses same syntax as
-    torch.utils.data.dataloader.DataLoader."""
+    """Dataloader that reuses workers.
 
-    def __init__(self, *args, **kwargs):
+    Uses same syntax as torch.utils.data.dataloader.DataLoader.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize InifiniteDataLoader."""
         super().__init__(*args, **kwargs)
-        object.__setattr__(self, "batch_sampler", _RepeatSampler(self.batch_sampler))
+        object.__setattr__(self, "batch_sampler", _RepeatSampler(self.batch_sampler))  # type: ignore
         self.iterator = super().__iter__()
 
-    def __len__(self):
-        return len(self.batch_sampler.sampler)
+    def __len__(self) -> int:
+        """Length of the dataset."""
+        return len(self.batch_sampler.sampler)  # type: ignore
 
-    def __iter__(self):
-        for i in range(len(self)):
+    def __iter__(self) -> Any:
+        """Run iteration."""
+        for _ in range(len(self)):
             yield next(self.iterator)
 
 
 class _RepeatSampler(object):
     """Sampler that repeats forever."""
 
-    def __init__(self, sampler):
+    def __init__(self, sampler: torch.utils.data.Sampler) -> None:
         """Initialize repeat sampler.
 
         Args:
@@ -105,6 +141,7 @@ class _RepeatSampler(object):
         """
         self.sampler = sampler
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
+        """Run iteration."""
         while True:
             yield from iter(self.sampler)

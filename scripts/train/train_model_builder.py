@@ -44,7 +44,7 @@ class TrainModelBuilder:
         self.model = model
         self.cfg = cfg
         if hasattr(self.model, "model_parser"):
-            self.yaml = self.model.model_parser.cfg
+            self.yaml = self.model.model_parser.cfg  # type: ignore
         else:
             self.yaml = None
         self.device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
@@ -124,10 +124,11 @@ class TrainModelBuilder:
         )
         self.model.names = names  # type: ignore
         self.model.stride = head.stride  # type: ignore
-        self.model.cfg = self.cfg
-        self.model.yaml = self.yaml
+        self.model.cfg = self.cfg  # type: ignore
+        self.model.yaml = self.yaml  # type: ignore
 
     def ddp_init(self) -> None:
+        """Initialize DDP device."""
         # DDP INIT
         if LOCAL_RANK != -1:
             assert (

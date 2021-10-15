@@ -1,4 +1,4 @@
-"""Main script for your project.
+"""Training YOLO model.
 
 - Author: Jongkuk Lim
 - Contact: limjk@jmarple.ai
@@ -7,13 +7,9 @@
 import argparse
 import os
 
-import numpy as np
 import yaml
 from kindle import YOLOModel
-from torch.utils.data import DataLoader
 
-from scripts.augmentation.augmentation import MultiAugmentationPolicies
-from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer

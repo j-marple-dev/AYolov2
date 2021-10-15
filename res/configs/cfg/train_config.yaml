@@ -2,20 +2,20 @@ train:
   weights: ''  # Model weight path
   data: ''  # data config path
   epochs: 300 
-  batch_size: 32
+  batch_size: 128
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
   validate_period: 1  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
-  cache_image: '' # Use caching images. This should be either 'ram' or 'disk'
+  cache_image: null # Use caching images. This should be either 'ram' or 'disk'
   n_skip: 0  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
   device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
   single_cls: false  # Train multi-class data as single-class
   sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
-  workers: 8 # Maximum number of dataloader workers
+  workers: 16 # Maximum number of dataloader workers
   linear_lr: false  # Use linear learning rate
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
@@ -66,8 +66,8 @@ yolo_augmentation:
   flipud: 0.0  # image flip up-down (probability)
   fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
-  mixup: 0.1  # image mixup (probability)
-  copy_paste: 0.1  # segment copy-paste (probability)
+  mixup: 0.0  # image mixup (probability)
+  copy_paste: 0.0  # segment copy-paste (probability)
 
 
 augmentation:

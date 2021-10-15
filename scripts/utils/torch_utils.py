@@ -8,7 +8,7 @@ import os
 import random
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import List, Optional, Tuple, Union
+from typing import Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -22,9 +22,12 @@ LOGGER = get_logger(__name__)
 
 
 @contextmanager
-def torch_distributed_zero_first(local_rank: int):
-    """Decorator to make all processes in distributed training wait for each
-    local_master to do something."""
+def torch_distributed_zero_first(local_rank: int) -> Generator:
+    """Make sure torch distributed call is run on only local_rank -1 or 0.
+
+    Decorator to make all processes in distributed training wait for each local_master
+    to do something.
+    """
     if local_rank not in [-1, 0]:
         dist.barrier(device_ids=[local_rank])
     yield

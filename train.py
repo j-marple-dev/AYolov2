@@ -3,7 +3,6 @@
 - Author: Jongkuk Lim
 - Contact: limjk@jmarple.ai
 """
-
 import argparse
 import os
 import pprint
@@ -11,6 +10,7 @@ import pprint
 import yaml
 from kindle import YOLOModel
 
+import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
@@ -56,6 +56,12 @@ def get_parser() -> argparse.Namespace:
         default=-1,
         help="DDP parameter. " + colorstr("red", "bold", "Do not modify"),
     )
+    parser.add_argument(
+        "--wlog", action="store_true", default=False, help="Use Wandb logger."
+    )
+    parser.add_argument(
+        "--wlog_name", type=str, default="", help="The run id for Wandb log."
+    )
 
     return parser.parse_args()
 
@@ -87,6 +93,13 @@ if __name__ == "__main__":
         + "\n"
         + colorstr("red", "bold", f"{'-'*30} Training Configs END {'-'*30}")
     )
+
+    # WanDB Logger
+    wandb_run = None
+    if args.wlog:
+        wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
+        for config_fp in [args.data, args.cfg, args.model]:
+            wandb_run.save(config_fp, policy="now")
 
     model = YOLOModel(model_cfg, verbose=True)
     train_builder = TrainModelBuilder(model, train_cfg, "exp")
@@ -122,6 +135,7 @@ if __name__ == "__main__":
         ema=ema,
         device=device,
         log_dir=train_builder.log_dir,
+        wandb_run=wandb_run,
     )
 
     trainer.train()

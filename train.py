@@ -14,7 +14,7 @@ from kindle import YOLOModel
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
-from scripts.utils.general import colorstr, get_logger
+from scripts.utils.logger import colorstr, get_logger
 
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)
@@ -76,11 +76,7 @@ if __name__ == "__main__":
         "data_cfg": data_cfg,
         "train_cfg": train_cfg,
         "model_cfg": model_cfg,
-        "config_paths": {
-            "data_cfg": args.data,
-            "train_cfg": args.cfg,
-            "model_cfg": args.model,
-        },
+        "args": vars(args),
     }
 
     LOGGER.info(
@@ -125,5 +121,7 @@ if __name__ == "__main__":
         val_dataloader=val_loader,
         ema=ema,
         device=device,
+        log_dir=train_builder.log_dir,
     )
+
     trainer.train()

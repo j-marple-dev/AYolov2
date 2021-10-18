@@ -16,8 +16,11 @@ from tqdm import tqdm
 
 from scripts.loss.losses import ComputeLoss
 from scripts.utils.general import scale_coords, xywh2xyxy
+from scripts.utils.logger import get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
+
+LOGGER = get_logger(__name__)
 
 
 class AbstractValidator(ABC):
@@ -358,7 +361,7 @@ class YoloValidator(AbstractValidator):
         """
         # print result
         pf = "%20s" + "%11i" * 2 + "%11.3g" * 4  # print format
-        print(
+        log_str = str(
             pf
             % (
                 "all",
@@ -371,6 +374,8 @@ class YoloValidator(AbstractValidator):
             )
         )
 
+        LOGGER.info(log_str)
+
         # print result per class
         if (
             (verbose or (self.nc < 50 and not self.model.training))
@@ -378,16 +383,18 @@ class YoloValidator(AbstractValidator):
             and len(self.statistics["stats"])
         ):
             for i, c in enumerate(self.statistics["ap_class"]):
-                print(
-                    pf
-                    % (
-                        self.names[c],
-                        self.seen,
-                        self.statistics["nt"][c],
-                        self.statistics["p"][i],
-                        self.statistics["r"][i],
-                        self.statistics["ap50"][i],
-                        self.statistics["ap"][i],
+                LOGGER.info(
+                    str(
+                        pf
+                        % (
+                            self.names[c],
+                            self.seen,
+                            self.statistics["nt"][c],
+                            self.statistics["p"][i],
+                            self.statistics["r"][i],
+                            self.statistics["ap50"][i],
+                            self.statistics["ap"][i],
+                        )
                     )
                 )
         # print speed
@@ -401,9 +408,8 @@ class YoloValidator(AbstractValidator):
                 self.cfg_train["image_size"],
                 self.cfg_train["image_size"],
             )
-            print(
-                f"Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {shape}"
-                % t
+            LOGGER.info(
+                f"Speed: {t[0]:.1f}ms pre-process, {t[1]:.1f}ms inference, {t[2]:.1f}ms NMS per image at shape {shape}"
             )
         return t
 
@@ -428,7 +434,7 @@ class YoloValidator(AbstractValidator):
         t = self.print_results()
         maps = np.zeros(self.nc) + self.statistics["map"]
         for i, c in enumerate(self.statistics["ap_class"]):
-            maps[c] = self.statistics["ap"][i]
+            maps[c] = self.statistics["ap50"][i]
 
         return (
             (

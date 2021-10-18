@@ -131,3 +131,6 @@ dmypy.json
 # Docker related
 .last_exec_cont_id.txt
 *.cache
+
+# Train file.
+exp/

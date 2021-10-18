@@ -22,8 +22,8 @@ from tqdm import tqdm
 from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
                                                     mixup, random_perspective)
 from scripts.utils.constants import LABELS
-from scripts.utils.general import (get_logger, segments2boxes, xyn2xy,
-                                   xywh2xyxy, xyxy2xywh)
+from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
+from scripts.utils.logger import get_logger
 
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
 EXIF_REVERSE_TAGS = {v: k for k, v in ExifTags.TAGS.items()}

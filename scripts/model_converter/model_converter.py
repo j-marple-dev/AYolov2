@@ -373,4 +373,3 @@ class ModelConverter:
         else:
             print("Failed to build the TensorRT engine.")
             return False
-

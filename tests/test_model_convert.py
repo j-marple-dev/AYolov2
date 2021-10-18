@@ -82,10 +82,10 @@ def test_model_converter_tensorrt(
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
-    )
+    ).to(torch.device("cuda:0"))
 
     model.eval().export()
-    torch_out = model(test_input)
+    torch_out = model(test_input.to(torch.device("cuda:0")))
     obj_score = (
         torch.max(torch_out[0][:, :, 5:], dim=2, keepdim=True)[0]
         * torch_out[0][:, :, 4:5]
@@ -93,6 +93,10 @@ def test_model_converter_tensorrt(
 
     profiler = model.profile(
         verbose=True, n_run=100, input_size=(640, 640), batch_size=8
+    )
+
+    model = YOLOModel(
+        os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=False
     )
 
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
@@ -115,7 +119,6 @@ def test_model_converter_tensorrt(
     for _ in range(100):
         trt_out = trt_model(test_input, raw_out=True)[0]
     t_trt = time.monotonic() - t0
-    trt_out = trt_out.cpu()
 
     print(
         f"Torch model time: {profiler.total_run_time:.2f}s, TensorRT model time: {t_trt:.2f}s"
@@ -124,7 +127,7 @@ def test_model_converter_tensorrt(
         os.remove(os.path.join("tests", ".model.trt"))
 
     # Bounding boxes
-    assert torch.isclose(torch_out[0][:, :, :4], trt_out[:, :, :4], rtol=0.15).all()
+    assert torch.isclose(torch_out[0][:, :, :4], trt_out[:, :, :4], rtol=0.2).all()
     # Object and class scores
     assert torch.isclose(torch_out[0][:, :, 4:], trt_out[:, :, 4:], rtol=0.1).all()
 

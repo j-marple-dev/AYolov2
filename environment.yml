@@ -42,5 +42,5 @@ dependencies:
     - kindle>=0.4.12
     - matplotlib==3.3.4
     - seaborn==0.11.2
-    - einopes==0.3.2
+    - einops==0.3.2
 

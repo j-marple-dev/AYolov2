@@ -86,17 +86,17 @@ def test_model_converter_tensorrt(
 
     model.eval().export()
     torch_out = model(test_input.to(torch.device("cuda:0")))
-    obj_score = (
-        torch.max(torch_out[0][:, :, 5:], dim=2, keepdim=True)[0]
-        * torch_out[0][:, :, 4:5]
-    )
 
     profiler = model.profile(
         verbose=True, n_run=100, input_size=(640, 640), batch_size=8
     )
 
-    model = YOLOModel(
-        os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=False
+    model = (
+        YOLOModel(
+            os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=False
+        )
+        .eval()
+        .export()
     )
 
     converter = ModelConverter(model, 8, (640, 640), verbose=2)
@@ -135,4 +135,4 @@ def test_model_converter_tensorrt(
 if __name__ == "__main__":
     # test_model_converter_torchscript()
     # test_model_converter_onnx()
-    test_model_converter_tensorrt(keep_trt=True, check_trt_exists=True)
+    test_model_converter_tensorrt(keep_trt=True, check_trt_exists=False)

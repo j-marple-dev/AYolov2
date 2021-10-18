@@ -107,12 +107,16 @@ class YoloValidator(AbstractValidator):
             "ap_class": [],
         }
 
-    def init_attrs(self, s: str) -> None:
+    def init_attrs(self) -> None:
         """Initialize attributes before validation."""
         self.set_confusion_matrix()
         self.init_statistics()
         self.seen = 0
-        self.tqdm = tqdm(enumerate(self.dataloader), desc=s, total=len(self.dataloader))
+        self.tqdm = tqdm(
+            enumerate(self.dataloader),
+            desc="Validating ...",
+            total=len(self.dataloader),
+        )
 
     def prepare_img(self, img: torch.Tensor) -> torch.Tensor:
         """Prepare img for model."""
@@ -425,13 +429,16 @@ class YoloValidator(AbstractValidator):
             "mAP@.5",
             "mAP@.5:.95",
         )
-        self.init_attrs(s)
+        self.init_attrs()
         # dt, precision, recall, f1 score, mean-precision, mean-recall, mAP@.5, mAP@.5:.95
 
         for batch_i, batch in self.tqdm:
             self.validation_step(batch, batch_i)
         self.compute_statistics()
+
+        LOGGER.info(s)
         t = self.print_results()
+
         maps = np.zeros(self.nc) + self.statistics["map"]
         for i, c in enumerate(self.statistics["ap_class"]):
             maps[c] = self.statistics["ap50"][i]

@@ -13,11 +13,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 import yaml
-from kindle.modules import YOLOHead
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
-
-from scripts.data_loader.data_loader import LoadImagesAndLabels
 
 
 def check_anchor_order(m: nn.Module) -> None:

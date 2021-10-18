@@ -20,7 +20,7 @@ USER	user
 RUN sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev && sudo apt-get -y install jq
 
 # Install pip3 and C++ linter
-# RUN sudo apt-get install -y clang-format-6.0 cppcheck=1.82-1
+RUN sudo apt-get install -y clang-format cppcheck
 RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3 get-pip.py --force-reinstall && python3 -m pip install --upgrade pip
 RUN python3 -m pip install wheel cpplint
 

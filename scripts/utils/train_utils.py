@@ -79,9 +79,18 @@ class YoloValidator(AbstractValidator):
         device: torch.device,
         cfg: Dict[str, Any],
         compute_loss: bool = True,
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize YoloValidator class.."""
-        super().__init__(model, dataloader, device, cfg)
+        super().__init__(
+            model,
+            dataloader,
+            device,
+            cfg,
+            log_dir=log_dir,
+            incremental_log_dir=incremental_log_dir,
+        )
         self.class_map = list(range(self.model.nc))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
         self.confusion_matrix: ConfusionMatrix

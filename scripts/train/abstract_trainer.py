@@ -167,11 +167,22 @@ class AbstractTrainer(ABC):
             is_final_epoch = epoch + 1 == self.epochs
             self.on_epoch_start(epoch)
             self.model.train()
+
+            total_loss = 0.0
+            total_images = 0
             for i, batch in (
                 self.pbar if self.pbar else enumerate(self.train_dataloader)
             ):
                 self.state["step"] = i
-                self.training_step(batch, i, epoch)
+                loss = self.training_step(batch, i, epoch)
+                # self.log_dict({"loss": loss.item()})
+                total_loss += loss.item()
+                total_images += len(batch)
+            if total_images == 0:
+                total_images = 1
+            train_loss = total_loss / total_images
+            wlogs["train_loss"] = train_loss
+
             self.on_epoch_end(epoch)
 
             self.state.update({"is_train": False, "step": 0})
@@ -181,7 +192,15 @@ class AbstractTrainer(ABC):
             ):
                 self.model.eval()
                 self.validation()
+                if self.state["val_log"]:
+                    self.state["val_log"].pop("mAP50_by_cls", None)
+                    wlogs.update(self.state["val_log"])
+
             self.on_validation_end()
+
+            wlogs["epoch"] = epoch
+            if self.wandb_run:
+                self.wandb_run.log(wlogs)
 
         self.on_train_end()
 

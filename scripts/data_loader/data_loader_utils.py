@@ -74,7 +74,7 @@ def create_dataloader(
             batch_size=batch_size,
             rect=cfg["train"]["rect"]
             if not validation
-            else True,  # rectangular training
+            else False,  # rectangular training
             label_type=cfg["train"]["label_type"],
             cache_images=cfg["train"]["cache_image"] if not validation else None,
             single_cls=cfg["train"]["single_cls"],

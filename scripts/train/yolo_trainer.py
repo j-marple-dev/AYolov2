@@ -112,6 +112,7 @@ class YoloTrainer(AbstractTrainer):
                 self.val_dataloader,
                 self.device,
                 cfg,
+                log_dir=self.log_dir,
             )
 
     def _lr_function(self, x: float) -> float:

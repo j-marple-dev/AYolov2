@@ -1,10 +1,12 @@
 """Train utilities.
 
-- Author: Haneol Kim
-- Contact: hekim@jmarple.ai
+- Author: Haneol Kim, Jongkuk Lim
+- Contact: hekim@jmarple.ai, limjk@jmarple.ai
 """
+import os
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple, Union
 
@@ -15,7 +17,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from scripts.loss.losses import ComputeLoss
-from scripts.utils.general import scale_coords, xywh2xyxy
+from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
 from scripts.utils.logger import get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
@@ -32,6 +34,8 @@ class AbstractValidator(ABC):
         dataloader: DataLoader,
         device: torch.device,
         cfg: Dict[str, Any],
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize Validator class.
 
@@ -46,6 +50,13 @@ class AbstractValidator(ABC):
         self.device = device
         self.cfg_train = cfg["train"]
         self.cfg_hyp = cfg["hyper_params"]
+
+        if incremental_log_dir:
+            self.log_dir = increment_path(
+                os.path.join(log_dir, "val", datetime.now().strftime("%Y_%m%d_runs"))
+            )
+        else:
+            self.log_dir = log_dir
 
     @abstractmethod
     def validation_step(self, *args: Any, **kwargs: Any) -> Any:
@@ -330,7 +341,7 @@ class YoloValidator(AbstractValidator):
             ) = ap_per_class(
                 *self.statistics["stats"],
                 plot=False,
-                save_dir=self.cfg_train["log_dir"],
+                save_dir=self.log_dir,
                 names=self.names,
             )
             self.statistics["ap50"], self.statistics["ap"] = (

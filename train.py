@@ -7,6 +7,7 @@ import argparse
 import os
 import pprint
 
+import torch
 import yaml
 from kindle import YOLOModel
 
@@ -62,6 +63,7 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--wlog_name", type=str, default="", help="The run id for Wandb log."
     )
+    parser.add_argument("--log_dir", type=str, default="", help="Log root directory.")
 
     return parser.parse_args()
 
@@ -77,6 +79,13 @@ if __name__ == "__main__":
 
     with open(args.model, "r") as f:
         model_cfg = yaml.safe_load(f)
+
+    if args.log_dir:
+        train_cfg["train"]["log_dir"] = args.log_dir
+    log_dir = train_cfg["train"]["log_dir"]
+    if not log_dir:
+        log_dir = "exp"
+        train_cfg["train"]["log_dir"] = log_dir
 
     cfg_all = {
         "data_cfg": data_cfg,
@@ -102,7 +111,8 @@ if __name__ == "__main__":
             wandb_run.save(config_fp, policy="now")
 
     model = YOLOModel(model_cfg, verbose=True)
-    train_builder = TrainModelBuilder(model, train_cfg, "exp")
+
+    train_builder = TrainModelBuilder(model, train_cfg, log_dir)
     train_builder.ddp_init()
 
     stride_size = int(max(model.stride))  # type: ignore

@@ -30,6 +30,7 @@ from scripts.utils.torch_utils import de_parallel
 from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
+    import wandb.sdk.wandb_run.Run
     from scripts.utils.torch_utils import ModelEMA
 
 LOCAL_RANK = int(
@@ -54,6 +55,7 @@ class YoloTrainer(AbstractTrainer):
         device: torch.device,
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
+        wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -71,6 +73,7 @@ class YoloTrainer(AbstractTrainer):
             device=device,
             log_dir=log_dir,
             incremental_log_dir=incremental_log_dir,
+            wandb_run=wandb_run,
         )
 
         self.loss = ComputeLoss(self.model)
@@ -329,24 +332,6 @@ class YoloTrainer(AbstractTrainer):
 
         return loss[0]
 
-    def validation_step(
-        self,
-        val_batch: Tuple[
-            torch.Tensor,
-            torch.Tensor,
-            Tuple[str, ...],
-            Tuple[Tuple[Tuple[int, int], Tuple[int, int]], ...],
-        ],
-        batch_idx: int,
-    ) -> None:
-        """Validate a step (a batch).
-
-        Args:
-            val_batch: validation data batch in tuple (input_x, true_y).
-            batch_idx: current batch index.
-        """
-        pass
-
     def validation(self) -> None:
         """Validate model."""
         if RANK in [-1, 0]:
@@ -367,7 +352,7 @@ class YoloTrainer(AbstractTrainer):
                 }
             )
 
-            if val_result[0][2] > self.best_score:
+            if val_result[0][2] > self.best_score:  # mAP50
                 self.best_score = val_result[0][2]
 
             ckpt = {
@@ -386,6 +371,10 @@ class YoloTrainer(AbstractTrainer):
             # TODO(jeikeilim): Better metric to measure the best score so far.
             if val_result[0][2] == self.best_score:
                 torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
+                if self.wandb_run:
+                    self.wandb_run.save(
+                        os.path.join(self.wdir, "best.pt"), policy="now"
+                    )
                 self.best_score = val_result[0][2]
             del ckpt
 

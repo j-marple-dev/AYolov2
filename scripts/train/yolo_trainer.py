@@ -79,7 +79,7 @@ class YoloTrainer(AbstractTrainer):
         self.nbs = 64
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
-        self.maps = np.zeros(self.model.nc)  # map per class
+        self.val_maps = np.zeros(self.model.nc)  # map per class
         self.results = (
             {
                 "total": (0, 0, 0, 0),
@@ -395,6 +395,8 @@ class YoloTrainer(AbstractTrainer):
                 }
             )
 
+            self.val_maps = val_result[1]
+
             if val_result[0][2] > self.best_score:
                 self.best_score = val_result[0][2]
 
@@ -415,7 +417,7 @@ class YoloTrainer(AbstractTrainer):
 
                 # class weights
                 class_weights = (
-                    self.model.class_weights.cpu().numpy() * (1 - self.maps) ** 2
+                    self.model.class_weights.cpu().numpy() * (1 - self.val_maps) ** 2
                 )
                 # images weights
                 image_weights = labels_to_image_weights(

@@ -190,7 +190,11 @@ def load_model_weights(
     model.load_state_dict(state_dict, strict=False)  # load weights
     LOGGER.info(
         "Transferred %g/%g items from %s"
-        % (len(state_dict), len(model.state_dict()), weights)
+        % (
+            len(state_dict),
+            len(model.state_dict()),
+            weights if isinstance(weights, str) else weights.keys(),
+        )
     )
     return model
 

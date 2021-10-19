@@ -73,11 +73,13 @@ class YoloTrainer(AbstractTrainer):
             incremental_log_dir=incremental_log_dir,
         )
 
+        self.ema = ema
+        self.best_score = 0.0
         self.loss = ComputeLoss(self.model)
         self.nbs = 64
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
-        self.maps = np.zeros(self.model.nc)  # map per class
+        self.val_maps = np.zeros(self.model.nc)  # map per class
         self.results = (
             {
                 "total": (0, 0, 0, 0),
@@ -103,8 +105,6 @@ class YoloTrainer(AbstractTrainer):
         self.cfg_train["world_size"] = (
             int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
         )
-        self.ema = ema
-        self.best_score = 0.0
 
         if self.val_dataloader is not None:
             self.validator = YoloValidator(
@@ -163,6 +163,18 @@ class YoloTrainer(AbstractTrainer):
         )
 
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
+
+        pretrained = self.cfg_train.get("weights", "").endswith(".pt")
+        if pretrained:
+            ckpt = torch.load(self.cfg_train["weights"])
+            if ckpt["optimizer"] is not None:
+                optimizer.load_state_dict(ckpt["optimizer"][0])
+                self.best_score = ckpt["best_score"]
+
+            if self.ema and ckpt.get("ema"):
+                self.ema.ema.load_state_dict(ckpt["ema"].float().state_dict())
+                self.ema.updates = ckpt["updates"]
+
         return [optimizer], [scheduler]
 
     def warmup(self, ni: int, epoch: int) -> None:
@@ -347,6 +359,22 @@ class YoloTrainer(AbstractTrainer):
         """
         pass
 
+    def _save_weights(self, epoch: int, w_name: str) -> None:
+        if RANK in [-1, 0]:
+            ckpt = {
+                "epoch": epoch,
+                "best_score": self.best_score,
+                "model": deepcopy(de_parallel(self.model)).half(),
+                "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
+            }
+            if self.ema is not None:
+                ckpt.update(
+                    {"ema": deepcopy(self.ema.ema).half(), "updates": self.ema.updates}
+                )
+
+            torch.save(ckpt, os.path.join(self.wdir, w_name))
+            del ckpt
+
     def validation(self) -> None:
         """Validate model."""
         if RANK in [-1, 0]:
@@ -367,27 +395,17 @@ class YoloTrainer(AbstractTrainer):
                 }
             )
 
+            self.val_maps = val_result[1]
+
             if val_result[0][2] > self.best_score:
                 self.best_score = val_result[0][2]
 
-            ckpt = {
-                "epoch": self.epochs,
-                "best_score": self.best_score,
-                "model": deepcopy(de_parallel(self.model)).half(),
-                "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
-            }
-            if self.ema is not None:
-                ckpt.update(
-                    {"ema": deepcopy(self.ema.ema).half(), "updates": self.ema.updates}
-                )
-
-            torch.save(ckpt, os.path.join(self.wdir, "last.pt"))
+            self._save_weights(self.current_epoch, "last.pt")
 
             # TODO(jeikeilim): Better metric to measure the best score so far.
             if val_result[0][2] == self.best_score:
-                torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
                 self.best_score = val_result[0][2]
-            del ckpt
+                self._save_weights(self.current_epoch, "best.pt")
 
     def update_image_weights(self) -> None:
         """Update image weights."""
@@ -399,7 +417,7 @@ class YoloTrainer(AbstractTrainer):
 
                 # class weights
                 class_weights = (
-                    self.model.class_weights.cpu().numpy() * (1 - self.maps) ** 2
+                    self.model.class_weights.cpu().numpy() * (1 - self.val_maps) ** 2
                 )
                 # images weights
                 image_weights = labels_to_image_weights(
@@ -451,6 +469,7 @@ class YoloTrainer(AbstractTrainer):
         """
         for optimizer in self.optimizer:  # for tensorboard
             lr = [x["lr"] for x in optimizer.param_groups]  # noqa
+
         self.scheduler_step()
         if RANK in [-1, 0] and self.ema is not None:
             self.update_ema_attr()
@@ -501,6 +520,7 @@ class YoloTrainer(AbstractTrainer):
 
     def on_train_start(self) -> None:
         """Run on start training."""
+        # TODO(jeikeilim): Make load weight from wandb.
         labels = np.concatenate(self.train_dataloader.dataset.labels, 0)
         mlc = labels[:, 0].max()  # type: ignore
         nc = len(self.train_dataloader.dataset.names)
@@ -530,6 +550,10 @@ class YoloTrainer(AbstractTrainer):
 
         self.scaler = self.set_grad_scaler()
 
+    def on_train_end(self) -> None:
+        """Run on the end of the training."""
+        self._save_weights(-1, "last.pt")
+
     def log_train_cfg(self) -> None:
         """Log train configurations."""
         if RANK in [-1, 0]:
@@ -545,25 +569,3 @@ class YoloTrainer(AbstractTrainer):
                     self.epochs,
                 )
             )
-
-    # def train(self, test_every_epoch: int = 1) -> None:
-    #     """Train model.
-
-    #     Args:
-    #         test_every_epoch: validate model in every {test_every_epoch} epochs.
-    #     """
-    #     self.start_epoch = 0
-
-    #     # train epochs
-    #     for epoch in range(self.start_epoch, self.epochs):
-    #         is_final_epoch = epoch + 1 == self.epochs
-    #         self.on_epoch_start(epoch)
-    #         self.model.train()
-
-    #         # train batch
-    #         for i, batch in self.pbar:
-    #             _loss = self.training_step(batch, i, epoch)  # noqa
-    #         self.on_epoch_end(epoch)
-    #         if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
-    #             self.model.eval()
-    #             self.validation()  # TODO(ulken94): Save model and save validation logs.

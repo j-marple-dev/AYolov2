@@ -15,6 +15,7 @@ from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
 from scripts.utils.logger import colorstr, get_logger
+from scripts.utils.model_manager import YOLOModelManager
 
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)
@@ -88,8 +89,12 @@ if __name__ == "__main__":
         + colorstr("red", "bold", f"{'-'*30} Training Configs END {'-'*30}")
     )
 
+    # TODO(jeikeilim): Need to implement
+    #   loading a  model from saved ckpt['model'].yaml
+
     model = YOLOModel(model_cfg, verbose=True)
-    train_builder = TrainModelBuilder(model, train_cfg, "exp")
+
+    train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()
 
     stride_size = int(max(model.stride))  # type: ignore
@@ -110,9 +115,15 @@ if __name__ == "__main__":
     else:
         val_loader, val_dataset = None, None
 
-    model, ema, device = train_builder.prepare(
-        train_dataset, train_loader, nc=len(data_cfg["names"])
+    model_manager = YOLOModelManager(
+        model, train_cfg, train_builder.device, train_builder.wdir
     )
+    model = model_manager.load_model_weights()
+    model = model_manager.freeze(train_cfg["train"]["freeze"])
+
+    model = model_manager.set_model_params(train_dataset)
+    model, ema, device = train_builder.prepare()
+    model = model_manager.set_model_params(train_dataset)
 
     trainer = YoloTrainer(
         model,
@@ -120,8 +131,9 @@ if __name__ == "__main__":
         train_dataloader=train_loader,
         val_dataloader=val_loader,
         ema=ema,
-        device=device,
+        device=train_builder.device,
         log_dir=train_builder.log_dir,
     )
+    trainer.start_epoch = model_manager.start_epoch
 
     trainer.train()

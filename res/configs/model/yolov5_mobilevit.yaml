@@ -1,0 +1,39 @@
+input_size: [256, 256]
+input_channel: 3
+
+depth_multiple: 1
+width_multiple: 1
+
+anchors: &anchors
+   - [10,13, 16,30, 33,23]  # P3/8
+   - [30,61, 62,45, 59,119]  # P4
+   - [116,90, 156,198, 373,326]  # P5/32
+
+n_classes: &n_classes
+  80
+
+activation: &activation
+  SiLU
+
+backbone:
+    # [from, repeat, module, args]
+    [
+        [-1, 1, Conv, [16, 3, 2], {activation: *activation}],
+        [-1, 1, MV2Block, [32, 1, 4], {activation: *activation}],
+        [-1, 1, MV2Block, [64, 2, 4], {activation: *activation}],
+        [-1, 2, MV2Block, [64, 1, 4], {activation: *activation}],
+        [-1, 1, MV2Block, [96, 2, 4], {activation: *activation}],
+        # MobileViTBlock (Conv channel, MLP channel, depth)
+        [-1, 1, MobileViTBlock, [144, 288, 2], {activation: *activation}],  # 6
+          
+        [-1, 1, MV2Block, [128, 2, 4], {activation: *activation}],
+        [-1, 1, MobileViTBlock, [192, 768, 4], {activation: *activation}],  # 8
+
+        [-1, 1, MV2Block, [160, 2, 4], {activation: *activation}],
+        [-1, 1, MobileViTBlock, [240, 960, 3], {activation: *activation}],  # 10
+    ]
+
+head:
+  [
+    [[5, 7, 9], 1, YOLOHead, [*n_classes, *anchors]]
+  ]

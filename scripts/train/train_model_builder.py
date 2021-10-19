@@ -14,6 +14,7 @@ import torch.distributed as dist
 import torch.nn as nn
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+import wandb
 from scripts.utils.general import increment_path, labels_to_class_weights
 from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import (ModelEMA, init_seeds, is_parallel,
@@ -142,22 +143,23 @@ class TrainModelBuilder:
 
         self.model.to(self.device)
 
-        # TODO(jeikeilim): Make load weight from wandb.
         start_epoch = 0
         weight_fp = self.cfg["train"]["weights"]
-        if weight_fp and not weight_fp.endswith(".pt"):
-            # TODO(hsshin): try download wandb weight
-            weight_fp = ""
+        if weight_fp:
+            if not weight_fp.endswith(".pt"):
+                best_weight = wandb.restore("best.pt", run_path=weight_fp)
+                weight_fp = best_weight.name
         pretrained = weight_fp.endswith(".pt")
         if pretrained:
             ckpt = torch.load(weight_fp, map_location=self.device)
 
             # TODO(jeikeilim): Re-visit here.
-            exclude = (
-                ["anchor"]
-                if self.cfg["cfg"] or self.cfg["hyper_params"].get("anchors")
-                else []
-            )
+            exclude = []
+            # (
+            #     ["anchor"]
+            #     if self.cfg["cfg"] or self.cfg["hyper_params"].get("anchors")
+            #     else []
+            # )
             self.model = load_model_weights(self.model, weights=ckpt, exclude=exclude)
             start_epoch = ckpt["epoch"] + 1
             if self.cfg["train"]["resume"]:

@@ -6,8 +6,8 @@
 import argparse
 import os
 import pprint
+from typing import Optional
 
-import torch
 import yaml
 from kindle import YOLOModel
 
@@ -104,11 +104,13 @@ if __name__ == "__main__":
     )
 
     # WanDB Logger
-    wandb_run = None
+    wandb_run: Optional[wandb.sdk.wandb_run.Run] = None
     if args.wlog:
         wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
         for config_fp in [args.data, args.cfg, args.model]:
-            wandb_run.save(config_fp, policy="now")
+            wandb_run.save(
+                config_fp, base_path=os.path.dirname(config_fp), policy="now"
+            )
 
     model = YOLOModel(model_cfg, verbose=True)
 

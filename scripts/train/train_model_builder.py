@@ -4,6 +4,7 @@
 - Contact: hekim@jmarple.ai
 """
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -11,10 +12,11 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from scripts.utils.general import increment_path
-from scripts.utils.logger import get_logger
+from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import ModelEMA, init_seeds, select_device
 
 LOCAL_RANK = int(
@@ -29,13 +31,20 @@ LOGGER = get_logger(__name__)
 class TrainModelBuilder:
     """Train model builder class."""
 
-    def __init__(self, model: nn.Module, cfg: Dict[str, Any], log_dir: str) -> None:
+    def __init__(
+        self,
+        model: nn.Module,
+        cfg: Dict[str, Any],
+        log_dir: str,
+        full_cfg: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Initialize TrainModelBuilder.
 
         Args:
             model: a torch model to train.
             opt: train config
             log_dir: logging root directory
+            full_cfg: full config contents.
         """
         self.model = model
         self.cfg = cfg
@@ -47,6 +56,21 @@ class TrainModelBuilder:
         self.wdir = Path(os.path.join(self.log_dir, "weights"))
         if RANK in [-1, 0]:
             os.makedirs(self.wdir, exist_ok=True)
+
+        if full_cfg is not None:
+            for k, v in full_cfg["args"].items():
+                if isinstance(v, str) and Path(v).is_file():
+                    src = Path(v)
+                    dst = self.log_dir / f"{k}{src.suffix}"
+                    shutil.copyfile(src, dst)
+                    LOGGER.info(
+                        "Copying "
+                        + colorstr("bold", str(src))
+                        + " to "
+                        + colorstr("bold", str(dst))
+                    )
+            with open(self.log_dir / "full_cfg.yaml", "w") as f:
+                yaml.dump(full_cfg, f)
 
     def to_ddp(self) -> nn.Module:
         """Convert model to DDP model."""

@@ -133,14 +133,21 @@ class YOLOModelManager(AbstractModelManager):
                     LOGGER.info(
                         "Copying "
                         + colorstr("bold", f"{Path(path).parent.parent}")
-                        + "to "
+                        + " to "
                         + colorstr("bold", f"{self.weight_dir.parent} ...")
                     )
                     shutil.copytree(
                         Path(path).parent.parent,
                         self.weight_dir.parent,
                         dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("*.yaml"),
                     )  # save previous files
+                    shutil.copytree(
+                        Path(path).parent.parent,
+                        self.weight_dir.parent / f"backup_epoch{start_epoch - 1}",
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("*.pt"),
+                    )  # save previous weights
                     shutil.copytree(
                         Path(path).parent,
                         self.weight_dir.parent / f"weight_epoch{start_epoch - 1}",

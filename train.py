@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
     model = YOLOModel(model_cfg, verbose=True)
 
-    train_builder = TrainModelBuilder(model, train_cfg, "exp")
+    train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()
 
     stride_size = int(max(model.stride))  # type: ignore

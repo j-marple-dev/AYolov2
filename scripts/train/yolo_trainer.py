@@ -412,7 +412,7 @@ class YoloTrainer(AbstractTrainer):
                 torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
                 if self.wandb_run:
                     self.wandb_run.save(
-                        os.path.join(self.wdir, "best.pt"), policy="now"
+                        os.path.join(self.wdir, "best.pt"), base_path=self.wdir
                     )
 >>>>>>> Upload best weight to WanDB
                 self.best_score = val_result[0][2]

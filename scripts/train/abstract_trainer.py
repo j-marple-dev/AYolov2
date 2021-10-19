@@ -175,7 +175,6 @@ class AbstractTrainer(ABC):
             ):
                 self.state["step"] = i
                 loss = self.training_step(batch, i, epoch)
-                # self.log_dict({"loss": loss.item()})
                 total_loss += loss.item()
                 total_images += len(batch)
             if total_images == 0:

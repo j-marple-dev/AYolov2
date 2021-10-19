@@ -15,6 +15,7 @@ import torch.nn as nn
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+import wandb
 from scripts.utils.general import increment_path
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import ModelEMA, init_seeds, select_device

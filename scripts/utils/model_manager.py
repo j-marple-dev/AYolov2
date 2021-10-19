@@ -163,6 +163,8 @@ class YOLOModelManager(AbstractModelManager):
                         self.cfg["train"]["epochs"],
                     )
                 )
+                self.start_epoch = 0
+
         return self.model
 
     def freeze(self, freeze_n_layer: int) -> nn.Module:

@@ -63,6 +63,7 @@ class AbstractTrainer(ABC):
         self.cfg_train = cfg["train"]
         self.cfg_hyp = cfg["hyper_params"]
         self.epochs = self.cfg_train["epochs"]
+        self.current_epoch = 0
         self.device = device
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -163,6 +164,7 @@ class AbstractTrainer(ABC):
 
         self.model.to(self.device)
         for epoch in range(self.start_epoch, self.epochs):
+            self.current_epoch = epoch
             self.state.update(
                 {
                     "epoch": epoch,

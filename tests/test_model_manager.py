@@ -21,6 +21,8 @@ def test_model_manager() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 4
+
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -47,8 +49,8 @@ def test_model_manager() -> None:
     n_frozen = sum([not v.requires_grad for k, v in model.named_parameters()])
     n_trainable = sum([v.requires_grad for k, v in model.named_parameters()])
 
-    assert n_frozen == 53
-    assert n_trainable == 138
+    assert n_frozen == 81
+    assert n_trainable == 228
 
 
 if __name__ == "__main__":

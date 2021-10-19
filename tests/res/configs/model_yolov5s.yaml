@@ -1,8 +1,8 @@
 input_size: [640, 640]
 input_channel: 3
 
-depth_multiple: 0.33
-width_multiple: 0.5
+depth_multiple: 1
+width_multiple: 1
 
 anchors: &anchors
    - [10,13, 16,30, 33,23]  # P3/8
@@ -56,4 +56,3 @@ head:
   [
     [[17, 20, 23], 1, YOLOHead, [*n_classes, *anchors]]
   ]
-

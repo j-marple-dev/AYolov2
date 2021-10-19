@@ -52,3 +52,7 @@ def test_crop_bboxes(show_gui: bool = False):
 
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets
+
+
+if __name__ == "__main__":
+    test_crop_bboxes()

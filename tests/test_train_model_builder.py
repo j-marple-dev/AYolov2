@@ -31,6 +31,7 @@ def test_train_model_builder() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -62,6 +63,8 @@ def test_train() -> None:
         cfg = yaml.safe_load(f)
 
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -102,7 +105,6 @@ def test_train() -> None:
         device=device,
     )
     trainer.train()
-    trainer.validation
 
 
 if __name__ == "__main__":

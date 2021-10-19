@@ -33,7 +33,7 @@ def test_multi_aug_policies(show_gui: bool = False):
     dataset = LoadImagesAndLabels(
         "tests/res/datasets/coco/images/val2017",
         cache_images=None,
-        n_skip=0,
+        n_skip=5,
         batch_size=batch_size,
         rect=False,
         augmentation=aug_policy,
@@ -89,7 +89,7 @@ def test_augmentation(show_gui: bool = False):
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
         cache_images=None,
-        n_skip=0,
+        n_skip=4,
         batch_size=batch_size,
         rect=False,
         augmentation=aug_policy,
@@ -115,5 +115,5 @@ def test_augmentation(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    # test_augmentation(show_gui=True)
-    test_multi_aug_policies(show_gui=True)
+    test_augmentation(show_gui=False)
+    test_multi_aug_policies(show_gui=False)

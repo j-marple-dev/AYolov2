@@ -33,6 +33,8 @@ def test_model_validator() -> None:
 
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True

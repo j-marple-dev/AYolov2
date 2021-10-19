@@ -8,7 +8,7 @@ train:
   resume: false  # resume previous training
   validate_period: 3  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
-  cache_image: 'ram' # Use caching images. This should be either 'ram' or 'disk'
+  cache_image: null  # Use caching images. This should be either 'ram' or 'disk'
   n_skip: 0  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
   device: "0"  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'

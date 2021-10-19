@@ -23,7 +23,7 @@ def test_load_images(show_gui: bool = False):
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
         cache_images=None,
-        n_skip=0,
+        n_skip=2,
         batch_size=batch_size,
         rect=False,
     )
@@ -43,7 +43,7 @@ def test_load_images(show_gui: bool = False):
                 cv2.imshow("test", np_image)
                 cv2.waitKey(100)
 
-    assert n_run == 7
+    assert n_run == 4
 
 
 def test_load_images_and_labels(show_gui: bool = False):
@@ -55,7 +55,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         # "tests/res/datasets/coco/images/val2017",
         "tests/res/datasets/coco/images/train2017",
         cache_images=None,
-        n_skip=0,
+        n_skip=3,
         batch_size=batch_size,
         preprocess=lambda x: (x / 255.0).astype(np.float32),
         rect=False,
@@ -90,9 +90,9 @@ def test_load_images_and_labels(show_gui: bool = False):
                 cv2.imshow("test", np_image)
                 cv2.waitKey(0)
 
-    assert n_run == 7
+    assert n_run == 3
 
 
 if __name__ == "__main__":
-    # test_load_images(show_gui=False)
-    test_load_images_and_labels(show_gui=True)
+    test_load_images(show_gui=False)
+    test_load_images_and_labels(show_gui=False)

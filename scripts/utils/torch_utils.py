@@ -8,7 +8,7 @@ import os
 import random
 from contextlib import contextmanager
 from copy import deepcopy
-from typing import Generator, List, Optional, Tuple, Union
+from typing import Dict, Generator, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 import torch.distributed as dist
 from torch import nn
 
-from scripts.utils.general import get_logger
+from scripts.utils.logger import get_logger
 
 LOGGER = get_logger(__name__)
 
@@ -93,6 +93,18 @@ def is_parallel(model: nn.Module) -> bool:
     )
 
 
+def de_parallel(model: nn.Module) -> nn.Module:
+    """Decapsule parallelized model.
+
+    Args:
+        model: Single-GPU modle, DP model or DDP model
+
+    Return:
+        a decapsulized single-GPU model
+    """
+    return model.module if is_parallel(model) else model  # type: ignore
+
+
 def init_torch_seeds(seed: int = 0) -> None:
     """Set random seed for torch.
 
@@ -151,6 +163,40 @@ def copy_attr(
             continue
         else:
             setattr(a, k, v)
+
+
+def load_model_weights(
+    model: nn.Module, weights: Union[Dict, str], exclude: Optional[list] = None,
+) -> nn.Module:
+    """Load model's pretrained weights.
+
+    Args:
+        model: model instance to load weight.
+        weights: model weight path.
+        exclude: exclude list of layer names.
+
+    Return:
+        self.model which the weights has been loaded.
+    """
+    if isinstance(weights, str):
+        ckpt = torch.load(weights)
+    else:
+        ckpt = weights
+
+    exclude_list = [] if exclude is None else exclude
+
+    state_dict = ckpt["model"].float().state_dict()
+    state_dict = intersect_dicts(state_dict, model.state_dict(), exclude=exclude_list)
+    model.load_state_dict(state_dict, strict=False)  # load weights
+    LOGGER.info(
+        "Transferred %g/%g items from %s"
+        % (
+            len(state_dict),
+            len(model.state_dict()),
+            weights if isinstance(weights, str) else weights.keys(),
+        )
+    )
+    return model
 
 
 class ModelEMA:

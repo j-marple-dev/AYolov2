@@ -22,12 +22,12 @@ from tqdm import tqdm
 from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
                                                     mixup, random_perspective)
 from scripts.utils.constants import LABELS
-from scripts.utils.general import (get_logger, segments2boxes, xyn2xy,
-                                   xywh2xyxy, xyxy2xywh)
+from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
+from scripts.utils.logger import get_logger
 
 IMG_EXTS = [".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".dng"]
 EXIF_REVERSE_TAGS = {v: k for k, v in ExifTags.TAGS.items()}
-CACHE_VERSION = "v0.2.3"
+CACHE_VERSION = "v0.2.4"
 NUM_THREADS = os.cpu_count()
 
 LOGGER = get_logger(__name__)
@@ -87,6 +87,7 @@ class LoadImages(Dataset):
         self.pad = pad
         self.augmentation = augmentation
         self.cache_images = cache_images
+        self.n_skip = n_skip
 
         # Get image paths
         self.img_files = self.__grep_all_images(path)
@@ -179,7 +180,7 @@ class LoadImages(Dataset):
 
             return _shape
 
-        cache_path = str(Path(self.img_files[0]).parent) + ".cache"
+        cache_path = str(Path(self.img_files[0]).parent) + f"_{self.n_skip}_skip.cache"
 
         cache: Optional[
             Dict[
@@ -545,7 +546,9 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             self.yolo_augmentation["mosaic"] = 0.0
 
         # Check cache
-        cache_path = str(Path(self.label_files[0]).parent) + ".cache"
+        cache_path = (
+            str(Path(self.label_files[0]).parent) + f"_{self.n_skip}_skip.cache"
+        )
 
         cache: Optional[
             Dict[

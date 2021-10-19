@@ -134,3 +134,6 @@ dmypy.json
 # unit test related
 tests/.*
 *.cache
+
+# Train file.
+exp/

@@ -19,6 +19,7 @@ from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_plmodule import YoloPLModule
 from scripts.train.yolo_trainer import YoloTrainer
 from scripts.utils.general import get_logger
+from scripts.utils.model_manager import YOLOModelManager
 from scripts.utils.torch_utils import select_device
 
 LOGGER = get_logger(__name__)
@@ -39,13 +40,19 @@ def test_train_model_builder() -> None:
     train_builder = TrainModelBuilder(model, cfg, "exp")
     train_builder.ddp_init()
 
+    model_manager = YOLOModelManager(
+        model, cfg, train_builder.device, train_builder.wdir
+    )
+
     stride_size = int(max(model.stride))  # type: ignore
 
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
 
-    model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
+    model = model_manager.set_model_params(train_dataset)
+    model, ema, device = train_builder.prepare()
+    model = model_manager.set_model_params(train_dataset)
 
 
 def test_train() -> None:
@@ -78,7 +85,13 @@ def test_train() -> None:
         validation=True,
     )
 
-    model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
+    model_manager = YOLOModelManager(
+        model, cfg, train_builder.device, train_builder.wdir
+    )
+
+    model = model_manager.set_model_params(train_dataset)
+    model, ema, device = train_builder.prepare()
+    model = model_manager.set_model_params(train_dataset)
 
     trainer = YoloTrainer(
         model,
@@ -93,5 +106,5 @@ def test_train() -> None:
 
 
 if __name__ == "__main__":
-    # test_train_model_builder()
+    test_train_model_builder()
     test_train()

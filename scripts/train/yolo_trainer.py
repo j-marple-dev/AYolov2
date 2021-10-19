@@ -30,6 +30,7 @@ from scripts.utils.torch_utils import de_parallel
 from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
+    import wandb.sdk.wandb_run.Run
     from scripts.utils.torch_utils import ModelEMA
 
 LOCAL_RANK = int(
@@ -54,6 +55,7 @@ class YoloTrainer(AbstractTrainer):
         device: torch.device,
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
+        wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -71,6 +73,7 @@ class YoloTrainer(AbstractTrainer):
             device=device,
             log_dir=log_dir,
             incremental_log_dir=incremental_log_dir,
+            wandb_run=wandb_run,
         )
 
         self.ema = ema
@@ -404,6 +407,14 @@ class YoloTrainer(AbstractTrainer):
 
             # TODO(jeikeilim): Better metric to measure the best score so far.
             if val_result[0][2] == self.best_score:
+<<<<<<< HEAD
+=======
+                torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
+                if self.wandb_run:
+                    self.wandb_run.save(
+                        os.path.join(self.wdir, "best.pt"), policy="now"
+                    )
+>>>>>>> Upload best weight to WanDB
                 self.best_score = val_result[0][2]
                 self._save_weights(self.current_epoch, "best.pt")
 

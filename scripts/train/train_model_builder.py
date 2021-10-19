@@ -57,20 +57,20 @@ class TrainModelBuilder:
         if RANK in [-1, 0]:
             os.makedirs(self.wdir, exist_ok=True)
 
-        if full_cfg is not None:
-            for k, v in full_cfg["args"].items():
-                if isinstance(v, str) and Path(v).is_file():
-                    src = Path(v)
-                    dst = self.log_dir / f"{k}{src.suffix}"
-                    shutil.copyfile(src, dst)
-                    LOGGER.info(
-                        "Copying "
-                        + colorstr("bold", str(src))
-                        + " to "
-                        + colorstr("bold", str(dst))
-                    )
-            with open(self.log_dir / "full_cfg.yaml", "w") as f:
-                yaml.dump(full_cfg, f)
+            if full_cfg is not None:
+                for k, v in full_cfg["args"].items():
+                    if isinstance(v, str) and Path(v).is_file():
+                        src = Path(v)
+                        dst = self.log_dir / f"{k}{src.suffix}"
+                        shutil.copyfile(src, dst)
+                        LOGGER.info(
+                            "Copying "
+                            + colorstr("bold", str(src))
+                            + " to "
+                            + colorstr("bold", str(dst))
+                        )
+                with open(self.log_dir / "full_cfg.yaml", "w") as f:
+                    yaml.dump(full_cfg, f)
 
     def to_ddp(self) -> nn.Module:
         """Convert model to DDP model."""

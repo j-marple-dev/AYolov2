@@ -16,7 +16,10 @@ import torch
 import torchvision
 
 from scripts.utils.general import xywh2xyxy
+from scripts.utils.logger import get_logger
 from scripts.utils.plot_utils import plot_mc_curve, plot_pr_curve
+
+LOGGER = get_logger(__name__)
 
 
 def bbox_ioa(box1: np.ndarray, box2: np.ndarray, eps: float = 1e-7) -> np.ndarray:
@@ -266,12 +269,12 @@ class ConfusionMatrix:
             fig.savefig(Path(save_dir) / "confusion_matrix.png", dpi=250)
             plt.close()
         except Exception as e:
-            print(f"WARNING: ConfusionMatrix plot failure: {e}")
+            LOGGER.warn(f"WARNING: ConfusionMatrix plot failure: {e}")
 
     def print(self) -> None:
         """Print confusion matrix."""
         for i in range(self.nc + 1):
-            print(" ".join(map(str, self.matrix[i])))
+            LOGGER.info(" ".join(map(str, self.matrix[i])))
 
 
 def non_max_suppression(
@@ -387,7 +390,7 @@ def non_max_suppression(
 
         output[xi] = x[i]
         if (time.time() - t) > time_limit:
-            print(f"WARNING: NMS time limit {time_limit}s exceeded")
+            LOGGER.warn(f"WARNING: NMS time limit {time_limit}s exceeded")
             break  # time limit exceeded
 
     return output

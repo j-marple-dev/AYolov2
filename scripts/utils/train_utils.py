@@ -1,10 +1,12 @@
 """Train utilities.
 
-- Author: Haneol Kim
-- Contact: hekim@jmarple.ai
+- Author: Haneol Kim, Jongkuk Lim
+- Contact: hekim@jmarple.ai, limjk@jmarple.ai
 """
+import os
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Tuple, Union
 
@@ -15,9 +17,12 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from scripts.loss.losses import ComputeLoss
-from scripts.utils.general import scale_coords, xywh2xyxy
+from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
+from scripts.utils.logger import get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
+
+LOGGER = get_logger(__name__)
 
 
 class AbstractValidator(ABC):
@@ -29,6 +34,8 @@ class AbstractValidator(ABC):
         dataloader: DataLoader,
         device: torch.device,
         cfg: Dict[str, Any],
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize Validator class.
 
@@ -43,6 +50,13 @@ class AbstractValidator(ABC):
         self.device = device
         self.cfg_train = cfg["train"]
         self.cfg_hyp = cfg["hyper_params"]
+
+        if incremental_log_dir:
+            self.log_dir = increment_path(
+                os.path.join(log_dir, "val", datetime.now().strftime("%Y_%m%d_runs"))
+            )
+        else:
+            self.log_dir = log_dir
 
     @abstractmethod
     def validation_step(self, *args: Any, **kwargs: Any) -> Any:
@@ -65,9 +79,18 @@ class YoloValidator(AbstractValidator):
         device: torch.device,
         cfg: Dict[str, Any],
         compute_loss: bool = True,
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize YoloValidator class.."""
-        super().__init__(model, dataloader, device, cfg)
+        super().__init__(
+            model,
+            dataloader,
+            device,
+            cfg,
+            log_dir=log_dir,
+            incremental_log_dir=incremental_log_dir,
+        )
         self.class_map = list(range(self.model.nc))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
         self.confusion_matrix: ConfusionMatrix
@@ -104,12 +127,16 @@ class YoloValidator(AbstractValidator):
             "ap_class": [],
         }
 
-    def init_attrs(self, s: str) -> None:
+    def init_attrs(self) -> None:
         """Initialize attributes before validation."""
         self.set_confusion_matrix()
         self.init_statistics()
         self.seen = 0
-        self.tqdm = tqdm(enumerate(self.dataloader), desc=s, total=len(self.dataloader))
+        self.tqdm = tqdm(
+            enumerate(self.dataloader),
+            desc="Validating ...",
+            total=len(self.dataloader),
+        )
 
     def prepare_img(self, img: torch.Tensor) -> torch.Tensor:
         """Prepare img for model."""
@@ -323,7 +350,7 @@ class YoloValidator(AbstractValidator):
             ) = ap_per_class(
                 *self.statistics["stats"],
                 plot=False,
-                save_dir=self.cfg_train["log_dir"],
+                save_dir=self.log_dir,
                 names=self.names,
             )
             self.statistics["ap50"], self.statistics["ap"] = (
@@ -358,7 +385,7 @@ class YoloValidator(AbstractValidator):
         """
         # print result
         pf = "%20s" + "%11i" * 2 + "%11.3g" * 4  # print format
-        print(
+        log_str = str(
             pf
             % (
                 "all",
@@ -371,6 +398,8 @@ class YoloValidator(AbstractValidator):
             )
         )
 
+        LOGGER.info(log_str)
+
         # print result per class
         if (
             (verbose or (self.nc < 50 and not self.model.training))
@@ -378,16 +407,18 @@ class YoloValidator(AbstractValidator):
             and len(self.statistics["stats"])
         ):
             for i, c in enumerate(self.statistics["ap_class"]):
-                print(
-                    pf
-                    % (
-                        self.names[c],
-                        self.seen,
-                        self.statistics["nt"][c],
-                        self.statistics["p"][i],
-                        self.statistics["r"][i],
-                        self.statistics["ap50"][i],
-                        self.statistics["ap"][i],
+                LOGGER.info(
+                    str(
+                        pf
+                        % (
+                            self.names[c],
+                            self.seen,
+                            self.statistics["nt"][c],
+                            self.statistics["p"][i],
+                            self.statistics["r"][i],
+                            self.statistics["ap50"][i],
+                            self.statistics["ap"][i],
+                        )
                     )
                 )
         # print speed
@@ -401,9 +432,8 @@ class YoloValidator(AbstractValidator):
                 self.cfg_train["image_size"],
                 self.cfg_train["image_size"],
             )
-            print(
-                f"Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {shape}"
-                % t
+            LOGGER.info(
+                f"Speed: {t[0]:.1f}ms pre-process, {t[1]:.1f}ms inference, {t[2]:.1f}ms NMS per image at shape {shape}"
             )
         return t
 
@@ -419,16 +449,19 @@ class YoloValidator(AbstractValidator):
             "mAP@.5",
             "mAP@.5:.95",
         )
-        self.init_attrs(s)
+        self.init_attrs()
         # dt, precision, recall, f1 score, mean-precision, mean-recall, mAP@.5, mAP@.5:.95
 
         for batch_i, batch in self.tqdm:
             self.validation_step(batch, batch_i)
         self.compute_statistics()
+
+        LOGGER.info(s)
         t = self.print_results()
+
         maps = np.zeros(self.nc) + self.statistics["map"]
         for i, c in enumerate(self.statistics["ap_class"]):
-            maps[c] = self.statistics["ap"][i]
+            maps[c] = self.statistics["ap50"][i]
 
         return (
             (

@@ -93,5 +93,5 @@ def test_train() -> None:
 
 
 if __name__ == "__main__":
-    # test_train_model_builder()
+    test_train_model_builder()
     test_train()

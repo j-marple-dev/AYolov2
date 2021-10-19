@@ -11,7 +11,8 @@ import torch
 
 from scripts.augmentation.augmentation import MultiAugmentationPolicies
 from scripts.data_loader.data_loader import LoadImagesAndLabels
-from scripts.utils.general import TimeChecker, get_logger
+from scripts.utils.general import TimeChecker
+from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import torch_distributed_zero_first
 
 LOCAL_RANK = int(
@@ -73,7 +74,7 @@ def create_dataloader(
             batch_size=batch_size,
             rect=cfg["train"]["rect"]
             if not validation
-            else True,  # rectangular training
+            else False,  # rectangular training
             label_type=cfg["train"]["label_type"],
             cache_images=cfg["train"]["cache_image"] if not validation else None,
             single_cls=cfg["train"]["single_cls"],

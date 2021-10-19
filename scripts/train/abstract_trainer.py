@@ -9,13 +9,43 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 if TYPE_CHECKING:
     from tqdm import tqdm
 
+import os
+from datetime import datetime
+from pathlib import Path
+
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+from scripts.utils.general import increment_path
+from scripts.utils.logger import colorstr, get_logger
+
+LOCAL_RANK = int(
+    os.getenv("LOCAL_RANK", -1)
+)  # https://pytorch.org/docs/stable/elastic/run.html
+RANK = int(os.getenv("RANK", -1))
+WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
+
+LOGGER = get_logger(__name__)
+
 
 class AbstractTrainer(ABC):
-    """Abstract trainer class."""
+    """Abstract trainer class.
+
+    The running cycle of train() method is as following.
+
+    --> on_train_start()
+        for epoch in ...:
+    ------> on_epoch_start()
+
+            for i, batch in ...:
+    ----------> training_step(i, batch, epoch)
+    ------> on_epoch_end(epoch)
+    ------> on_validation_start()
+    ------> validation()
+    ------> on_validation_end()
+    --> on_train_end()
+    """
 
     def __init__(
         self,
@@ -24,6 +54,8 @@ class AbstractTrainer(ABC):
         train_dataloader: DataLoader,
         val_dataloader: Optional[DataLoader],
         device: torch.device,
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize AbstractTrainer class."""
         super().__init__()
@@ -44,6 +76,17 @@ class AbstractTrainer(ABC):
             "train_log": {},
             "val_log": {},
         }
+        if incremental_log_dir:
+            self.log_dir = increment_path(
+                os.path.join(log_dir, "train", datetime.now().strftime("%Y_%m%d_runs"))
+            )
+        else:
+            self.log_dir = log_dir
+        self.wdir = Path(os.path.join(self.log_dir, "weights"))
+
+        if RANK in [-1, 0]:
+            os.makedirs(self.wdir, exist_ok=True)
+            LOGGER.info("Log directory: " + colorstr("bold", f"{self.log_dir}"))
 
     @abstractmethod
     def training_step(
@@ -131,14 +174,14 @@ class AbstractTrainer(ABC):
             )
 
             is_final_epoch = epoch + 1 == self.epochs
-            self.on_start_epoch(epoch)
+            self.on_epoch_start(epoch)
             self.model.train()
             for i, batch in (
                 self.pbar if self.pbar else enumerate(self.train_dataloader)
             ):
                 self.state["step"] = i
                 self.training_step(batch, i, epoch)
-            self.on_end_epoch(epoch)
+            self.on_epoch_end(epoch)
 
             self.state.update({"is_train": False, "step": 0})
             self.on_validation_start()
@@ -165,11 +208,11 @@ class AbstractTrainer(ABC):
         key = "train_log" if self.state["is_train"] else "val_log"
         self.state[key].update(data)
 
-    def on_start_epoch(self, epoch: int) -> None:
+    def on_epoch_start(self, epoch: int) -> None:
         """Run on epoch starts."""
         pass
 
-    def on_end_epoch(self, epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         """Run on epoch ends."""
         pass
 

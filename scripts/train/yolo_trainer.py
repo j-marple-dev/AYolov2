@@ -6,6 +6,7 @@
 import math
 import os
 import random
+from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -21,9 +22,11 @@ from tqdm import tqdm
 
 from scripts.loss.losses import ComputeLoss
 from scripts.train.abstract_trainer import AbstractTrainer
-from scripts.utils.general import (check_img_size, get_logger,
-                                   labels_to_image_weights)
-from scripts.utils.plot_utils import plot_images
+from scripts.utils.anchors import check_anchors
+from scripts.utils.general import check_img_size, labels_to_image_weights
+from scripts.utils.logger import colorstr, get_logger
+from scripts.utils.plot_utils import plot_images, plot_label_histogram
+from scripts.utils.torch_utils import de_parallel
 from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
@@ -49,6 +52,8 @@ class YoloTrainer(AbstractTrainer):
         val_dataloader: Optional[DataLoader],
         ema: Optional["ModelEMA"],
         device: torch.device,
+        log_dir: str = "exp",
+        incremental_log_dir: bool = False,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -58,7 +63,15 @@ class YoloTrainer(AbstractTrainer):
             train_dataloader: dataloader for training.
             val_dataloader: dataloader for validation.
         """
-        super().__init__(model, cfg, train_dataloader, val_dataloader, device=device)
+        super().__init__(
+            model,
+            cfg,
+            train_dataloader,
+            val_dataloader,
+            device=device,
+            log_dir=log_dir,
+            incremental_log_dir=incremental_log_dir,
+        )
 
         self.loss = ComputeLoss(self.model)
         self.nbs = 64
@@ -91,10 +104,15 @@ class YoloTrainer(AbstractTrainer):
             int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
         )
         self.ema = ema
+        self.best_score = 0.0
 
         if self.val_dataloader is not None:
             self.validator = YoloValidator(
-                self.model, self.val_dataloader, self.device, cfg
+                self.model if self.ema is None else self.ema.ema,
+                self.val_dataloader,
+                self.device,
+                cfg,
+                log_dir=self.log_dir,
             )
 
     def _lr_function(self, x: float) -> float:
@@ -138,6 +156,10 @@ class YoloTrainer(AbstractTrainer):
         LOGGER.info(
             "Optimizer groups: %g .bias, %g conv.weight, %g other"
             % (len(pg2), len(pg1), len(pg0))
+        )
+        LOGGER.info(
+            f"{colorstr('optimizer:')} {type(optimizer).__name__} with parameter groups "
+            f"{len(pg0)} weight, {len(pg1)} weight (no decay), {len(pg2)} bias"
         )
 
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
@@ -298,8 +320,7 @@ class YoloTrainer(AbstractTrainer):
             if num_integrated_batches < 3:
                 # plot images.
                 f_name = os.path.join(
-                    self.cfg_train["log_dir"],
-                    f"train_batch{num_integrated_batches}.jpg",
+                    self.log_dir, f"train_batch{num_integrated_batches}.jpg",
                 )
                 # TODO(ulken94): Log images to wandb. And then, remove noqa.
                 result = plot_images(  # noqa
@@ -328,7 +349,45 @@ class YoloTrainer(AbstractTrainer):
 
     def validation(self) -> None:
         """Validate model."""
-        self.validator.validation()
+        if RANK in [-1, 0]:
+            val_result = self.validator.validation()
+            self.log_dict(
+                {
+                    "mP": val_result[0][0],
+                    "mR": val_result[0][1],
+                    "mAP50": val_result[0][2],
+                    "mAP50_95": val_result[0][3],
+                    "loss_box": val_result[0][4],
+                    "loss_obj": val_result[0][5],
+                    "loss_cls": val_result[0][6],
+                    "mAP50_by_cls": {
+                        k: val_result[1][i]
+                        for i, k in enumerate(self.val_dataloader.dataset.names)
+                    },
+                }
+            )
+
+            if val_result[0][2] > self.best_score:
+                self.best_score = val_result[0][2]
+
+            ckpt = {
+                "epoch": self.epochs,
+                "best_score": self.best_score,
+                "model": deepcopy(de_parallel(self.model)).half(),
+                "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
+            }
+            if self.ema is not None:
+                ckpt.update(
+                    {"ema": deepcopy(self.ema.ema).half(), "updates": self.ema.updates}
+                )
+
+            torch.save(ckpt, os.path.join(self.wdir, "last.pt"))
+
+            # TODO(jeikeilim): Better metric to measure the best score so far.
+            if val_result[0][2] == self.best_score:
+                torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
+                self.best_score = val_result[0][2]
+            del ckpt
 
     def update_image_weights(self) -> None:
         """Update image weights."""
@@ -370,7 +429,7 @@ class YoloTrainer(AbstractTrainer):
         #     self.train_dataloader.sampler.set_epoch(epoch)
         pass
 
-    def on_start_epoch(self, epoch: int) -> None:
+    def on_epoch_start(self, epoch: int) -> None:
         """Run on an epoch starts.
 
         Args:
@@ -384,7 +443,7 @@ class YoloTrainer(AbstractTrainer):
         for optimizer in self.optimizer:
             optimizer.zero_grad()
 
-    def on_end_epoch(self, epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         """Run on an epoch ends.
 
         Args:
@@ -442,6 +501,30 @@ class YoloTrainer(AbstractTrainer):
 
     def on_train_start(self) -> None:
         """Run on start training."""
+        labels = np.concatenate(self.train_dataloader.dataset.labels, 0)
+        mlc = labels[:, 0].max()  # type: ignore
+        nc = len(self.train_dataloader.dataset.names)
+        # nb = len(self.train_dataloader)
+        assert mlc < nc, (
+            "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
+            % (mlc, nc, self.cfg["data"], nc - 1)
+        )
+
+        grid_size = int(max(self.model.stride))  # type: ignore
+        imgsz, _ = [check_img_size(x, grid_size) for x in self.cfg_train["image_size"]]
+
+        if RANK in [-1, 0] and not self.cfg_train["resume"]:
+            # c = torch.tensor(labels[:, 0])  # noqa
+            plot_label_histogram(labels, save_dir=self.log_dir)
+
+            if self.cfg_train["auto_anchor"]:
+                check_anchors(
+                    self.train_dataloader.dataset,
+                    model=self.model,
+                    thr=self.cfg_hyp["anchor_t"],
+                    imgsz=imgsz,
+                )
+
         for scheduler in self.scheduler:
             scheduler.last_epoch = self.start_epoch - 1  # type: ignore
 
@@ -458,7 +541,7 @@ class YoloTrainer(AbstractTrainer):
                     self.cfg_train["image_size"][0],
                     self.cfg_train["image_size"][0],
                     self.train_dataloader.num_workers,
-                    self.cfg_train["log_dir"] if self.cfg_train["log_dir"] else "exp",
+                    self.log_dir,
                     self.epochs,
                 )
             )
@@ -474,13 +557,13 @@ class YoloTrainer(AbstractTrainer):
     #     # train epochs
     #     for epoch in range(self.start_epoch, self.epochs):
     #         is_final_epoch = epoch + 1 == self.epochs
-    #         self.on_start_epoch(epoch)
+    #         self.on_epoch_start(epoch)
     #         self.model.train()
 
     #         # train batch
     #         for i, batch in self.pbar:
     #             _loss = self.training_step(batch, i, epoch)  # noqa
-    #         self.on_end_epoch(epoch)
+    #         self.on_epoch_end(epoch)
     #         if is_final_epoch or epoch % self.cfg_train["validate_period"] == 0:
     #             self.model.eval()
     #             self.validation()  # TODO(ulken94): Save model and save validation logs.

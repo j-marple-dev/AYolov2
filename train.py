@@ -119,9 +119,9 @@ if __name__ == "__main__":
         model, train_cfg, train_builder.device, train_builder.wdir
     )
     model = model_manager.load_model_weights()
-    model = model_manager.set_model_params(train_dataset)
     model = model_manager.freeze(train_cfg["train"]["freeze"])
 
+    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
     model = model_manager.set_model_params(train_dataset)
 

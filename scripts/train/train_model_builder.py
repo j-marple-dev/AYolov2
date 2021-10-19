@@ -144,9 +144,13 @@ class TrainModelBuilder:
 
         # TODO(jeikeilim): Make load weight from wandb.
         start_epoch = 0
-        pretrained = self.cfg["train"]["weights"].endswith(".pt")
+        weight_fp = self.cfg["train"]["weights"]
+        if weight_fp and not weight_fp.endswith(".pt"):
+            # TODO(hsshin): try download wandb weight
+            weight_fp = ""
+        pretrained = weight_fp.endswith(".pt")
         if pretrained:
-            ckpt = torch.load(self.cfg["train"]["weights"], map_location=self.device)
+            ckpt = torch.load(weight_fp, map_location=self.device)
 
             # TODO(jeikeilim): Re-visit here.
             exclude = (

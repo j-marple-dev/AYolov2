@@ -346,23 +346,19 @@ class YoloTrainer(AbstractTrainer):
 
         return loss[0]
 
-    def validation_step(
-        self,
-        val_batch: Tuple[
-            torch.Tensor,
-            torch.Tensor,
-            Tuple[str, ...],
-            Tuple[Tuple[Tuple[int, int], Tuple[int, int]], ...],
-        ],
-        batch_idx: int,
-    ) -> None:
-        """Validate a step (a batch).
+    def log_dict(self, data: Dict[str, Any]) -> None:
+        """Log dictionary data."""
+        super().log_dict(data)
+        self.update_loss()
 
-        Args:
-            val_batch: validation data batch in tuple (input_x, true_y).
-            batch_idx: current batch index.
-        """
-        pass
+    def update_loss(self) -> None:
+        """Update train loss by `step_loss`."""
+        if not self.state["is_train"]:
+            return
+        train_log = self.state["train_log"]
+        if "loss" not in train_log:
+            train_log["loss"] = 0
+        train_log["loss"] += train_log["step_loss"]
 
     def _save_weights(self, epoch: int, w_name: str) -> None:
         if RANK in [-1, 0]:
@@ -379,20 +375,6 @@ class YoloTrainer(AbstractTrainer):
 
             torch.save(ckpt, os.path.join(self.wdir, w_name))
             del ckpt
-
-    def log_dict(self, data: Dict[str, Any]) -> None:
-        """Log dictionary data."""
-        super().log_dict(data)
-        self.update_loss()
-
-    def update_loss(self) -> None:
-        """Update train loss by `step_loss`."""
-        if not self.state["is_train"]:
-            return
-        train_log = self.state["train_log"]
-        if "loss" not in train_log:
-            train_log["loss"] = 0
-        train_log["loss"] += train_log["step_loss"]
 
     def validation(self) -> None:
         """Validate model."""

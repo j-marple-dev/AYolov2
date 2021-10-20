@@ -6,7 +6,6 @@
 import argparse
 import os
 import pprint
-from typing import Optional
 
 import yaml
 from kindle import YOLOModel
@@ -108,9 +107,12 @@ if __name__ == "__main__":
     #   loading a  model from saved ckpt['model'].yaml
 
     # WanDB Logger
-    wandb_run: Optional[wandb.sdk.wandb_run.Run] = None
+    wandb_run = None
     if args.wlog and RANK in [-1, 0]:
         wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
+        assert isinstance(
+            wandb_run, wandb.sdk.wandb_run.Run
+        ), "Failed initializing WanDB"
         for config_fp in [args.data, args.cfg, args.model]:
             wandb_run.save(
                 config_fp, base_path=os.path.dirname(config_fp), policy="now"

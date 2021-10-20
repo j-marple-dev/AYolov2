@@ -15,7 +15,6 @@ import torch.nn as nn
 import yaml
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-import wandb
 from scripts.utils.general import increment_path
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import ModelEMA, init_seeds, select_device
@@ -128,51 +127,6 @@ class TrainModelBuilder:
 
         self.model.to(self.device)
 
-<<<<<<< HEAD
-=======
-        start_epoch = 0
-        weight_fp = self.cfg["train"]["weights"]
-        if weight_fp:
-            if not weight_fp.endswith(".pt"):
-                api = wandb.Api()
-                run = api.run(weight_fp)
-                run.file("best.pt").download("test_weight", replace=True)
-                weight_fp = "test_weight/best.pt"
-                # best_weight = wandb.restore("best.pt", run_path=weight_fp)
-                # weight_fp = best_weight.name
-        pretrained = weight_fp.endswith(".pt")
-        if pretrained:
-            ckpt = torch.load(weight_fp, map_location=self.device)
-
-            # TODO(jeikeilim): Re-visit here.
-            exclude = []
-            # (
-            #     ["anchor"]
-            #     if self.cfg["cfg"] or self.cfg["hyper_params"].get("anchors")
-            #     else []
-            # )
-            self.model = load_model_weights(self.model, weights=ckpt, exclude=exclude)
-            start_epoch = ckpt["epoch"] + 1
-            if self.cfg["train"]["resume"]:
-                assert start_epoch > 0, (
-                    "%s training to %g epochs is finished, nothing to resume."
-                    % (self.cfg["train"]["weights"], self.cfg["train"]["epochs"],)
-                )
-                shutil.copytree(
-                    self.wdir,
-                    self.wdir.parent / f"weights_backup_epoch{start_epoch - 1}",
-                )  # save previous weights
-            if self.cfg["train"]["epochs"] < start_epoch:
-                LOGGER.info(
-                    "%s has been trained for %g epochs. Fine-tuning for %g additional epochs."
-                    % (
-                        self.cfg["train"]["weights"],
-                        ckpt["epoch"],
-                        self.cfg["train"]["epochs"],
-                    )
-                )
-
->>>>>>> Reduce using Abstract Trainer for WanDB log
         if isinstance(self.cfg["train"]["image_size"], int):
             self.cfg["train"]["image_size"] = [self.cfg["train"]["image_size"]] * 2
 

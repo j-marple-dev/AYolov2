@@ -11,7 +11,8 @@ import torch
 
 from scripts.augmentation.augmentation import MultiAugmentationPolicies
 from scripts.data_loader.data_loader import LoadImagesAndLabels
-from scripts.utils.general import TimeChecker, get_logger
+from scripts.utils.general import TimeChecker
+from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import torch_distributed_zero_first
 
 LOCAL_RANK = int(

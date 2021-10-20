@@ -16,6 +16,11 @@ import yaml
 from scipy.cluster.vq import kmeans
 from tqdm import tqdm
 
+from scripts.utils.logger import get_logger
+from scripts.utils.torch_utils import is_parallel
+
+LOGGER = get_logger(__name__)
+
 
 def check_anchor_order(m: nn.Module) -> None:
     """Check anchor order against stride order for YOLOv5 Detect module."""
@@ -26,7 +31,7 @@ def check_anchor_order(m: nn.Module) -> None:
     # delta s
     ds = m.stride[-1] - m.stride[0]  # type: ignore
     if da.sign() != ds.sign():  # same order
-        print("Reversing anchor order")
+        LOGGER.info("Reversing anchor order")
         m.anchors[:] = m.anchors.flip(0)  # type: ignore
         m.anchor_grid[:] = m.anchor_grid.flip(0)  # type: ignore
 
@@ -80,20 +85,18 @@ def kmean_anchors(
             .mean()
             * n,
         )  # best possible recall, anch > thr
-        print(
+        LOGGER.info(
             "thr=%.2f: %.4f best possible recall, %.2f anchors past thr"
             % (thr, bpr, aat)
         )
-        print(
-            "n=%g, img_size=%s, metric_all=%.3f/%.3f-mean/best, past_thr=%.3f-mean: "
-            % (n, img_size, x.mean(), best.mean(), x[x > thr].mean()),  # type: ignore
-            end="",
-        )
+        log_str = "n=%g, img_size=%s, metric_all=%.3f/%.3f-mean/best, past_thr=%.3f-mean: " % (n, img_size, x.mean(), best.mean(), x[x > thr].mean())  # type: ignore
         for i, x in enumerate(k):
-            print(
-                "%i,%i" % (round(x[0]), round(x[1])),  # type: ignore
-                end=",  " if i < len(k) - 1 else "\n",
-            )  # use in *.cfg
+            log_str += (
+                "%i,%i" % (round(x[0]), round(x[1])) + ",  "  # type: ignore
+                if i < len(k) - 1
+                else "\n"
+            )
+        LOGGER.info(log_str)
         return k
 
     if isinstance(path, str):  # *.yaml file
@@ -112,14 +115,14 @@ def kmean_anchors(
     # Filter
     i = (wh0 < 3.0).any(1).sum()
     if i:
-        print(
+        LOGGER.info(
             "WARNING: Extremely small objects found. "
             "%g of %g labels are < 3 pixels in width or height." % (i, len(wh0))
         )
     wh = wh0[(wh0 >= 2.0).any(1)]  # filter > 2 pixels
 
     # Kmeans calculation
-    print("Running kmeans for %g anchors on %g points..." % (n, len(wh)))
+    LOGGER.info("Running kmeans for %g anchors on %g points..." % (n, len(wh)))
     s = wh.std(0)  # sigmas for whitening
     k, dist = kmeans(wh / s, n, iter=30)  # points, mean distance
     k *= s
@@ -175,15 +178,13 @@ def check_anchors(
     imgsz: int = 640,
 ) -> None:
     """Check anchor fit to data, recompute if necessary."""
-    print("\nAnalyzing anchors... ", end="")
+    LOGGER.info("")
+    LOGGER.info("Analyzing anchors... ")
 
-    if isinstance(model, nn.DataParallel):
-        assert isinstance(
-            model.module.model, nn.Sequential
-        ), "Model must be a sequential"
-        m: "YOLOHead" = model.module.model[-1]  # noqa
+    if is_parallel(model):
+        head: "YOLOHead" = model.module.model[-1]  # type: ignore
     else:
-        m = model.model[-1]  # type: ignore
+        head = model.model[-1]  # type: ignore
 
     shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)  # type: ignore
     scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
@@ -200,37 +201,37 @@ def check_anchors(
         bpr = (best > 1.0 / thr).float().mean()  # best possible recall
         return bpr, aat
 
-    bpr, aat = metric(m.anchor_grid.clone().cpu().view(-1, 2))  # type: ignore
-    print(
-        "anchors/target = %.2f, Best Possible Recall (BPR) = %.4f" % (aat, bpr), end=""
+    bpr, aat = metric(head.anchor_grid.clone().cpu().view(-1, 2))  # type: ignore
+    LOGGER.info(
+        "  anchors/target = %.2f, Best Possible Recall (BPR) = %.4f." % (aat, bpr)
     )
     if bpr < 0.98:  # threshold to recompute
-        print(". Attempting to generate improved anchors, please wait...")
+        LOGGER.info("  Attempting to generate improved anchors, please wait...")
         # number of anchors
-        na = m.anchor_grid.numel() // 2  # type: ignore
+        na = head.anchor_grid.numel() // 2  # type: ignore
         new_anchors: Union[torch.Tensor, np.ndarray] = kmean_anchors(
             dataset, n=na, img_size=imgsz, thr=thr, gen=1000, verbose=False
         )
         new_bpr = metric(new_anchors.reshape(-1, 2))[0]
         if new_bpr > bpr:  # replace anchors
-            new_anchors = torch.tensor(new_anchors, device=m.anchors.device).type_as(  # type: ignore
-                m.anchors  # type: ignore
+            new_anchors = torch.tensor(new_anchors, device=head.anchors.device).type_as(  # type: ignore
+                head.anchors  # type: ignore
             )
-            m.anchor_grid[:] = new_anchors.clone().view_as(  # type: ignore
-                m.anchor_grid  # type: ignore
+            head.anchor_grid[:] = new_anchors.clone().view_as(  # type: ignore
+                head.anchor_grid  # type: ignore
             )  # for inference
-            m.anchors[:] = new_anchors.clone().view_as(m.anchors) / m.stride.to(  # type: ignore
-                m.anchors.device  # type: ignore
+            head.anchors[:] = new_anchors.clone().view_as(head.anchors) / head.stride.to(  # type: ignore
+                head.anchors.device  # type: ignore
             ).view(
                 -1, 1, 1
             )  # loss
-            check_anchor_order(m)
-            print(
+            check_anchor_order(head)
+            LOGGER.info(
                 "New anchors saved to model. Update model *.yaml to use these anchors in the future."
             )
-            print(new_anchors)
+            LOGGER.info(new_anchors)
         else:
-            print(
+            LOGGER.info(
                 "Original anchors better than new anchors. Proceeding with original anchors."
             )
-    print("")  # newline
+    LOGGER.info("")  # newline

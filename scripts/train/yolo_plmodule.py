@@ -12,7 +12,7 @@ from torch.optim import lr_scheduler
 
 from scripts.loss.losses import ComputeLoss
 from scripts.train.abstract_pl_module import AbstractPLModule
-from scripts.utils.general import get_logger
+from scripts.utils.logger import get_logger
 
 LOGGER = get_logger(__name__)
 

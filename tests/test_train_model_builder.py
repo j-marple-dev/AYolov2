@@ -4,6 +4,7 @@
 - Contact: limjk@jmarple.ai
 """
 
+import gc
 import os
 
 import numpy as np
@@ -19,6 +20,7 @@ from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_plmodule import YoloPLModule
 from scripts.train.yolo_trainer import YoloTrainer
 from scripts.utils.general import get_logger
+from scripts.utils.model_manager import YOLOModelManager
 from scripts.utils.torch_utils import select_device
 
 LOGGER = get_logger(__name__)
@@ -30,6 +32,8 @@ def test_train_model_builder() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -39,13 +43,22 @@ def test_train_model_builder() -> None:
     train_builder = TrainModelBuilder(model, cfg, "exp")
     train_builder.ddp_init()
 
+    model_manager = YOLOModelManager(
+        model, cfg, train_builder.device, train_builder.wdir
+    )
+
     stride_size = int(max(model.stride))  # type: ignore
 
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
 
-    model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
+    model = model_manager.set_model_params(train_dataset)
+    model, ema, device = train_builder.prepare()
+    model = model_manager.set_model_params(train_dataset)
+
+    del model, train_builder, model_manager, ema
+    gc.collect()
 
 
 def test_train() -> None:
@@ -55,6 +68,8 @@ def test_train() -> None:
         cfg = yaml.safe_load(f)
 
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -69,16 +84,24 @@ def test_train() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
+
+    cfg["train"]["rect"] = True
     val_loader, val_dataset = create_dataloader(
         "tests/res/datasets/coco/images/val2017",
         cfg,
         stride_size,
         prefix="[Val] ",
         pad=0.5,
-        validation=True,
+        validation=False,  # This is supposed to be True.
     )
 
-    model, ema, device = train_builder.prepare(train_dataset, train_loader, nc=80)
+    model_manager = YOLOModelManager(
+        model, cfg, train_builder.device, train_builder.wdir
+    )
+
+    model = model_manager.set_model_params(train_dataset)
+    model, ema, device = train_builder.prepare()
+    model = model_manager.set_model_params(train_dataset)
 
     trainer = YoloTrainer(
         model,
@@ -89,9 +112,20 @@ def test_train() -> None:
         device=device,
     )
     trainer.train()
-    trainer.validation
+
+    del (
+        model,
+        train_builder,
+        train_loader,
+        train_dataset,
+        val_loader,
+        val_dataset,
+        model_manager,
+        trainer,
+    )
+    gc.collect()
 
 
 if __name__ == "__main__":
-    # test_train_model_builder()
+    test_train_model_builder()
     test_train()

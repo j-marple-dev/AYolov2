@@ -5,6 +5,7 @@
 """
 
 import multiprocessing
+import gc
 import os
 import shutil
 from glob import glob
@@ -60,6 +61,10 @@ def test_crop_bboxes(show_gui: bool = False):
             if show_gui:
                 cv2.imshow(os.path.basename(img_path), img_bbox)
                 cv2.waitKey(0)
+
+        del img, img_bbox
+
+    gc.collect()
 
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets
@@ -125,6 +130,17 @@ def test_train_rl() -> None:
     )
     trainer.train()
 
+    del (
+        device,
+        aug_policy
+        train_dataset,
+        train_loader,
+        val_dataset,
+        val_loader,
+        model,
+        trainer,
+    )
+    gc.collect()
 
 if __name__ == "__main__":
     test_crop_bboxes()

@@ -4,17 +4,21 @@
 - Contact: limjk@jmarple.ai, hekim@jmarple.ai
 """
 
-import logging
+import glob
 import math
 import os
+import re
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 import torch
 
-from scripts.utils.constants import LOG_LEVEL
+from scripts.utils.logger import get_logger
+
+LOGGER = get_logger(__name__)
 
 # Settings START
 torch.set_printoptions(linewidth=320, precision=5, profile="long")
@@ -80,7 +84,7 @@ def check_img_size(img_size: int, s: int = 32) -> int:
     """
     new_size = make_divisible(img_size, int(s))
     if new_size != img_size:
-        print(
+        LOGGER.warn(
             "WARNING --img-size %g must be multiple of max stride %g, updating to %g"
             % (img_size, s, new_size)
         )
@@ -194,37 +198,6 @@ def labels_to_image_weights(
     image_weights = (np_class_weights.reshape(1, nc) * class_counts).sum(1)
     # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
     return image_weights
-
-
-def get_logger(name: str, log_level: Optional[int] = None) -> logging.Logger:
-    """Get logger with formatter.
-
-    Args:
-        name: logger name
-        log_level: logging level if None is given, constants.LOG_LEVEL will be used.
-
-    Return:
-        logger with string formatter.
-    """
-    logger = logging.getLogger(name)
-    logger.setLevel(LOG_LEVEL)
-
-    formatter = logging.Formatter(
-        "[%(asctime)s]"
-        + colorstr("yellow", "bold", "[%(levelname)s]")
-        + colorstr("green", "bold", "[%(name)s]")
-        + colorstr("cyan", "bold", "[%(filename)s:%(lineno)d]")
-        + colorstr("blue", "bold", "(%(funcName)s)")
-        + " %(message)s"
-    )
-
-    ch = logging.StreamHandler()
-    ch.setFormatter(formatter)
-    ch.setLevel(LOG_LEVEL if log_level is None else log_level)
-
-    logger.addHandler(ch)
-
-    return logger
 
 
 def clip_coords(
@@ -385,68 +358,37 @@ def scale_coords(
     return coords
 
 
-def colorstr(*args: Any) -> str:
-    """Make color string🌈.
+def increment_path(
+    path_: str, exist_ok: bool = False, sep: str = "", mkdir: bool = False
+) -> Path:
+    """Increment file or directory path.
 
-    Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code,
-    i.e.  colorstr('blue', 'hello world')
-
-    Color codes:
-        "black",
-        "red",
-        "green",
-        "yellow",
-        "blue", (Default)
-        "magenta",
-        "cyan",
-        "white",
-        "bright_black",
-        "bright_red",
-        "bright_green",
-        "bright_yellow",
-        "bright_blue",
-        "bright_magenta",
-        "bright_cyan",
-        "bright_white",
-
-    Text format:
-        "bold",  (Default)
-        "underline",
+    i.e. runs/exp --> runs/exp{sep}2, runs/exp{sep}3, ... etc.
 
     Args:
-        *args: string with text format.
-            Ex) colorstr("red", "bold" "Hello world")
-                will print red and bold text of "Hello world"
+        path: path to use increment path
+        exist_ok: Check if the path already exists and uses the path if exists.
+        sep: separator string
+        mkdir: create directory if the path does not exist.
 
     Return:
-        text with color🌈
+        incremented path.
     """
-    *args, string = (
-        args if len(args) > 1 else ("blue", "bold", args[0])  # type: ignore
-    )  # color arguments, string
-    colors = {
-        "black": "\033[30m",  # basic colors
-        "red": "\033[31m",
-        "green": "\033[32m",
-        "yellow": "\033[33m",
-        "blue": "\033[34m",
-        "magenta": "\033[35m",
-        "cyan": "\033[36m",
-        "white": "\033[37m",
-        "bright_black": "\033[90m",  # bright colors
-        "bright_red": "\033[91m",
-        "bright_green": "\033[92m",
-        "bright_yellow": "\033[93m",
-        "bright_blue": "\033[94m",
-        "bright_magenta": "\033[95m",
-        "bright_cyan": "\033[96m",
-        "bright_white": "\033[97m",
-        "end": "\033[0m",  # misc
-        "bold": "\033[1m",
-        "underline": "\033[4m",
-    }
+    path = Path(path_)  # os-agnostic
+    if path.exists() and not exist_ok:
+        suffix = path.suffix
+        path = path.with_suffix("")
+        dirs = glob.glob(f"{path}{sep}*")  # similar paths
+        matches = [re.search(rf"%s{sep}(\d+)" % path.stem, d) for d in dirs]
+        i = [int(m.groups()[0]) for m in matches if m]  # indices
+        n = max(i) + 1 if i else 2  # increment number
+        path = Path(f"{path}{sep}{n}{suffix}")  # update path
 
-    return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
+    dir = path if path.suffix == "" else path.parent  # directory
+    if not dir.exists() and mkdir:
+        dir.mkdir(parents=True, exist_ok=True)  # make directory
+
+    return path
 
 
 class TimeChecker:

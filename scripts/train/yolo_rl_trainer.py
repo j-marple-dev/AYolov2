@@ -81,7 +81,7 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
         self.n_trans = n_trans
         self.save_dir = f"{self.cfg_train['log_dir']}/weights"
         if not os.path.isdir(self.save_dir):
-            os.mkdir(self.save_dir)
+            os.makedirs(self.save_dir)
 
     def _lr_function(self, x: float) -> float:
         return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (

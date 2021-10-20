@@ -147,6 +147,16 @@ class AbstractTrainer(ABC):
             self.state["step"] = i
             self.validation_step(batch, i)
 
+    def validation_step(
+        self,
+        batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
+        batch_idx: int,
+    ) -> None:
+        """Evaluate one batch of validation dataset."""
+        # NOTE: this is a dummy method for linting.
+        # In fact, the `Validator` in `train_utils.py` is used for the validation.
+        pass
+
     def train(self) -> None:
         """Train model."""
         self.on_train_start()

@@ -79,7 +79,7 @@ class YoloTrainer(AbstractTrainer):
         self.ema = ema
         self.best_score = 0.0
         self.loss = ComputeLoss(self.model)
-        self.nbs = 64
+        self.nbs = 64  # nominal batch size
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
         self.val_maps = np.zeros(self.model.nc)  # map per class
@@ -342,6 +342,8 @@ class YoloTrainer(AbstractTrainer):
                     images=imgs, targets=labels, paths=paths, fname=f_name
                 )
 
+        self.log_dict({"step_loss": loss[0].item()})
+
         return loss[0]
 
     def validation_step(
@@ -378,6 +380,20 @@ class YoloTrainer(AbstractTrainer):
             torch.save(ckpt, os.path.join(self.wdir, w_name))
             del ckpt
 
+    def log_dict(self, data: Dict[str, Any]) -> None:
+        """Log dictionary data."""
+        super().log_dict(data)
+        self.update_loss()
+
+    def update_loss(self) -> None:
+        """Update train loss by `step_loss`."""
+        if not self.state["is_train"]:
+            return
+        train_log = self.state["train_log"]
+        if "loss" not in train_log:
+            train_log["loss"] = 0
+        train_log["loss"] += train_log["step_loss"]
+
     def validation(self) -> None:
         """Validate model."""
         if RANK in [-1, 0]:
@@ -407,14 +423,10 @@ class YoloTrainer(AbstractTrainer):
 
             # TODO(jeikeilim): Better metric to measure the best score so far.
             if val_result[0][2] == self.best_score:
-<<<<<<< HEAD
-=======
-                torch.save(ckpt, os.path.join(self.wdir, "best.pt"))
-                if self.wandb_run:
+                if self.wandb_run and RANK in [-1, 0]:
                     self.wandb_run.save(
                         os.path.join(self.wdir, "best.pt"), base_path=self.wdir
                     )
->>>>>>> Upload best weight to WanDB
                 self.best_score = val_result[0][2]
                 self._save_weights(self.current_epoch, "best.pt")
 
@@ -484,6 +496,13 @@ class YoloTrainer(AbstractTrainer):
         self.scheduler_step()
         if RANK in [-1, 0] and self.ema is not None:
             self.update_ema_attr()
+        # average the cumulated loss
+        self.state["train_log"]["loss"] /= len(self.train_dataloader.dataset)
+
+    def on_validation_end(self) -> None:
+        """Run on validation end."""
+        if self.state["val_log"]:
+            self.state["val_log"].pop("mAP50_by_cls", None)
 
     def scheduler_step(self) -> None:
         """Update scheduler parameters."""
@@ -580,3 +599,26 @@ class YoloTrainer(AbstractTrainer):
                     self.epochs,
                 )
             )
+
+    def log_wandb(self) -> None:
+        """Log metrics to WanDB."""
+        if not self.wandb_run:
+            return
+        wlogs = {
+            "epoch": self.state["epoch"],
+            "train_loss": self.state["train_log"]["loss"],
+        }
+        valid_log = self.state["val_log"]
+        if valid_log:
+            valid_loss = 0
+            for key in valid_log:
+                if key in ["mAP50_by_cls"]:
+                    continue
+                if key in ["loss_box", "loss_obj", "loss_cls"]:
+                    loss = valid_log[key]
+                    wlogs.update({"valid_" + key: loss})
+                    valid_loss += loss  # ignoring weight for `box`, `obj`, `cls` losses
+                wlogs.update({key: valid_log[key]})
+            wlogs.update({"valid_loss": valid_loss})
+
+        self.wandb_run.log(wlogs)

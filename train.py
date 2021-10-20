@@ -109,7 +109,7 @@ if __name__ == "__main__":
 
     # WanDB Logger
     wandb_run: Optional[wandb.sdk.wandb_run.Run] = None
-    if args.wlog:
+    if args.wlog and RANK in [-1, 0]:
         wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
         for config_fp in [args.data, args.cfg, args.model]:
             wandb_run.save(

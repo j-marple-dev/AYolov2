@@ -168,40 +168,31 @@ class AbstractTrainer(ABC):
             self.on_epoch_start(epoch)
             self.model.train()
 
-            total_loss = 0.0
-            total_images = 0
             for i, batch in (
                 self.pbar if self.pbar else enumerate(self.train_dataloader)
             ):
                 self.state["step"] = i
-                loss = self.training_step(batch, i, epoch)
-                total_loss += loss.item()
-                total_images += len(batch)
-            if total_images == 0:
-                total_images = 1
-            train_loss = total_loss / total_images
-            wlogs["train_loss"] = train_loss
+                self.training_step(batch, i, epoch)
 
             self.on_epoch_end(epoch)
 
             self.state.update({"is_train": False, "step": 0})
-            self.on_validation_start()
             if self.val_dataloader is not None and (
                 is_final_epoch or (epoch + 1) % self.cfg_train["validate_period"] == 0
             ):
+                self.on_validation_start()
                 self.model.eval()
                 self.validation()
-                if self.state["val_log"]:
-                    self.state["val_log"].pop("mAP50_by_cls", None)
-                    wlogs.update(self.state["val_log"])
+                self.on_validation_end()
 
-            self.on_validation_end()
-
-            wlogs["epoch"] = epoch
-            if self.wandb_run:
-                self.wandb_run.log(wlogs)
+            if self.wandb_run and RANK in [-1, 0]:
+                self.log_wandb()
 
         self.on_train_end()
+
+    def log_wandb(self) -> None:
+        """Log metrics to WanDB."""
+        pass
 
     def log_dict(self, data: Dict[str, Any]) -> None:
         """Log dictionary data.

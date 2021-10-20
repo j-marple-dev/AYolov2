@@ -121,6 +121,7 @@ if __name__ == "__main__":
     model = model_manager.load_model_weights()
     model = model_manager.freeze(train_cfg["train"]["freeze"])
 
+    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
     model_manager.model = model
     model = model_manager.set_model_params(train_dataset)

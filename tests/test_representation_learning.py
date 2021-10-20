@@ -132,7 +132,7 @@ def test_train_rl() -> None:
 
     del (
         device,
-        aug_policy
+        aug_policy,
         train_dataset,
         train_loader,
         val_dataset,
@@ -141,6 +141,7 @@ def test_train_rl() -> None:
         trainer,
     )
     gc.collect()
+
 
 if __name__ == "__main__":
     test_crop_bboxes()

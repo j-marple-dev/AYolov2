@@ -4,6 +4,7 @@
 - Contact: limjk@jmarple.ai
 """
 
+import gc
 import importlib
 import os
 import time
@@ -18,7 +19,7 @@ from scripts.model_converter.model_converter import ModelConverter
 
 
 def test_model_converter_torchscript() -> None:
-    test_input = torch.rand((8, 3, 640, 640))
+    test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
@@ -27,7 +28,7 @@ def test_model_converter_torchscript() -> None:
     model.export(verbose=True)
     out_tensor_export = model(test_input)
 
-    converter = ModelConverter(model, 8, (640, 640), verbose=2)
+    converter = ModelConverter(model, 8, (320, 320), verbose=2)
     converter.dry_run()
     converter.to_torch_script(os.path.join("tests", ".model.ts"))
     ts_model = torch.jit.load(os.path.join("tests", ".model.ts"))
@@ -38,9 +39,12 @@ def test_model_converter_torchscript() -> None:
 
     os.remove(os.path.join("tests", ".model.ts"))
 
+    del test_input, model, out_tensor, converter, ts_model, out_tensor_ts
+    gc.collect()
+
 
 def test_model_converter_onnx() -> None:
-    test_input = torch.rand((8, 3, 640, 640))
+    test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
     )
@@ -49,7 +53,7 @@ def test_model_converter_onnx() -> None:
     model.export(verbose=True)
     out_tensor_export = model(test_input)
 
-    converter = ModelConverter(model, 8, (640, 640), verbose=2)
+    converter = ModelConverter(model, 8, (320, 320), verbose=2)
     converter.dry_run()
     converter.to_onnx(os.path.join("tests", ".model.onnx"))
     onnx_model = ort.InferenceSession(os.path.join("tests", ".model.onnx"))
@@ -62,6 +66,9 @@ def test_model_converter_onnx() -> None:
     assert np.isclose(out_tensor_export[0].detach().numpy(), out_tensor_onnx[0]).all()
 
     os.remove(os.path.join("tests", ".model.onnx"))
+
+    del test_input, model, out_tensor, out_tensor_export, converter, out_tensor_onnx
+    gc.collect()
 
 
 def test_model_converter_tensorrt(
@@ -133,6 +140,6 @@ def test_model_converter_tensorrt(
 
 
 if __name__ == "__main__":
-    # test_model_converter_torchscript()
-    # test_model_converter_onnx()
-    test_model_converter_tensorrt(keep_trt=True, check_trt_exists=False)
+    test_model_converter_torchscript()
+    test_model_converter_onnx()
+    # test_model_converter_tensorrt(keep_trt=True, check_trt_exists=False)

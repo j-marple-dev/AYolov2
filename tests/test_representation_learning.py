@@ -4,6 +4,7 @@
 - Contact: hwkim@jmarple.ai
 """
 
+import gc
 import os
 import shutil
 from glob import glob
@@ -49,6 +50,10 @@ def test_crop_bboxes(show_gui: bool = False):
             if show_gui:
                 cv2.imshow(os.path.basename(img_path), img_bbox)
                 cv2.waitKey(0)
+
+        del img, img_bbox
+
+    gc.collect()
 
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets

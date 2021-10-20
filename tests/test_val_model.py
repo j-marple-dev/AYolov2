@@ -4,6 +4,7 @@
 - Contact: hekim@jmarple.ai
 """
 
+import gc
 import os
 
 import numpy as np
@@ -53,13 +54,15 @@ def test_model_validator() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
+
+    cfg["train"]["rect"] = True
     val_loader, val_dataset = create_dataloader(
         "tests/res/datasets/coco/images/val2017",
         cfg,
         stride_size,
         prefix="[Val] ",
         pad=0.5,
-        validation=True,
+        validation=False,  # This is supposed to be True.
     )
 
     model = model_manager.set_model_params(train_dataset)
@@ -70,6 +73,18 @@ def test_model_validator() -> None:
     validator = YoloValidator(model, val_loader, device, cfg)
 
     validator.validation()
+
+    del (
+        model,
+        train_builder,
+        model_manager,
+        train_loader,
+        train_dataset,
+        val_loader,
+        val_dataset,
+        validator,
+    )
+    gc.collect()
 
 
 if __name__ == "__main__":

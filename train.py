@@ -121,8 +121,8 @@ if __name__ == "__main__":
     model = model_manager.load_model_weights()
     model = model_manager.freeze(train_cfg["train"]["freeze"])
 
-    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
+    model_manager.model = model
     model = model_manager.set_model_params(train_dataset)
 
     trainer = YoloTrainer(
@@ -134,6 +134,5 @@ if __name__ == "__main__":
         device=train_builder.device,
         log_dir=train_builder.log_dir,
     )
-    trainer.start_epoch = model_manager.start_epoch
 
-    trainer.train()
+    trainer.train(start_epoch=model_manager.start_epoch)

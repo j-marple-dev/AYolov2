@@ -1,0 +1,18 @@
+repos:
+-   repo: local
+    hooks:
+    -   id: format
+        name: format
+        language: system
+        entry: ./run_check.sh format
+        stages: [commit, push]
+    -   id: lint
+        name: lint
+        language: system
+        entry: ./run_check.sh lint 
+        stages: [commit, push]
+    -   id: doc_check 
+        name: doc_check
+        language: system
+        entry: ./run_check.sh doc_check
+        stages: [push]

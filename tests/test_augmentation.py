@@ -4,6 +4,7 @@
 - Contact: limjk@jmarple.ai
 """
 
+import gc
 import math
 import os
 
@@ -22,7 +23,7 @@ from scripts.utils.plot_utils import draw_labels
 
 def test_multi_aug_policies(show_gui: bool = False):
     label2str = LABELS["COCO"]
-    batch_size = 16
+    batch_size = 8
     minimum_pixel = 4
 
     with open(os.path.join("tests", "res", "configs", "train_config_sample.yaml")) as f:
@@ -33,7 +34,8 @@ def test_multi_aug_policies(show_gui: bool = False):
     dataset = LoadImagesAndLabels(
         "tests/res/datasets/coco/images/val2017",
         cache_images=None,
-        n_skip=0,
+        n_skip=5,
+        img_size=320,
         batch_size=batch_size,
         rect=False,
         augmentation=aug_policy,
@@ -74,7 +76,11 @@ def test_multi_aug_policies(show_gui: bool = False):
                 print(
                     f"Smaller than {minimum_pixel}x{minimum_pixel} box size detected! Total {smaller_box_idx.sum()} boxes."
                 )
-                # import pdb; pdb.set_trace()
+
+            del np_image
+        gc.collect()
+    del dataset, dataset_loader
+    gc.collect()
 
 
 def test_augmentation(show_gui: bool = False):
@@ -89,7 +95,8 @@ def test_augmentation(show_gui: bool = False):
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
         cache_images=None,
-        n_skip=0,
+        n_skip=4,
+        img_size=320,
         batch_size=batch_size,
         rect=False,
         augmentation=aug_policy,
@@ -113,7 +120,13 @@ def test_augmentation(show_gui: bool = False):
                 cv2.imshow("test", np_image)
                 cv2.waitKey(500)
 
+            del np_image
+        gc.collect()
+
+    del dataset, dataset_loader
+    gc.collect()
+
 
 if __name__ == "__main__":
-    # test_augmentation(show_gui=True)
-    test_multi_aug_policies(show_gui=True)
+    test_augmentation(show_gui=False)
+    test_multi_aug_policies(show_gui=False)

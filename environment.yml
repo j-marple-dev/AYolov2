@@ -42,6 +42,8 @@ dependencies:
     - kindle>=0.4.12
     - matplotlib==3.3.4
     - seaborn==0.11.2
+    - onnx==1.6.0
+    - onnx-simplifier>=0.3.6
     - einops==0.3.2
     - wandb==0.12.3
 

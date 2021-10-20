@@ -147,8 +147,12 @@ class TrainModelBuilder:
         weight_fp = self.cfg["train"]["weights"]
         if weight_fp:
             if not weight_fp.endswith(".pt"):
-                best_weight = wandb.restore("best.pt", run_path=weight_fp)
-                weight_fp = best_weight.name
+                api = wandb.Api()
+                run = api.run(weight_fp)
+                run.file("best.pt").download("test_weight", replace=True)
+                weight_fp = "test_weight/best.pt"
+                # best_weight = wandb.restore("best.pt", run_path=weight_fp)
+                # weight_fp = best_weight.name
         pretrained = weight_fp.endswith(".pt")
         if pretrained:
             ckpt = torch.load(weight_fp, map_location=self.device)

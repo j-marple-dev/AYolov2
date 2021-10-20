@@ -1,0 +1,52 @@
+name: format-lint-unittest
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  format-lint:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2.3.4
+      - name: Install cpplint, clang-format, and cppcheck
+        run: pip install cpplint && sudo apt install -y clang-format-6.0 cppcheck=1.82-1 graphviz
+      - name: Install doxygen
+        run: git clone -b Release_1_9_2 https://github.com/doxygen/doxygen.git /tmp/doxygen && cd /tmp/doxygen && mkdir build && cd build && cmake -G "Unix Makefiles" .. && make && make install
+      - name: version check
+        shell: bash -l {0}
+        run: clang-format-6.0 --version && cpplint --version && cppcheck --version && doxygen --version
+      - name: format
+        shell: bash -l {0}
+        run: |
+          ./run_check.sh format
+      - name: lint 
+        shell: bash -l {0}
+        run: |
+          ./run_check.sh lint 
+      - name: doc_check 
+        shell: bash -l {0}
+        run: |
+          ./run_check.sh doc_check
+      - name: all
+        shell: bash -l {0}
+        run: |
+          ./run_check.sh all
+
+  build-test:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2.3.4
+      - name: build
+        shell: bash -l {0}
+        run: mkdir build && cd build && cmake .. && make
+
+  unit-test:
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2.3.4
+      - name: Install gtest manually
+        run: sudo apt-get install libgtest-dev && cd /usr/src/gtest && sudo cmake CMakeLists.txt && sudo make && sudo cp *.a /usr/lib && sudo ln -s /usr/lib/libgtest.a /usr/local/lib/libgtest.a && sudo ln -s /usr/lib/libgtest_main.a /usr/local/lib/libgtest_main.a
+      - name: build and unit test
+        shell: bash -l {0}
+        run: mkdir build && cd build && cmake -Dtest=true .. && make && make test

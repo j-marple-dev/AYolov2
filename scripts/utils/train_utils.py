@@ -101,7 +101,7 @@ class YoloValidator(AbstractValidator):
         )  # IoU vecot
         self.niou = self.iouv.numel()
         if compute_loss:
-            self.loss_fn = ComputeLoss(self.model, self.cfg_train["image_size"][0])
+            self.loss_fn = ComputeLoss(self.model)
 
         self.loss = torch.zeros(3, device=self.device)
         self.seen: int = 0

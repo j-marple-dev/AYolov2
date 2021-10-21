@@ -194,7 +194,7 @@ class YOLOModelManager(AbstractModelManager):
         return self.model
 
     def set_model_params(
-        self, dataset: torch.utils.data.Dataset, ema: "ModelEMA"
+        self, dataset: torch.utils.data.Dataset, ema: Optional["ModelEMA"]
     ) -> nn.Module:
         """Set necessary model parameters required in YOLO.
 

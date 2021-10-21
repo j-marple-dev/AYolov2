@@ -77,7 +77,8 @@ def test_train_rl() -> None:
         cfg = yaml.safe_load(f)
 
     cfg["train"]["epochs"] = 1
-    cfg["train"]["n_skip"] = 2
+    cfg["train"]["n_skip"] = 10
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"
 

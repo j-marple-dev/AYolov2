@@ -125,7 +125,6 @@ if __name__ == "__main__":
     model_manager.model = model
     model = model_manager.set_model_params(train_dataset, ema=ema)
 
-
     trainer = YoloTrainer(
         model,
         train_cfg,

@@ -4,6 +4,7 @@
 - Contact: hekim@jmarple.ai
 """
 
+import gc
 import os
 
 import numpy as np
@@ -33,6 +34,8 @@ def test_model_validator() -> None:
 
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -51,13 +54,15 @@ def test_model_validator() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
+
+    cfg["train"]["rect"] = True
     val_loader, val_dataset = create_dataloader(
         "tests/res/datasets/coco/images/val2017",
         cfg,
         stride_size,
         prefix="[Val] ",
         pad=0.5,
-        validation=True,
+        validation=False,  # This is supposed to be True.
     )
 
     model, ema, device = train_builder.prepare()
@@ -67,6 +72,18 @@ def test_model_validator() -> None:
     validator = YoloValidator(model, val_loader, device, cfg)
 
     validator.validation()
+
+    del (
+        model,
+        train_builder,
+        model_manager,
+        train_loader,
+        train_dataset,
+        val_loader,
+        val_dataset,
+        validator,
+    )
+    gc.collect()
 
 
 if __name__ == "__main__":

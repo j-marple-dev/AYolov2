@@ -158,8 +158,9 @@ class AbstractTrainer(ABC):
             self.state["step"] = i
             self.validation_step(batch, i)
 
-    def train(self) -> None:
+    def train(self, start_epoch: int = 0) -> None:
         """Train model."""
+        self.start_epoch = start_epoch
         self.on_train_start()
 
         self.model.to(self.device)
@@ -220,7 +221,6 @@ class AbstractTrainer(ABC):
 
     def on_train_start(self) -> None:
         """Run on start training."""
-        self.start_epoch = 0
         pass
 
     def on_train_end(self) -> None:

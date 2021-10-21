@@ -4,6 +4,7 @@
 - Contact: limjk@jmarple.ai
 """
 
+import gc
 import os
 
 import numpy as np
@@ -32,6 +33,8 @@ def test_train_model_builder() -> None:
     ) as f:
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -54,6 +57,9 @@ def test_train_model_builder() -> None:
     model_manager.model = model
     model = model_manager.set_model_params(train_dataset, ema=ema)
 
+    del model, train_builder, model_manager, ema
+    gc.collect()
+
 
 def test_train() -> None:
     with open(
@@ -62,6 +68,8 @@ def test_train() -> None:
         cfg = yaml.safe_load(f)
 
     cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 5
+    cfg["train"]["image_size"] = 320
     if not torch.cuda.is_available():
         cfg["train"]["device"] = "cpu"  # Switch to CPU mode
 
@@ -76,13 +84,15 @@ def test_train() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
+
+    cfg["train"]["rect"] = True
     val_loader, val_dataset = create_dataloader(
         "tests/res/datasets/coco/images/val2017",
         cfg,
         stride_size,
         prefix="[Val] ",
         pad=0.5,
-        validation=True,
+        validation=False,  # This is supposed to be True.
     )
 
     model_manager = YOLOModelManager(
@@ -101,7 +111,18 @@ def test_train() -> None:
         device=device,
     )
     trainer.train()
-    trainer.validation
+
+    del (
+        model,
+        train_builder,
+        train_loader,
+        train_dataset,
+        val_loader,
+        val_dataset,
+        model_manager,
+        trainer,
+    )
+    gc.collect()
 
 
 if __name__ == "__main__":

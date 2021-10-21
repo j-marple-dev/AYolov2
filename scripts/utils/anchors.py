@@ -94,7 +94,7 @@ def kmean_anchors(
             log_str += (
                 "%i,%i" % (round(x[0]), round(x[1])) + ",  "  # type: ignore
                 if i < len(k) - 1
-                else "\n",
+                else "\n"
             )
         LOGGER.info(log_str)
         return k

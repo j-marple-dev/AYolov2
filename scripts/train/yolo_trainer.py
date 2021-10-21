@@ -413,7 +413,7 @@ class YoloTrainer(AbstractTrainer):
                 self._save_weights(self.current_epoch, "best.pt")
 
             if RANK == -1 and self.stopper(
-                epoch=self.current_epoch, fitness=val_result[0][2]
+                epoch=self.current_epoch, score=val_result[0][2]
             ):
                 self.is_early_stop = True
 

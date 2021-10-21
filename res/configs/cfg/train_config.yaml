@@ -2,7 +2,7 @@ train:
   weights: ''  # Model weight path
   data: ''  # data config path
   epochs: 300
-  batch_size: 64
+  batch_size: 128
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
@@ -21,8 +21,9 @@ train:
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
   log_dir: "exp"  # Default log root directory
-  plot: true
+  plot: true  # plot results or not.
   label_type: "segments"  # Label type to use ("labels", "segments")
+  patience: 30  # for early stopping
 
 
 hyper_params:
@@ -63,11 +64,11 @@ yolo_augmentation:
   scale: 0.5  # image scale (+/- gain)
   shear: 0.0  # image shear (+/- deg)
   perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
-  flipud: 0.0  # image flip up-down (probability)
-  fliplr: 0.5  # image flip left-right (probability)
+  # flipud: 0.0  # image flip up-down (probability)
+  # fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
-  mixup: 0.1  # image mixup (probability)
-  copy_paste: 0.1  # segment copy-paste (probability)
+  mixup: 0.0  # image mixup (probability)
+  copy_paste: 0.0  # segment copy-paste (probability)
 
 
 augmentation:

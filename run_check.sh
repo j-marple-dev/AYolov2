@@ -22,7 +22,7 @@ declare -A CMD_LIST
 CMD_LIST[format]="black . && \
                   isort . && \
                   docformatter -i -r . --wrap-summaries 88 --wrap-descriptions 88"
-CMD_LIST[lint]="env PYTHONPATH=. pytest --pylint --mypy --flake8 --ignore tests"
+CMD_LIST[lint]="env PYTHONPATH=. pytest --pylint --mypy --flake8 --ignore tests --ignore cpp"
 CMD_LIST[test]="env PYTHONPATH=. pytest tests --cov=scripts --cov-report term-missing --cov-report html"
 CMD_LIST[doc]="env PYTHONPATH=. mkdocs build --no-directory-urls"
 CMD_LIST[doc-server]="env PYTHONPATH=. mkdocs serve -a 127.0.0.1:8000 --no-livereload"

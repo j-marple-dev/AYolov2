@@ -125,6 +125,7 @@ if __name__ == "__main__":
     model_manager.model = model
     model = model_manager.set_model_params(train_dataset, ema=ema)
 
+
     trainer = YoloTrainer(
         model,
         train_cfg,
@@ -134,6 +135,5 @@ if __name__ == "__main__":
         device=train_builder.device,
         log_dir=train_builder.log_dir,
     )
-    trainer.start_epoch = model_manager.start_epoch
 
-    trainer.train()
+    trainer.train(start_epoch=model_manager.start_epoch)

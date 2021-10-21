@@ -26,7 +26,7 @@ from scripts.utils.anchors import check_anchors
 from scripts.utils.general import check_img_size, labels_to_image_weights
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.plot_utils import plot_images, plot_label_histogram
-from scripts.utils.torch_utils import de_parallel
+from scripts.utils.torch_utils import EarlyStopping, de_parallel
 from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
@@ -115,6 +115,7 @@ class YoloTrainer(AbstractTrainer):
                 cfg,
                 log_dir=self.log_dir,
             )
+        self.stopper = EarlyStopping(self.cfg_train["patience"])
 
     def _lr_function(self, x: float) -> float:
         if "linear_lr" in self.cfg_train.keys() and self.cfg_train["linear_lr"]:
@@ -410,6 +411,11 @@ class YoloTrainer(AbstractTrainer):
             if val_result[0][2] == self.best_score:
                 self.best_score = val_result[0][2]
                 self._save_weights(self.current_epoch, "best.pt")
+
+            if RANK == -1 and self.stopper(
+                epoch=self.current_epoch, score=val_result[0][2]
+            ):
+                self.is_early_stop = True
 
     def update_image_weights(self) -> None:
         """Update image weights."""

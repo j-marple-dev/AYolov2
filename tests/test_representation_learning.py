@@ -4,8 +4,8 @@
 - Contact: hwkim@jmarple.ai
 """
 
-import multiprocessing
 import gc
+import multiprocessing
 import os
 import shutil
 from glob import glob

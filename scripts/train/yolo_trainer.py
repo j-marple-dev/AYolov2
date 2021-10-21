@@ -415,7 +415,7 @@ class YoloTrainer(AbstractTrainer):
             if RANK == -1 and self.stopper(
                 epoch=self.current_epoch, fitness=val_result[0][2]
             ):
-                self.is_final_epoch = True
+                self.is_early_stop = True
 
     def update_image_weights(self) -> None:
         """Update image weights."""

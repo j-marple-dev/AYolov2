@@ -70,7 +70,6 @@ class AbstractTrainer(ABC):
         self.cuda = self.device.type != "cpu"
         self.start_epoch = 0
         self.pbar: Optional[tqdm] = None
-        self.is_final_epoch = self.current_epoch == self.epochs
         self.is_early_stop = False
         self.state: Dict[str, Any] = {
             "is_train": False,
@@ -178,7 +177,7 @@ class AbstractTrainer(ABC):
                 }
             )
 
-            self.is_final_epoch = epoch + 1 == self.epochs
+            is_final_epoch = epoch + 1 == self.epochs
             self.on_epoch_start(epoch)
             self.model.train()
             for i, batch in (
@@ -191,7 +190,7 @@ class AbstractTrainer(ABC):
             self.state.update({"is_train": False, "step": 0})
             self.on_validation_start()
             if self.val_dataloader is not None and (
-                self.is_final_epoch or epoch % self.cfg_train["validate_period"] == 0
+                is_final_epoch or epoch % self.cfg_train["validate_period"] == 0
             ):
                 self.model.eval()
                 self.validation()

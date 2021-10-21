@@ -14,6 +14,9 @@ import torch
 from onnxsim import simplify
 from torch import nn
 
+from scripts.utils.logger import get_logger
+
+LOGGER = get_logger(__name__)
 # from src.tensorrt.int8_calibrator import Int8Calibrator
 
 
@@ -66,25 +69,30 @@ class ModelConverter:
         self.model.eval()
         self.model(self.test_input)
 
-    def to_torch_script(self, path: str) -> None:
+    def to_torch_script(self, path: str, half: bool = False) -> None:
         """Export model to TorchScript.
 
         Args:
             path: export path.
+            "half: export half precision model."
         """
-        ts = torch.jit.trace(self.model, self.test_input)
+        device = torch.device("cuda:0")  # Half precision only works in GPU.
+        if half:
+            self.model.half().to(device)
+            test_input = self.test_input.half().to(device)
+
+            for attr_name in dir(self.model.model[-1]):  # type: ignore
+                attr = getattr(self.model.model[-1], attr_name)  # type: ignore
+                if isinstance(attr, torch.Tensor):
+                    LOGGER.info(f"Converting {attr_name} to half precision ...")
+                    setattr(self.model.model[-1], attr_name, attr.half().to(device))  # type: ignore
+
+            self.model(test_input)
+        else:
+            test_input = self.test_input
+
+        ts = torch.jit.trace(self.model, test_input)
         ts.save(path)
-        # I might need this?
-        # zipf = f
-        # try:
-        #     tempname = os.path.join(tempdir, 'test.zip')
-        #     with zipfile.ZipFile(zipf, 'r') as zipread:
-        #         with zipfile.ZipFile(tempname, 'w') as zipwrite:
-        #             for item in zipread.infolist():
-        #                 data = zipread.read(item.filename)
-        #                 if 'yolo.py' in item.filename:
-        #                     data = data.replace(b"cpu", b"cuda:0")
-        #                 zipwrite.writestr(item, data)
 
     def to_onnx(self, path: str, opset_version: int = 11, **kwargs: Any) -> None:
         """Export model to ONNX model.

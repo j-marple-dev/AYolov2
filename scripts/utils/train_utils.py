@@ -3,12 +3,13 @@
 - Author: Haneol Kim, Jongkuk Lim
 - Contact: hekim@jmarple.ai, limjk@jmarple.ai
 """
+import importlib
 import os
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
@@ -18,9 +19,12 @@ from tqdm import tqdm
 
 from scripts.loss.losses import ComputeLoss
 from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
-from scripts.utils.logger import get_logger
+from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
+
+if importlib.util.find_spec("tensorrt") is not None:
+    from scripts.utils.tensorrt_runner import TrtWrapper  # noqa: F401
 
 LOGGER = get_logger(__name__)
 
@@ -30,26 +34,53 @@ class AbstractValidator(ABC):
 
     def __init__(
         self,
-        model: nn.Module,
+        model: Union[nn.Module, "TrTWrapper"],  # type: ignore  # noqa: F821
         dataloader: DataLoader,
         device: torch.device,
         cfg: Dict[str, Any],
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
+        half: bool = False,
+        export: bool = False,
     ) -> None:
         """Initialize Validator class.
 
         Args:
-            model: a torch model.
+            model: a torch model or TensorRT Wrapper.
             dataloader: dataloader with validation dataset.
             device: torch device.
+            cfg: validate config which includes
+                {
+                    "train": {
+                        "single_cls": True or False,
+                        "plot": True or False,
+                        "batch_size": number of batch size,
+                        "image_size": image size
+                    },
+                    "hyper_params": {
+                        "conf_t": confidence threshold,
+                        "iou_t": IoU threshold.
+                    }
+                }
+            log_dir: log directory path.
+            incremental_log_dir: use incremental directory.
+                If set, log_dir will be
+                    {log_dir}/val/{DATE}_runs,
+                    {log_dir}/val/{DATE}_runs1,
+                    {log_dir}/val/{DATE}_runs2,
+                            ...
+            half: use half precision input.
+            export: export validation results to file.
         """
         super().__init__()
+        self.n_class = len(dataloader.dataset.names)  # type: ignore
         self.model = model
         self.dataloader = dataloader
         self.device = device
         self.cfg_train = cfg["train"]
         self.cfg_hyp = cfg["hyper_params"]
+        self.half = half
+        self.export = export
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -57,6 +88,29 @@ class AbstractValidator(ABC):
             )
         else:
             self.log_dir = log_dir
+
+        if self.export and not os.path.isdir(self.log_dir):
+            os.makedirs(self.log_dir, exist_ok=True)
+            LOGGER.info("Export directory: " + colorstr("bold", str(self.log_dir)))
+
+    def convert_target(
+        self, targets: torch.Tensor, width: int, height: int, n_batch: int
+    ) -> torch.Tensor:
+        """Convert targets from normalized coordinates 0.0 ~ 1.0 to pixel coordinates.
+
+        Args:
+            targets: (n, 6) tensor.
+                targets[:, 0] represents index number of the batch.
+                targets[:, 1] represents class index number.
+                targets[:, 2:] represents normalized xyxy coordinates.
+            width: image width size.
+            height: image height size.
+            n_batch: batch size
+        """
+        targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(
+            self.device, non_blocking=True
+        )
+        return targets
 
     @abstractmethod
     def validation_step(self, *args: Any, **kwargs: Any) -> Any:
@@ -74,15 +128,48 @@ class YoloValidator(AbstractValidator):
 
     def __init__(
         self,
-        model: nn.Module,
+        model: Union[nn.Module, "TrTWrapper"],  # type: ignore # noqa: F821
         dataloader: DataLoader,
         device: torch.device,
         cfg: Dict[str, Any],
         compute_loss: bool = True,
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
+        half: bool = False,
+        export: bool = False,
+        hybrid_label: bool = False,
     ) -> None:
-        """Initialize YoloValidator class.."""
+        """Initialize YoloValidator class.
+
+        Args:
+            model: a torch model or TensorRT Wrapper.
+            dataloader: dataloader with validation dataset.
+            device: torch device.
+            cfg: validate config which includes
+                {
+                    "train": {
+                        "single_cls": True or False,
+                        "plot": True or False,
+                        "batch_size": number of batch size,
+                        "image_size": image size
+                    },
+                    "hyper_params": {
+                        "conf_t": confidence threshold,
+                        "iou_t": IoU threshold.
+                    }
+                }
+            log_dir: log directory path.
+            incremental_log_dir: use incremental directory.
+                If set, log_dir will be
+                    {log_dir}/val/{DATE}_runs,
+                    {log_dir}/val/{DATE}_runs1,
+                    {log_dir}/val/{DATE}_runs2,
+                            ...
+            half: use half precision input.
+            export: export validation results to file.
+            hybrid_label: Run NMS with hybrid information (ground truth label + predicted result.)
+                    (PyTorch only) This is for auto-labeling purpose.
+        """
         super().__init__(
             model,
             dataloader,
@@ -90,25 +177,30 @@ class YoloValidator(AbstractValidator):
             cfg,
             log_dir=log_dir,
             incremental_log_dir=incremental_log_dir,
+            half=half,
+            export=export,
         )
-        self.class_map = list(range(self.model.nc))  # type: ignore
+        self.class_map = list(range(self.n_class))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
         self.confusion_matrix: ConfusionMatrix
         self.statistics: Dict[str, Any]
-        self.nc = 1 if self.cfg_train["single_cls"] else int(self.model.nc)  # type: ignore
+        self.nc = 1 if self.cfg_train["single_cls"] else int(self.n_class)  # type: ignore
         self.iouv = torch.linspace(0.5, 0.95, 10).to(
             self.device, non_blocking=True
         )  # IoU vecot
         self.niou = self.iouv.numel()
         if compute_loss:
             self.loss_fn = ComputeLoss(self.model)
+        else:
+            self.loss_fn = None
 
         self.loss = torch.zeros(3, device=self.device)
         self.seen: int = 0
+        self.hybrid_label = hybrid_label
 
     def set_confusion_matrix(self) -> None:
         """Set confusion matrix."""
-        self.confusion_matrix = ConfusionMatrix(nc=self.model.nc)
+        self.confusion_matrix = ConfusionMatrix(nc=self.n_class)
 
     def init_statistics(self) -> None:
         """Set statistics default."""
@@ -145,46 +237,28 @@ class YoloValidator(AbstractValidator):
             img = img.float() / 255.0
         return img
 
-    def run_nms(
-        self,
-        out: torch.Tensor,
-        targets: torch.Tensor,
-        width: int,
-        height: int,
-        nb: int,
-        save_hybrid: bool = False,
-    ) -> Tuple[torch.Tensor, torch.Tensor, float]:
-        """Run non-max-suppression.
+    def convert_trt_out(
+        self, out: torch.Tensor, n_objs: torch.Tensor
+    ) -> List[torch.Tensor]:
+        """Convert output from TensorRT model to validation ready format.
 
         Args:
-            out: model output.
-            targets: target label.
-            width: image width.
-            height: image height.
-            nb: batch size.
-            save_hybrid: save hybrid or not
+            out: (batch_size, keep_top_k, 6) tensor.
+            n_objs: (batch_size,) tensor which contains detected objects on each image.
 
-        Returns:
-            a tuple with [nms_out, modified_target, time]
+        Return:
+            List of detected results (n_obj, 6) (x1, y1, x2, y2, confidence, class_id)
         """
-        targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(
-            self.device, non_blocking=True
-        )
-        label = (
-            [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []
-        )
-        t3 = time.time()
-        out = non_max_suppression(
-            out,
-            self.cfg_hyp["conf_t"],
-            self.cfg_hyp["iou_t"],
-            labels=label,
-            multi_label=True,
-            agnostic=self.cfg_train["single_cls"],
-        )
-        self.statistics["dt"][2] += time.time() - t3
+        result = [
+            torch.zeros((n_obj, 6)).to(self.device, non_blocking=True)
+            for n_obj in n_objs
+        ]
+        # result = torch.zeros((n_objs.sum(), 6)).to(self.device, non_blocking=True)
 
-        return (out, targets, t3)
+        for i, n_obj in enumerate(n_objs):
+            result[i] = out[i][:n_obj]
+
+        return result
 
     def compute_loss(self, train_out: torch.Tensor, targets: torch.Tensor) -> None:
         """Compute loss.
@@ -252,6 +326,8 @@ class YoloValidator(AbstractValidator):
             paths: image path.
         """
         for si, pred in enumerate(out):
+            if si >= len(shapes):  # TensorRT works with fixed batch size only.
+                break
 
             labels = targets[targets[:, 0] == si, 1:]
             nl = len(labels)
@@ -323,16 +399,42 @@ class YoloValidator(AbstractValidator):
         self.statistics["dt"][0] += t2 - t1
 
         # Run model
-        out, train_out = self.model(imgs)  # inference and training outputs
+        outs = self.model(
+            imgs.half() if self.half else imgs
+        )  # inference and training outputs
         self.statistics["dt"][1] += time.time() - t2
+
+        if len(outs) == 2:
+            out, train_out = outs
+        else:
+            out, train_out = outs[0], None
+
+        targets = self.convert_target(targets, width, height, batch_size)
+        labels_for_hybrid = (
+            [targets[targets[:, 0] == i, 1:] for i in range(batch_size)]
+            if self.hybrid_label
+            else []
+        )
 
         # Compute loss
         if self.loss_fn:
             self.compute_loss(train_out, targets)
 
-        out, targets, t3 = self.run_nms(out, targets, width, height, batch_size)
-        self.statistics_per_image(imgs, out, targets, shapes, paths)
+        t3 = time.time()
+        if isinstance(train_out, torch.Tensor):  # TensorRT case.
+            out = self.convert_trt_out(out.clone(), train_out.clone())
+        else:
+            out = non_max_suppression(
+                out,
+                self.cfg_hyp["conf_t"],
+                self.cfg_hyp["iou_t"],
+                multi_label=True,
+                labels=labels_for_hybrid,
+                agnostic=self.cfg_train["single_cls"],
+            )
+        self.statistics["dt"][2] += time.time() - t3
 
+        self.statistics_per_image(imgs, out, targets, shapes, paths)
         # TODO(ulken94): Plot images.
 
     def compute_statistics(self) -> None:
@@ -349,7 +451,7 @@ class YoloValidator(AbstractValidator):
                 self.statistics["ap_class"],
             ) = ap_per_class(
                 *self.statistics["stats"],
-                plot=False,
+                plot=self.export,
                 save_dir=self.log_dir,
                 names=self.names,
             )
@@ -401,11 +503,7 @@ class YoloValidator(AbstractValidator):
         LOGGER.info(log_str)
 
         # print result per class
-        if (
-            (verbose or (self.nc < 50 and not self.model.training))
-            and self.nc > 1
-            and len(self.statistics["stats"])
-        ):
+        if (verbose or self.nc < 50) and self.nc > 1 and len(self.statistics["stats"]):
             for i, c in enumerate(self.statistics["ap_class"]):
                 LOGGER.info(
                     str(
@@ -425,7 +523,7 @@ class YoloValidator(AbstractValidator):
         t = tuple(
             x / self.seen * 1e3 for x in self.statistics["dt"]
         )  # speeds per image
-        if not self.model.training:
+        if verbose:
             shape = (
                 self.cfg_train["batch_size"],
                 3,

@@ -14,7 +14,7 @@ from torch import nn
 
 from scripts.utils.general import labels_to_class_weights
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import is_parallel, load_model_weights
+from scripts.utils.torch_utils import ModelEMA, is_parallel, load_model_weights
 
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)
@@ -190,7 +190,9 @@ class YOLOModelManager(AbstractModelManager):
 
         return self.model
 
-    def set_model_params(self, dataset: torch.utils.data.Dataset) -> nn.Module:
+    def set_model_params(
+        self, dataset: torch.utils.data.Dataset, ema: Optional[ModelEMA] = None
+    ) -> nn.Module:
         """Set necessary model parameters required in YOLO.
 
         Args:
@@ -204,15 +206,23 @@ class YOLOModelManager(AbstractModelManager):
             self.model.module.model[-1] if is_parallel(self.model) else self.model.model[-1]  # type: ignore
         )  # YOLOHead module
 
-        self.model.nc = len(dataset.names)  # type: ignore
-        self.model.hyp = self.cfg["hyper_params"]
-        self.model.gr = 1.0  # type: ignore
-        self.model.class_weights = labels_to_class_weights(dataset.labels, len(dataset.names)).to(  # type: ignore
-            self.device
-        )
-        self.model.names = dataset.names  # type: ignore
-        self.model.stride = head.stride  # type: ignore
-        self.model.cfg = self.cfg  # type: ignore
-        self.model.yaml = self.yaml  # type: ignore
+        models = [self.model]
+        if ema:
+            models.append(ema.ema)
+
+        if is_parallel(self.model):
+            models.append(self.model.module)  # type: ignore
+
+        for model in models:
+            model.nc = len(dataset.names)  # type: ignore
+            model.hyp = self.cfg["hyper_params"]
+            model.gr = 1.0  # type: ignore
+            model.class_weights = labels_to_class_weights(dataset.labels, len(dataset.names)).to(  # type: ignore
+                self.device
+            )
+            model.names = dataset.names  # type: ignore
+            model.stride = head.stride  # type: ignore
+            model.cfg = self.cfg  # type: ignore
+            model.yaml = self.yaml  # type: ignore
 
         return self.model

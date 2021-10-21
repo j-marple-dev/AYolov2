@@ -3,6 +3,7 @@
 - Author: Haneol Kim
 - Contact: hekim@jmarple.ai
 """
+
 import math
 import os
 import random
@@ -75,6 +76,7 @@ class YoloTrainer(AbstractTrainer):
 
         self.ema = ema
         self.best_score = 0.0
+
         self.loss = ComputeLoss(self.model)
         self.nbs = 64
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)

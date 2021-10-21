@@ -107,7 +107,11 @@ def load_pytorch_model(
     else:
         ckpt = torch.load(weight_path)
         if isinstance(ckpt, dict):
-            model_key = "ema" if load_ema and "ema" in ckpt.keys() else "model"
+            model_key = (
+                "ema"
+                if load_ema and "ema" in ckpt.keys() and ckpt["ema"] is not None
+                else "model"
+            )
             ckpt_model = ckpt[model_key]
         elif isinstance(ckpt, nn.Module):
             ckpt_model = ckpt
@@ -120,7 +124,7 @@ def load_pytorch_model(
 
     if model_cfg_path != "":
         model = YOLOModel(model_cfg_path, verbose=True)
-        model = load_model_weights(model, ckpt_model.state_dict(), exclude=[])
+        model = load_model_weights(model, {"model": ckpt_model}, exclude=[])
     else:
         model = ckpt_model
 
@@ -362,7 +366,7 @@ if __name__ == "__main__":
         val_loader,
         device,
         cfg,
-        compute_loss=isinstance(model, YOLOModel),
+        compute_loss=isinstance(model, YOLOModel) and hasattr(model, "hyp"),
         hybrid_label=args.hybrid_label,
         half=args.half,
         log_dir=args.dst,

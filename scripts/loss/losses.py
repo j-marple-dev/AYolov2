@@ -9,7 +9,6 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 import torch
 import torch.nn as nn
 
-from scripts.utils.general import check_img_size
 from scripts.utils.metrics import bbox_iou
 from scripts.utils.torch_utils import is_parallel
 
@@ -169,9 +168,7 @@ class QFocalLoss(nn.Module):
 class ComputeLoss:
     """Compute YOLO Loss."""
 
-    def __init__(
-        self, model: nn.Module, img_size: int, autobalance: bool = False
-    ) -> None:
+    def __init__(self, model: nn.Module, autobalance: bool = False) -> None:
         """Initialize instance.
 
         Args:
@@ -222,31 +219,6 @@ class ComputeLoss:
         self.nc: int = head.nc  # type: ignore
         self.nl: int = head.nl  # type: ignore
         self.anchors: torch.Tensor = head.anchors  # type: ignore
-
-        self.set_loss_weights(model, img_size)
-
-    def set_loss_weights(self, model: nn.Module, img_size: int) -> None:
-        """Set loss weights.
-
-        Set loss weights which use for object loss, box loss, class loss weights.
-        Args:
-            model: model to compute loss.
-        """
-        nl = model.module.model[-1].nl if is_parallel(model) else model.model[-1].nl  # type: ignore
-        # grid_size = int(max(self.model.stride))
-        grid_size = (
-            int(max(model.module.stride))  # type: ignore
-            if is_parallel(model)
-            else int(max(model.stride))  # type: ignore
-        )
-        imgsz = check_img_size(img_size, grid_size)
-
-        # TODO(ulken94): Do we really need this?
-        self.hyp["box"] *= 3.0 / nl  # scale box loss with the number of head
-        self.hyp["cls"] *= self.nc / 80.0 * 3.0 / nl  # scale to classes and layers
-        self.hyp["obj"] *= (
-            (imgsz / 640) ** 2 * 3.0 / nl
-        )  # scale box loss with image size
 
     def __call__(
         self, preds: torch.Tensor, targets: torch.Tensor

@@ -4,8 +4,8 @@
 - Contact: hwkim@jmarple.ai
 """
 
-import multiprocessing
 import gc
+import multiprocessing
 import os
 import shutil
 from glob import glob
@@ -19,7 +19,8 @@ from torch.utils.data import DataLoader
 
 from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
-from scripts.data_loader.data_loader_rl import LoadImagesForRL
+from scripts.data_loader.data_loader_rl import (LoadImagesForRL,
+                                                LoadImagesForSimCLR)
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
 from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
@@ -70,10 +71,19 @@ def test_crop_bboxes(show_gui: bool = False):
     assert num_cropped_imgs == num_targets
 
 
-def test_train_rl() -> None:
-    with open(
-        os.path.join("tests", "res", "configs", "train_config_rl.yaml"), "r"
-    ) as f:
+def test_train_rl(rl_type: str = "base") -> None:
+    if rl_type == "base":
+        train_cofig_fname = "train_config_rl.yaml"
+        get_aug_policy = AugmentationPolicy
+        load_images = LoadImagesForRL
+        model_fname = "model_yolov5s_rl.yaml"
+    else:  # rl_type == "simclr":
+        train_cofig_fname = "train_config_simclr.yaml"
+        get_aug_policy = MultiAugmentationPolicies
+        load_images = LoadImagesForSimCLR
+        model_fname = "model_simclr.yaml"
+
+    with open(os.path.join("tests", "res", "configs", train_cofig_fname), "r") as f:
         cfg = yaml.safe_load(f)
 
     cfg["train"]["epochs"] = 1
@@ -84,9 +94,9 @@ def test_train_rl() -> None:
 
     device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
 
-    aug_policy = AugmentationPolicy(cfg["augmentation"])
+    aug_policy = get_aug_policy(cfg["augmentation"])
 
-    train_dataset = LoadImagesForRL(
+    train_dataset = load_images(
         "tests/res/datasets/coco/images/train2017",
         img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
@@ -99,10 +109,10 @@ def test_train_rl() -> None:
     train_loader = DataLoader(
         train_dataset,
         batch_size=cfg["train"]["batch_size"],
-        num_workers=multiprocessing.cpu_count() - 1,
-        collate_fn=LoadImagesForRL.collate_fn,
+        num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
+        collate_fn=load_images.collate_fn,
     )
-    val_dataset = LoadImagesForRL(
+    val_dataset = load_images(
         "tests/res/datasets/coco/images/val2017",
         img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
@@ -115,14 +125,13 @@ def test_train_rl() -> None:
     val_loader = DataLoader(
         val_dataset,
         batch_size=cfg["train"]["batch_size"],
-        num_workers=multiprocessing.cpu_count() - 1,
-        collate_fn=LoadImagesForRL.collate_fn,
+        num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
+        collate_fn=load_images.collate_fn,
     )
 
-    model = Model(
-        os.path.join("tests", "res", "configs", "model_yolov5s_rl.yaml"), verbose=True,
-    )
+    model = Model(os.path.join("tests", "res", "configs", model_fname), verbose=True,)
 
+    temperature = cfg["train"].get("temperature", 0.0)
     trainer = YoloRepresentationLearningTrainer(
         model,
         cfg,
@@ -130,6 +139,8 @@ def test_train_rl() -> None:
         val_dataloader=val_loader,
         device=device,
         n_trans=2,
+        rl_type=rl_type,
+        temperature=temperature,
     )
     trainer.train()
 
@@ -148,4 +159,5 @@ def test_train_rl() -> None:
 
 if __name__ == "__main__":
     test_crop_bboxes()
-    test_train_rl()
+    test_train_rl("base")
+    test_train_rl("simclr")

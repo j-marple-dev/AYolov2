@@ -7,7 +7,7 @@ import math
 import os
 import random
 from copy import deepcopy
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
@@ -19,7 +19,7 @@ from torch.cuda import amp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from scripts.loss.losses_rl import RLLoss
+from scripts.loss.losses_rl import InfoNCELoss, RLLoss
 from scripts.train.abstract_trainer import AbstractTrainer
 from scripts.utils.general import get_logger, labels_to_image_weights
 from scripts.utils.torch_utils import is_parallel
@@ -50,6 +50,8 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
         device: torch.device,
         rank: int = -1,
         n_trans: int = 2,
+        rl_type: str = "base",
+        temperature: float = 0.07,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -60,10 +62,23 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
             val_dataloader: dataloader for validation.
             rank: CUDA rank for DDP.
             n_trans: the number of times to apply transformations for representation learning.
+            rl_type: Representation Learning types (e.g. base, simclr)
+            temperature: softmax temperature
         """
         super().__init__(model, cfg, train_dataloader, val_dataloader, device=device)
 
-        self.loss = RLLoss(ltype="L1Loss")
+        self.rl_type = rl_type
+        if self.rl_type == "base":
+            self.loss = RLLoss(ltype="L1Loss")
+        elif self.rl_type == "simclr":
+            self.loss = InfoNCELoss(
+                batch_size=cfg["train"]["batch_size"],
+                n_trans=cfg["train"]["n_trans"],
+                device=device,
+                temperature=temperature,
+            )
+        else:
+            assert "Wrong Representation Learning type."
         self.nbs = 64
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
@@ -90,7 +105,10 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
 
     def _init_optimizer(
         self,
-    ) -> Tuple[List[optim.Optimizer], List[lr_scheduler.LambdaLR]]:
+    ) -> Tuple[
+        List[optim.Optimizer],
+        Union[List[lr_scheduler.LambdaLR], List[lr_scheduler.CosineAnnealingLR]],
+    ]:
         """Initialize optimizer and scheduler."""
         self.nbs = 64
         self.cfg_hyp["weight_decay"] *= (
@@ -126,8 +144,17 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
             % (len(pg2), len(pg1), len(pg0))
         )
 
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
-        return [optimizer], [scheduler]
+        if self.rl_type == "base":
+            lambda_scheduler = lr_scheduler.LambdaLR(
+                optimizer, lr_lambda=self._lr_function
+            )
+            return [optimizer], [lambda_scheduler]
+        else:  # self.rl_type == "simclr"
+            assert self.rl_type == "simclr", "Wrong Representation Learning type."
+            cos_scheduler = lr_scheduler.CosineAnnealingLR(
+                optimizer, T_max=len(self.train_dataloader), eta_min=0, last_epoch=-1
+            )
+            return [optimizer], [cos_scheduler]
 
     def warmup(self, ni: int, epoch: int) -> None:
         """Warmup before training.

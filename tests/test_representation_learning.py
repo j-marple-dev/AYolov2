@@ -88,6 +88,7 @@ def test_train_rl() -> None:
 
     train_dataset = LoadImagesForRL(
         "tests/res/datasets/coco/images/train2017",
+        img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
         n_skip=cfg["val"]["n_skip"],
         augmentation=aug_policy,
@@ -112,6 +113,7 @@ def test_train_rl() -> None:
     )
     val_loader = DataLoader(
         val_dataset,
+        img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
         num_workers=multiprocessing.cpu_count() - 1,
         collate_fn=LoadImagesForRL.collate_fn,

@@ -127,9 +127,6 @@ class TrainModelBuilder:
 
         self.model.to(self.device)
 
-        if isinstance(self.cfg["train"]["image_size"], int):
-            self.cfg["train"]["image_size"] = [self.cfg["train"]["image_size"]] * 2
-
         ema = ModelEMA(self.model) if RANK in [-1, 0] else None
 
         if self.cuda and RANK == -1 and torch.cuda.device_count() > 1:

@@ -173,6 +173,7 @@ class ComputeLoss:
 
         Args:
             model: YOLOModel or nn.Module which last layer is YOLOHead.
+            img_size: model input image size during training.
             autobalance: Auto balance.
         """
         self.sort_obj_iou = False

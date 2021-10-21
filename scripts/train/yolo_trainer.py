@@ -73,6 +73,7 @@ class YoloTrainer(AbstractTrainer):
             incremental_log_dir=incremental_log_dir,
         )
 
+        self.cfg_hyp["label_smoothing"] = self.cfg_train["label_smoothing"]
         self.ema = ema
         self.best_score = 0.0
         self.loss = ComputeLoss(self.model)
@@ -116,6 +117,11 @@ class YoloTrainer(AbstractTrainer):
             )
 
     def _lr_function(self, x: float) -> float:
+        if "linear_lr" in self.cfg_train.keys() and self.cfg_train["linear_lr"]:
+            return (1 - x / (self.cfg_train["epochs"] - 1)) * (
+                1.0 - self.cfg_hyp["lrf"]
+            ) + self.cfg_hyp["lrf"]
+
         return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (
             1 - self.cfg_hyp["lrf"]
         ) + self.cfg_hyp["lrf"]
@@ -142,9 +148,6 @@ class YoloTrainer(AbstractTrainer):
             elif hasattr(v, "weight") and isinstance(v.weight, torch.Tensor):
                 pg1.append(v.weight)
 
-        for _, v in self.model.named_parameters():
-            v.requires_grad = True
-
         optimizer = getattr(
             __import__("torch.optim", fromlist=[""]), self.cfg_hyp["optimizer"]
         )(params=pg0, **self.cfg_hyp["optimizer_params"])
@@ -164,6 +167,7 @@ class YoloTrainer(AbstractTrainer):
 
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
 
+        # TODO(ulken94): Need to check weights from wandb.
         pretrained = self.cfg_train.get("weights", "").endswith(".pt")
         if pretrained:
             ckpt = torch.load(self.cfg_train["weights"])

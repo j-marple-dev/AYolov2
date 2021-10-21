@@ -7,12 +7,15 @@ import os
 import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from scripts.utils.torch_utils import ModelEMA
 
 import torch
 from torch import nn
 
-from scripts.utils.general import labels_to_class_weights
+from scripts.utils.general import check_img_size, labels_to_class_weights
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import is_parallel, load_model_weights
 
@@ -190,7 +193,9 @@ class YOLOModelManager(AbstractModelManager):
 
         return self.model
 
-    def set_model_params(self, dataset: torch.utils.data.Dataset) -> nn.Module:
+    def set_model_params(
+        self, dataset: torch.utils.data.Dataset, ema: Optional["ModelEMA"] = None
+    ) -> nn.Module:
         """Set necessary model parameters required in YOLO.
 
         Args:
@@ -204,15 +209,43 @@ class YOLOModelManager(AbstractModelManager):
             self.model.module.model[-1] if is_parallel(self.model) else self.model.model[-1]  # type: ignore
         )  # YOLOHead module
 
-        self.model.nc = len(dataset.names)  # type: ignore
-        self.model.hyp = self.cfg["hyper_params"]
-        self.model.gr = 1.0  # type: ignore
-        self.model.class_weights = labels_to_class_weights(dataset.labels, len(dataset.names)).to(  # type: ignore
-            self.device
+        models = [self.model]
+        nl = self.model.module.model[-1].nl if is_parallel(self.model) else self.model.model[-1].nl  # type: ignore
+        # grid_size = int(max(self.model.stride))
+        grid_size = (
+            int(max(self.model.module.stride))  # type: ignore
+            if is_parallel(self.model)
+            else int(max(self.model.stride))  # type: ignore
         )
-        self.model.names = dataset.names  # type: ignore
-        self.model.stride = head.stride  # type: ignore
-        self.model.cfg = self.cfg  # type: ignore
-        self.model.yaml = self.yaml  # type: ignore
+
+        imgsz = check_img_size(self.cfg["train"]["image_size"], grid_size)
+
+        if ema:
+            models.append(ema.ema)
+
+        if is_parallel(self.model):
+            models.append(self.model.module)  # type: ignore
+
+        for model in models:
+            model.nc = len(dataset.names)  # type: ignore
+            model.hyp = self.cfg["hyper_params"]
+            model.gr = 1.0  # type: ignore
+            model.class_weights = labels_to_class_weights(dataset.labels, len(dataset.names)).to(  # type: ignore
+                self.device
+            )
+            model.names = dataset.names  # type: ignore
+            model.stride = head.stride  # type: ignore
+            model.cfg = self.cfg  # type: ignore
+            model.yaml = self.yaml  # type: ignore
+
+            # Update loss weight hyper params
+            # scale box loss with the number of head
+            model.hyp["box"] *= 3.0 / nl  # type: ignore
+            model.hyp["cls"] *= (  # type: ignore
+                model.nc / 80.0 * 3.0 / nl  # type: ignore
+            )  # scale to classes and layers
+            model.hyp["obj"] *= (  # type: ignore
+                (imgsz / 640) ** 2 * 3.0 / nl
+            )  # scale box loss with image size
 
         return self.model

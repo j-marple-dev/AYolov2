@@ -50,10 +50,9 @@ def test_train_model_builder() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
-    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
     model_manager.model = model
-    model = model_manager.set_model_params(train_dataset)
+    model = model_manager.set_model_params(train_dataset, ema=ema)
 
 
 def test_train() -> None:
@@ -90,9 +89,8 @@ def test_train() -> None:
         model, cfg, train_builder.device, train_builder.wdir
     )
 
-    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
-    model = model_manager.set_model_params(train_dataset)
+    model = model_manager.set_model_params(train_dataset, ema=ema)
 
     trainer = YoloTrainer(
         model,

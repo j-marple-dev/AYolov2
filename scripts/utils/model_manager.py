@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 import torch
 from torch import nn
 
+import wandb
 from scripts.utils.general import check_img_size, labels_to_class_weights
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import is_parallel, load_model_weights
@@ -113,9 +114,16 @@ class YOLOModelManager(AbstractModelManager):
         Return:
             weights loaded model.
         """
-        # TODO(jeikeilim): Make load weight from wandb.
         start_epoch = 0
         pretrained = path.endswith(".pt")
+        if path and not pretrained:
+            best_weight = wandb.restore("best.pt", run_path=path)
+            if not best_weight:
+                LOGGER.warn(f"Failed downloading weight from wandb run path {path}")
+            else:
+                path = best_weight.name
+                pretrained = path.endswith(".pt")
+
         if pretrained:
             ckpt = torch.load(path, map_location=self.device)
             # TODO(jeikeilim): Re-visit here.

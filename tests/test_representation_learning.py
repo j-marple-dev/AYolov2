@@ -150,5 +150,5 @@ def test_train_rl(force: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    # test_crop_bboxes()
+    test_crop_bboxes()
     test_train_rl(force=True)

@@ -8,7 +8,6 @@ import gc
 import os
 
 import numpy as np
-import pytorch_lightning as pl
 import torch
 import yaml
 from kindle import YOLOModel
@@ -17,7 +16,6 @@ from torch.utils.data import DataLoader
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
-from scripts.train.yolo_plmodule import YoloPLModule
 from scripts.train.yolo_trainer import YoloTrainer
 from scripts.utils.general import get_logger
 from scripts.utils.model_manager import YOLOModelManager

@@ -13,6 +13,7 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from scripts.augmentation.augmentation import AugmentationPolicy
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS, PLOT_COLOR
 from scripts.utils.general import xywh2xyxy
@@ -56,6 +57,8 @@ def test_load_images_and_labels(show_gui: bool = False):
     batch_size = 16
     label2str = LABELS["COCO"]
 
+    aug_policy = AugmentationPolicy({"BoxJitter": {"p": 1.0, "jitter": 0.2}})
+
     dataset = LoadImagesAndLabels(
         # "tests/res/datasets/VOC/images/train",
         # "tests/res/datasets/coco/images/val2017",
@@ -68,6 +71,7 @@ def test_load_images_and_labels(show_gui: bool = False):
         rect=False,
         pad=0,
         label_type="segments",
+        augmentation=aug_policy,
     )
 
     dataset_loader = DataLoader(
@@ -83,7 +87,6 @@ def test_load_images_and_labels(show_gui: bool = False):
     for (img, labels, path, shapes) in pbar:
         n_run += 1
         pixel_label = labels.clone()
-        pad = (torch.tensor([img.shape[2:]]) - torch.tensor(shapes)[:, 1, :]) / 2
 
         for i in range(img.shape[0]):
             np_image = (img[i].numpy()[::-1].transpose((1, 2, 0)) * 255).astype(
@@ -106,5 +109,5 @@ def test_load_images_and_labels(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    test_load_images(show_gui=False)
-    test_load_images_and_labels(show_gui=False)
+    # test_load_images(show_gui=False)
+    test_load_images_and_labels(show_gui=True)

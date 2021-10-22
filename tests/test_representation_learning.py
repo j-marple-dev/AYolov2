@@ -63,8 +63,7 @@ def test_crop_bboxes(show_gui: bool = False):
                 cv2.waitKey(0)
 
         del img, img_bbox
-
-    gc.collect()
+        gc.collect()
 
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets

@@ -25,7 +25,10 @@ from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
 
 
-def test_crop_bboxes(show_gui: bool = False):
+def test_crop_bboxes(show_gui: bool = False, force: bool = False):
+    if not force:
+        return
+      
     MIN_SIZE = 32
     img_dir = "tests/res/datasets/coco/images/val2017"
     save_dir = "tests/res/datasets/coco/images/val2017_cropped"
@@ -63,8 +66,7 @@ def test_crop_bboxes(show_gui: bool = False):
                 cv2.waitKey(0)
 
         del img, img_bbox
-
-    gc.collect()
+        gc.collect()
 
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets
@@ -95,7 +97,7 @@ def test_train_rl(force: bool = False) -> None:
         batch_size=cfg["train"]["batch_size"],
         n_skip=cfg["val"]["n_skip"],
         augmentation=aug_policy,
-        preprocess=lambda x: (x / 255.0).astype(np.float32),
+        # preprocess=lambda x: (x / 255.0).astype(np.float32),
         representation_learning=True,
         n_trans=2,
     )
@@ -111,7 +113,7 @@ def test_train_rl(force: bool = False) -> None:
         batch_size=cfg["train"]["batch_size"],
         n_skip=cfg["val"]["n_skip"],
         augmentation=aug_policy,
-        preprocess=lambda x: (x / 255.0).astype(np.float32),
+        # preprocess=lambda x: (x / 255.0).astype(np.float32),
         representation_learning=True,
         n_trans=2,
     )

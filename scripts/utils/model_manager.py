@@ -218,6 +218,7 @@ class YOLOModelManager(AbstractModelManager):
         )  # YOLOHead module
 
         models = [self.model]
+
         nl = self.model.module.model[-1].nl if is_parallel(self.model) else self.model.model[-1].nl  # type: ignore
         # grid_size = int(max(self.model.stride))
         grid_size = (

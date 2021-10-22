@@ -5,10 +5,59 @@
 """
 
 import random
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import albumentations as A
 import numpy as np
+from albumentations import DualTransform
+
+from scripts.utils.logger import get_logger
+
+LOGGER = get_logger(__name__)
+
+
+class BoxJitter(DualTransform):
+    """Apply bbox jittering."""
+
+    def __init__(
+        self, always_apply: bool = False, p: float = 1, jitter: float = 0.01,
+    ) -> None:
+        """Initialize BoxJitter augmentation.
+
+        Args:
+            always_apply: always apply this augmentation.
+            p: probability to run this augmentation.
+            jitter: Maximum jittering size of the bounding box.
+                i.e. 0.01 = 1% of width or height jitter.
+        """
+        super().__init__(always_apply, p)
+        self.jitter = jitter
+
+    def apply(self, img: np.ndarray, **params: Any) -> np.ndarray:
+        """Pass original image."""
+        return img
+
+    def get_params(self) -> Dict[str, float]:
+        """Get bbox jittering parameters."""
+        return {
+            "x1_jitter": random.uniform(-self.jitter, self.jitter),
+            "y1_jitter": random.uniform(-self.jitter, self.jitter),
+            "x2_jitter": random.uniform(-self.jitter, self.jitter),
+            "y2_jitter": random.uniform(-self.jitter, self.jitter),
+        }
+
+    def apply_to_bbox(
+        self, bbox: Tuple[float, float, float, float], **params: Any
+    ) -> Tuple[float, float, float, float]:
+        """Add jittering to bounding boxes."""
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
+        return (
+            max(min(bbox[0] + (params["x1_jitter"] * width), 1.0), 0.0),
+            max(min(bbox[1] + (params["y2_jitter"] * height), 1.0), 0.0),
+            max(min(bbox[2] + (params["x2_jitter"] * width), 1.0), 0.0),
+            max(min(bbox[3] + (params["y2_jitter"] * height), 1.0), 0.0),
+        )
 
 
 class AugmentationPolicy:
@@ -26,12 +75,27 @@ class AugmentationPolicy:
         prob: probability to run this augmentation policy
         """
         self.prob = prob
+        aug_module_paths = ["albumentations", __name__]
+
+        transforms = []
+        for aug_name, kwargs in policy.items():
+            found_module = False
+            for module_path in aug_module_paths:
+                if hasattr(__import__(module_path, fromlist=[""]), aug_name):
+                    transforms.append(
+                        getattr(__import__(module_path, fromlist=[""]), aug_name)(
+                            **kwargs
+                        )
+                    )
+                    found_module = True
+                    break
+            if not found_module:
+                LOGGER.warn(
+                    f"Can not find {aug_name} augmentation. {aug_name} will not be used."
+                )
 
         self.transform = A.Compose(
-            [
-                getattr(__import__("albumentations", fromlist=[""]), aug_name)(**kwargs)
-                for aug_name, kwargs in policy.items()
-            ],
+            transforms,
             bbox_params=A.BboxParams(format="yolo", label_fields=["class_labels"]),
         )
 

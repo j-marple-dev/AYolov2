@@ -341,7 +341,11 @@ class LoadImages(Dataset):
 
     def __getitem__(
         self, index: int
-    ) -> Tuple[torch.Tensor, str, Tuple[Tuple[int, int], Tuple[int, int]]]:
+    ) -> Tuple[
+        torch.Tensor,
+        str,
+        Tuple[Tuple[int, int], Tuple[Tuple[float, float], Tuple[float, float]]],
+    ]:
         """Get item from given index.
 
         Args:
@@ -350,7 +354,7 @@ class LoadImages(Dataset):
         Return:
             PyTorch image (CHW),
             Image path,
-            Image shapes (Original, Resized)
+            Image shapes (Original, (ratio(new/original), pad(h,w)))
         """
         index = self.indices[index]
         img, (h0, w0), (h1, w1) = self._load_image(index)
@@ -360,7 +364,7 @@ class LoadImages(Dataset):
             if self.rect
             else (self.img_size, self.img_size)
         )
-        img = self._letterbox(img, new_shape=shape, auto=False)[0]
+        img, ratio, pad = self._letterbox(img, new_shape=shape, auto=False)
 
         if self.augmentation:
             img = self.augmentation(img)
@@ -371,7 +375,7 @@ class LoadImages(Dataset):
         img = img.transpose((2, 0, 1))[::-1]
         img = np.ascontiguousarray(img)
 
-        shapes = (h0, w0), (h1, w1)
+        shapes = (h0, w0), ((h1 / h0, w1 / w0), pad)
         torch_img = torch.from_numpy(img)
         return torch_img, self.img_files[index], shapes
 
@@ -590,7 +594,10 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
     def __getitem__(  # type: ignore
         self, index: int
     ) -> Tuple[
-        torch.Tensor, torch.Tensor, str, Tuple[Tuple[int, int], Tuple[int, int]]
+        torch.Tensor,
+        torch.Tensor,
+        str,
+        Tuple[Tuple[int, int], Tuple[Tuple[float, float], Tuple[float, float]]],
     ]:
         """Get item from given index.
 
@@ -601,7 +608,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             PyTorch image (CHW),
             Normalized(0.0 ~ 1.0) xywh labels,
             Image path,
-            Image shapes (Original, Resized)
+            Image shapes (Original, (ratio(new/original), pad(h,w)))
         """
         index = self.indices[index]
 
@@ -613,7 +620,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         if random.random() < self.yolo_augmentation.get("mosaic", 0.0):
             img, labels = self._load_mosaic(index)
-            shapes = (0, 0), (0, 0)
+            shapes = (0, 0), ((0.0, 0.0), (0.0, 0.0))
             if random.random() < self.yolo_augmentation.get("mixup", 1.0):
                 img, labels = mixup(
                     img,
@@ -623,11 +630,15 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
         else:
             img, (h0, w0), (h1, w1) = self._load_image(index)
-            shapes = (h0, w0), (h1, w1)
 
             img, ratio, pad = self._letterbox(
-                img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
+                img,
+                new_shape=shape,
+                auto=False,
+                scale_fill=False,
+                scale_up=self.yolo_augmentation.get("augment", False),
             )
+            shapes = (h0, w0), ((h1 / h0, w1 / w0), pad)
 
             if self.labels[index] is None:
                 labels = np.empty((0, 5), dtype=np.float32)

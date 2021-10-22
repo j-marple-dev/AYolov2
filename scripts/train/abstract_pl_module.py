@@ -6,13 +6,13 @@
 from abc import abstractmethod
 from typing import Any, Dict, List, Tuple, Union
 
-import pytorch_lightning as pl
 import torch
 import torch.nn as nn
+from pytorch_lightning import LightningModule
 from torch.optim import lr_scheduler
 
 
-class AbstractPLModule(pl.LightningModule):
+class AbstractPLModule(LightningModule):
     """Abstract traniner class."""
 
     def __init__(self, model: nn.Module, cfg: Dict[str, Any]) -> None:

@@ -72,6 +72,7 @@ class AbstractTrainer(ABC):
         self.cuda = self.device.type != "cpu"
         self.start_epoch = 0
         self.pbar: Optional[tqdm] = None
+        self.is_early_stop = False
         self.state: Dict[str, Any] = {
             "is_train": False,
             "epoch": self.start_epoch,
@@ -198,6 +199,9 @@ class AbstractTrainer(ABC):
 
             if self.wandb_run and RANK in [-1, 0]:
                 self.log_wandb()
+
+            if self.is_early_stop:
+                break
 
         self.on_train_end()
 

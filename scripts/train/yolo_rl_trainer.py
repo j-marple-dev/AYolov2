@@ -249,7 +249,6 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
             self.warmup(num_integrated_batches, epoch)
 
         imgs, _, _ = train_batch
-        imgs = self.prepare_img(imgs)
 
         with amp.autocast(enabled=self.cuda):
             pred = self.model(imgs)
@@ -294,7 +293,6 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
             Result of loss function.
         """
         imgs, _, _ = val_batch
-        imgs = self.prepare_img(imgs)
         pred = self.model(imgs)
         loss, loss_items, _ = self.loss(pred)
         return loss.item()

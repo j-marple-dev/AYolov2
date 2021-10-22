@@ -70,7 +70,10 @@ def test_crop_bboxes(show_gui: bool = False):
     assert num_cropped_imgs == num_targets
 
 
-def test_train_rl() -> None:
+def test_train_rl(force: bool = False) -> None:
+    if not force:
+        return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_rl.yaml"), "r"
     ) as f:
@@ -148,4 +151,4 @@ def test_train_rl() -> None:
 
 if __name__ == "__main__":
     test_crop_bboxes()
-    test_train_rl()
+    test_train_rl(force=True)

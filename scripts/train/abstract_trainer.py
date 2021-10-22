@@ -70,6 +70,7 @@ class AbstractTrainer(ABC):
         self.cuda = self.device.type != "cpu"
         self.start_epoch = 0
         self.pbar: Optional[tqdm] = None
+        self.is_early_stop = False
         self.state: Dict[str, Any] = {
             "is_train": False,
             "epoch": self.start_epoch,
@@ -194,6 +195,9 @@ class AbstractTrainer(ABC):
                 self.model.eval()
                 self.validation()
             self.on_validation_end()
+
+            if self.is_early_stop:
+                break
 
         self.on_train_end()
 

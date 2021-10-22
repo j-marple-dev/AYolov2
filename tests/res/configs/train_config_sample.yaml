@@ -23,6 +23,7 @@ train:
   log_dir: "exp"
   plot: true
   label_type: "segments"  # Label type to use ("labels", "segments")
+  patience: 30
 
 
 hyper_params:

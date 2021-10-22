@@ -24,6 +24,7 @@ from scripts.utils.model_manager import YOLOModelManager
 from scripts.utils.torch_utils import select_device
 
 LOGGER = get_logger(__name__)
+RANK = int(os.getenv("RANK", -1))
 
 
 def test_train_model_builder() -> None:
@@ -52,10 +53,9 @@ def test_train_model_builder() -> None:
     train_loader, train_dataset = create_dataloader(
         "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
     )
-
-    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
-    model = model_manager.set_model_params(train_dataset)
+    model_manager.model = model
+    model = model_manager.set_model_params(train_dataset, ema=ema)
 
     del model, train_builder, model_manager, ema
     gc.collect()
@@ -99,9 +99,8 @@ def test_train() -> None:
         model, cfg, train_builder.device, train_builder.wdir
     )
 
-    model = model_manager.set_model_params(train_dataset)
     model, ema, device = train_builder.prepare()
-    model = model_manager.set_model_params(train_dataset)
+    model = model_manager.set_model_params(train_dataset, ema=ema)
 
     trainer = YoloTrainer(
         model,
@@ -127,5 +126,10 @@ def test_train() -> None:
 
 
 if __name__ == "__main__":
-    test_train_model_builder()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--local_rank", type=int, default=-1)
+    opt = parser.parse_args()
+    # test_train_model_builder()
     test_train()

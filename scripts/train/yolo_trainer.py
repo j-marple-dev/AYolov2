@@ -27,7 +27,7 @@ from scripts.utils.anchors import check_anchors
 from scripts.utils.general import check_img_size, labels_to_image_weights
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.plot_utils import plot_images, plot_label_histogram
-from scripts.utils.torch_utils import de_parallel
+from scripts.utils.torch_utils import EarlyStopping, de_parallel
 from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
@@ -74,6 +74,7 @@ class YoloTrainer(AbstractTrainer):
             incremental_log_dir=incremental_log_dir,
         )
 
+        self.cfg_hyp["label_smoothing"] = self.cfg_train["label_smoothing"]
         self.ema = ema
         self.best_score = 0.0
 
@@ -116,8 +117,14 @@ class YoloTrainer(AbstractTrainer):
                 cfg,
                 log_dir=self.log_dir,
             )
+        self.stopper = EarlyStopping(self.cfg_train["patience"])
 
     def _lr_function(self, x: float) -> float:
+        if "linear_lr" in self.cfg_train.keys() and self.cfg_train["linear_lr"]:
+            return (1 - x / (self.cfg_train["epochs"] - 1)) * (
+                1.0 - self.cfg_hyp["lrf"]
+            ) + self.cfg_hyp["lrf"]
+
         return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (
             1 - self.cfg_hyp["lrf"]
         ) + self.cfg_hyp["lrf"]
@@ -144,9 +151,6 @@ class YoloTrainer(AbstractTrainer):
             elif hasattr(v, "weight") and isinstance(v.weight, torch.Tensor):
                 pg1.append(v.weight)
 
-        for _, v in self.model.named_parameters():
-            v.requires_grad = True
-
         optimizer = getattr(
             __import__("torch.optim", fromlist=[""]), self.cfg_hyp["optimizer"]
         )(params=pg0, **self.cfg_hyp["optimizer_params"])
@@ -166,6 +170,7 @@ class YoloTrainer(AbstractTrainer):
 
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=self._lr_function)
 
+        # TODO(ulken94): Need to check weights from wandb.
         pretrained = self.cfg_train.get("weights", "").endswith(".pt")
         if pretrained:
             ckpt = torch.load(self.cfg_train["weights"])
@@ -408,6 +413,11 @@ class YoloTrainer(AbstractTrainer):
             if val_result[0][2] == self.best_score:
                 self.best_score = val_result[0][2]
                 self._save_weights(self.current_epoch, "best.pt")
+
+            if RANK == -1 and self.stopper(
+                epoch=self.current_epoch, score=val_result[0][2]
+            ):
+                self.is_early_stop = True
 
     def update_image_weights(self) -> None:
         """Update image weights."""

@@ -17,7 +17,7 @@ from torch import nn
 
 from scripts.utils.general import check_img_size, labels_to_class_weights
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import ModelEMA, is_parallel, load_model_weights
+from scripts.utils.torch_utils import is_parallel, load_model_weights
 
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)

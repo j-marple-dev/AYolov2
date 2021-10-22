@@ -149,7 +149,7 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         type=str,
-        default="",
+        default="0",
         help="GPU device id. '' will use all GPUs. EX) '0,2' or 'cpu'",
     )
     parser.add_argument(
@@ -338,6 +338,7 @@ if __name__ == "__main__":
         augmentation=None,
         preprocess=None,
     )
+
     val_loader = torch.utils.data.DataLoader(
         val_dataset,
         batch_size=args.batch_size,

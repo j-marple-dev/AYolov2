@@ -351,12 +351,16 @@ class YoloValidator(AbstractValidator):
             if self.cfg_train["single_cls"]:
                 pred[:, 5] = 0
             predn = pred.clone()
-            scale_coords(img[si].shape[1:], predn[:, :4], shape)  # native-space pred
+            scale_coords(
+                img[si].shape[1:], predn[:, :4], shape, shapes[si][1]
+            )  # native-space pred
 
             # Evaluate
             if nl:
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
-                scale_coords(img[si].shape[1:], tbox, shape)  # native-space labels
+                scale_coords(
+                    img[si].shape[1:], tbox, shape, shapes[si][1]
+                )  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
                 correct = self.process_batch(predn, labelsn)
                 if self.cfg_train["plot"]:

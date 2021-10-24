@@ -118,6 +118,7 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
 
+    temperature = train_cfg["train"].get("temperature", 0.0)
     trainer = YoloRepresentationLearningTrainer(
         model,
         train_cfg,
@@ -126,6 +127,6 @@ if __name__ == "__main__":
         device=device,
         n_trans=train_cfg["train"]["n_trans"],
         rl_type=args.rl_type,
-        temperature=train_cfg["train"]["temperature"],
+        temperature=temperature,
     )
     trainer.train()

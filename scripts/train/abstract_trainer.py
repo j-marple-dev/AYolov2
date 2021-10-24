@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from tqdm import tqdm
+    import wandb.sdk.wandb_run.Run
 
 import os
 from datetime import datetime
@@ -56,6 +57,7 @@ class AbstractTrainer(ABC):
         device: torch.device,
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
+        wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
     ) -> None:
         """Initialize AbstractTrainer class."""
         super().__init__()
@@ -70,6 +72,7 @@ class AbstractTrainer(ABC):
         self.cuda = self.device.type != "cpu"
         self.start_epoch = 0
         self.pbar: Optional[tqdm] = None
+        self.is_early_stop = False
         self.state: Dict[str, Any] = {
             "is_train": False,
             "epoch": self.start_epoch,
@@ -88,6 +91,7 @@ class AbstractTrainer(ABC):
         if RANK in [-1, 0]:
             os.makedirs(self.wdir, exist_ok=True)
             LOGGER.info("Log directory: " + colorstr("bold", f"{self.log_dir}"))
+        self.wandb_run = wandb_run
 
     @abstractmethod
     def training_step(
@@ -97,20 +101,6 @@ class AbstractTrainer(ABC):
         epoch: int,
     ) -> torch.Tensor:
         """Train a step.
-
-        Args:
-            batch: batch data.
-            batch_idx: batch index.
-
-        Returns:
-            Result of loss function.
-        """
-        pass
-
-    def validation_step(
-        self, batch: Union[List[torch.Tensor], torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
-        """Validate a step (a batch).
 
         Args:
             batch: batch data.
@@ -158,6 +148,16 @@ class AbstractTrainer(ABC):
             self.state["step"] = i
             self.validation_step(batch, i)
 
+    def validation_step(
+        self,
+        batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
+        batch_idx: int,
+    ) -> None:
+        """Evaluate one batch of validation dataset."""
+        # NOTE: this is a dummy method for linting.
+        # In fact, the `Validator` in `train_utils.py` is used for the validation.
+        pass
+
     def train(self, start_epoch: int = 0) -> None:
         """Train model."""
         self.start_epoch = start_epoch
@@ -179,23 +179,35 @@ class AbstractTrainer(ABC):
             is_final_epoch = epoch + 1 == self.epochs
             self.on_epoch_start(epoch)
             self.model.train()
+
             for i, batch in (
                 self.pbar if self.pbar else enumerate(self.train_dataloader)
             ):
                 self.state["step"] = i
                 self.training_step(batch, i, epoch)
+
             self.on_epoch_end(epoch)
 
             self.state.update({"is_train": False, "step": 0})
-            self.on_validation_start()
             if self.val_dataloader is not None and (
-                is_final_epoch or epoch % self.cfg_train["validate_period"] == 0
+                is_final_epoch or (epoch + 1) % self.cfg_train["validate_period"] == 0
             ):
+                self.on_validation_start()
                 self.model.eval()
                 self.validation()
-            self.on_validation_end()
+                self.on_validation_end()
+
+            if self.wandb_run and RANK in [-1, 0]:
+                self.log_wandb()
+
+            if self.is_early_stop:
+                break
 
         self.on_train_end()
+
+    def log_wandb(self) -> None:
+        """Log metrics to WanDB."""
+        pass
 
     def log_dict(self, data: Dict[str, Any]) -> None:
         """Log dictionary data.

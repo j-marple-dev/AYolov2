@@ -293,7 +293,7 @@ def non_max_suppression(
         prediction: model output.
         conf_thres: confidence threshold.
         iou_thres: IoU threshold.
-        classes: ???
+        classes: Debug purpose to save both ground truth label and predicted result.
         agnostic: single class or not.
         multi_label: multiple labels per box.
         labels: labels.

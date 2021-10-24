@@ -88,7 +88,12 @@ def test_augmentation(show_gui: bool = False):
     batch_size = 16
     aug_prob = 0.5
     aug_policy = AugmentationPolicy(
-        {"Blur": {"p": aug_prob}, "Flip": {"p": aug_prob}, "ToGray": {"p": aug_prob}},
+        {
+            "Blur": {"p": aug_prob},
+            "Flip": {"p": aug_prob},
+            "ToGray": {"p": aug_prob},
+            "BoxJitter": {"p": aug_prob, "jitter": 0.2},
+        },
         prob=0.5,
     )
 
@@ -128,5 +133,5 @@ def test_augmentation(show_gui: bool = False):
 
 
 if __name__ == "__main__":
-    test_augmentation(show_gui=False)
-    test_multi_aug_policies(show_gui=False)
+    test_augmentation(show_gui=True)
+    # test_multi_aug_policies(show_gui=False)

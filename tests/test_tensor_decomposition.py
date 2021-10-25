@@ -5,6 +5,7 @@
 """
 
 import os
+import random
 from copy import deepcopy
 
 import torch
@@ -17,7 +18,10 @@ from scripts.utils.torch_utils import count_param, prune
 LOGGER = get_logger(__name__)
 
 
-def test_tensor_decomposition() -> None:
+def test_tensor_decomposition(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     test_input = torch.rand((1, 3, 320, 320))
 
     ckpt = torch.load(os.path.join("tests", "res", "weights", "yolov5s_kindle.pt"))

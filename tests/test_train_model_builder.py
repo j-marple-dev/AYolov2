@@ -6,6 +6,7 @@
 
 import gc
 import os
+import random
 
 import numpy as np
 import torch
@@ -25,7 +26,10 @@ LOGGER = get_logger(__name__)
 RANK = int(os.getenv("RANK", -1))
 
 
-def test_train_model_builder() -> None:
+def test_train_model_builder(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:
@@ -59,7 +63,10 @@ def test_train_model_builder() -> None:
     gc.collect()
 
 
-def test_train() -> None:
+def test_train(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
 from scripts.data_loader.data_loader_repr import (LoadImagesForRL,
-                                                LoadImagesForSimCLR)
+                                                  LoadImagesForSimCLR)
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
 from scripts.train.yolo_repr_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
@@ -126,7 +126,8 @@ def test_train_repr(force: bool = False) -> None:
     )
 
     model = Model(
-        os.path.join("tests", "res", "configs", "model_yolov5s_repr.yaml"), verbose=True,
+        os.path.join("tests", "res", "configs", "model_yolov5s_repr.yaml"),
+        verbose=True,
     )
 
     temperature = cfg["train"].get("temperature", 0.0)

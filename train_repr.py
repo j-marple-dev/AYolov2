@@ -16,9 +16,9 @@ from torch.utils.data import DataLoader
 
 from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
-from scripts.data_loader.data_loader_rl import (LoadImagesForRL,
+from scripts.data_loader.data_loader_repr import (LoadImagesForRL,
                                                 LoadImagesForSimCLR)
-from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
+from scripts.train.yolo_repr_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
 
 

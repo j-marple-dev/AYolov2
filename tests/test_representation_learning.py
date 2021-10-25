@@ -19,10 +19,10 @@ from torch.utils.data import DataLoader
 
 from scripts.augmentation.augmentation import (AugmentationPolicy,
                                                MultiAugmentationPolicies)
-from scripts.data_loader.data_loader_rl import (LoadImagesForRL,
+from scripts.data_loader.data_loader_repr import (LoadImagesForRL,
                                                 LoadImagesForSimCLR)
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
-from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
+from scripts.train.yolo_repr_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
 
 
@@ -73,12 +73,12 @@ def test_crop_bboxes(show_gui: bool = False, force: bool = False):
     assert num_cropped_imgs == num_targets
 
 
-def test_train_rl(force: bool = False) -> None:
+def test_train_repr(force: bool = False) -> None:
     if not force:
         return
 
     with open(
-        os.path.join("tests", "res", "configs", "train_config_rl.yaml"), "r"
+        os.path.join("tests", "res", "configs", "train_config_repr.yaml"), "r"
     ) as f:
         cfg = yaml.safe_load(f)
 
@@ -126,7 +126,7 @@ def test_train_rl(force: bool = False) -> None:
     )
 
     model = Model(
-        os.path.join("tests", "res", "configs", "model_yolov5s_rl.yaml"), verbose=True,
+        os.path.join("tests", "res", "configs", "model_yolov5s_repr.yaml"), verbose=True,
     )
 
     temperature = cfg["train"].get("temperature", 0.0)
@@ -239,5 +239,5 @@ def test_train_simclr(force: bool = False) -> None:
 
 if __name__ == "__main__":
     test_crop_bboxes()
-    test_train_rl()
-    test_train_simclr()
+    test_train_repr(force=True)
+    test_train_simclr(force=True)

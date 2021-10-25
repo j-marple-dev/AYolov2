@@ -19,7 +19,7 @@ train:
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
-  log_dir: "exp" # Directory to save a model
+  log_dir: "exp-repr" # Directory to save a model
   n_trans: 2 # The number of transformations(augmentations) for representation learning
 
 
@@ -71,3 +71,19 @@ augmentation:
   Blur: {p: 0.2}
   RandomBrightnessContrast: {p: 0.2}
   Rotate: {p: 0.5, limit: 180}
+
+
+# augmentation:
+#   - policy:
+#       Blur: {p: 0.01}
+#       MedianBlur: {p: 0.01}
+#       ToGray: {p: 0.01}
+#       CLAHE: {p: 0.01}
+#       RandomBrightnessContrast: {p: 0.0}
+#       RandomGamma: {p: 0.0}
+#       ImageCompression: {quality_lower: 75, p: 0.0}
+#     prob: 1.0
+#   - policy:
+#       HorizontalFlip: {p: 0.5}
+#       VerticalFlip: {p: 0.0}
+#     prob: 1.0

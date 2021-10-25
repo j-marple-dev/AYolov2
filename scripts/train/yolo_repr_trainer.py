@@ -19,7 +19,7 @@ from torch.cuda import amp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from scripts.loss.losses_rl import InfoNCELoss, RLLoss
+from scripts.loss.losses_repr import InfoNCELoss, RLLoss
 from scripts.train.abstract_trainer import AbstractTrainer
 from scripts.utils.general import get_logger, labels_to_image_weights
 from scripts.utils.torch_utils import de_parallel

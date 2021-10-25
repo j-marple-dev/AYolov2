@@ -240,5 +240,5 @@ def test_train_simclr(force: bool = False) -> None:
 
 if __name__ == "__main__":
     test_crop_bboxes()
-    test_train_repr(force=True)
-    test_train_simclr(force=True)
+    test_train_repr()
+    test_train_simclr()

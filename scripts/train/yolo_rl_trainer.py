@@ -22,20 +22,9 @@ from tqdm import tqdm
 from scripts.loss.losses_rl import InfoNCELoss, RLLoss
 from scripts.train.abstract_trainer import AbstractTrainer
 from scripts.utils.general import get_logger, labels_to_image_weights
-from scripts.utils.torch_utils import is_parallel
+from scripts.utils.torch_utils import de_parallel
 
 LOGGER = get_logger(__name__)
-
-
-def de_parallel(model: nn.Module) -> nn.Module:
-    """Decapsule parallelized model.
-
-    Args:
-        model: Single-GPU modle, DP model or DDP model
-    Return:
-        a decapsulized single-GPU model
-    """
-    return model.module if is_parallel(model) else model  # type: ignore
 
 
 class YoloRepresentationLearningTrainer(AbstractTrainer):

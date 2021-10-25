@@ -37,3 +37,11 @@ backbone:
         [-1, 1, Linear, [512], {activation: *activation}],
         [-1, 1, Linear, [128]]
     ]
+
+head:
+    [
+        [-1, 1, GlobalAvgPool, [1]],
+        [-1, 1, Flatten, []],
+        [-1, 1, Linear, [512], {activation: *activation}],
+        [-1, 1, Linear, [128]]
+    ]

@@ -63,7 +63,7 @@ def get_parser() -> argparse.Namespace:
         "--prune",
         default=0.2,
         type=float,
-        help="Prunning level. (0.2 will only 20% of parameters will become zeros)",
+        help="Prunning level. (0.2 will only 20%% of parameters will become zeros)",
     )
     parser.add_argument(
         "--loss-thr",

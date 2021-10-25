@@ -7,6 +7,7 @@
 import gc
 import importlib
 import os
+import random
 import time
 
 import numpy as np
@@ -18,7 +19,10 @@ from kindle import Model, YOLOModel
 from scripts.model_converter.model_converter import ModelConverter
 
 
-def test_model_converter_torchscript() -> None:
+def test_model_converter_torchscript(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -43,7 +47,10 @@ def test_model_converter_torchscript() -> None:
     gc.collect()
 
 
-def test_model_converter_onnx() -> None:
+def test_model_converter_onnx(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True

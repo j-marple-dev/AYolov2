@@ -6,6 +6,7 @@
 
 import gc
 import os
+import random
 
 import torch
 import yaml
@@ -16,7 +17,10 @@ from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.utils.model_manager import YOLOModelManager
 
 
-def test_model_manager() -> None:
+def test_model_manager(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

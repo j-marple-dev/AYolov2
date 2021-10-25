@@ -7,6 +7,7 @@
 import gc
 import math
 import os
+import random
 
 import cv2
 import torch
@@ -21,7 +22,10 @@ from scripts.utils.constants import LABELS
 from scripts.utils.plot_utils import draw_labels
 
 
-def test_multi_aug_policies(show_gui: bool = False):
+def test_multi_aug_policies(show_gui: bool = False, p: float = 0.5):
+    if random.random() > p:
+        return
+
     label2str = LABELS["COCO"]
     batch_size = 8
     minimum_pixel = 4
@@ -83,7 +87,10 @@ def test_multi_aug_policies(show_gui: bool = False):
     gc.collect()
 
 
-def test_augmentation(show_gui: bool = False):
+def test_augmentation(show_gui: bool = False, p: float = 0.5):
+    if random.random() > p:
+        return
+
     label2str = LABELS["VOC"]
     batch_size = 16
     aug_prob = 0.5

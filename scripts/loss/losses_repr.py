@@ -47,7 +47,7 @@ class RLLoss:
 
 
 class InfoNCELoss:
-    """Loss for SimCLR."""
+    """InfoNCE Loss for SimCLR https://arxiv.org/pdf/1807.03748v2.pdf."""
 
     def __init__(
         self,
@@ -84,7 +84,7 @@ class InfoNCELoss:
             features: encoded features from AYolov2 backbone
 
         Returns:
-            batch_loss: the sum of NCE losses for prediction results per batch
+            batch_loss: the sum of InfoNCE losses for prediction results per batch
             loss_items: mean losses for batch
             feature_shape: the shape of encoded features
         """

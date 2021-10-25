@@ -132,11 +132,11 @@ if __name__ == "__main__":
     else:
         ckpt = torch.load(model_cfg)
         if isinstance(ckpt, nn.Module):
-            model = ckpt
+            model = ckpt.float()
         elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
-            model = ckpt["ema"]
+            model = ckpt["ema"].float()
         else:
-            model = ckpt["model"]
+            model = ckpt["model"].float()
 
     train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()

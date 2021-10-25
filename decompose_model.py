@@ -1,4 +1,4 @@
-"""Validation for YOLO.
+"""Tensor decomposition YOLO model.
 
 - Author: Jongkuk Lim
 - Contact: limjk@jmarple.ai

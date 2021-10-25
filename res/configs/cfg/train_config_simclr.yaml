@@ -19,9 +19,9 @@ train:
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
-  log_dir: "exp-simclr"
-  n_trans: 2
-  temperature: 0.07
+  log_dir: "exp-simclr" # Directory to save a model
+  n_trans: 2 # The number of transformations(augmentations) for representation learning
+  temperature: 0.07 # the value to adjust similarity scores
 
 
 val:

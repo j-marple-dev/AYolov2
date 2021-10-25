@@ -63,7 +63,14 @@ class YoloRepresentationLearningTrainer(AbstractTrainer):
             rank: CUDA rank for DDP.
             n_trans: the number of times to apply transformations for representation learning.
             rl_type: Representation Learning types (e.g. base, simclr)
-            temperature: softmax temperature
+            temperature: the value to adjust similarity scores.
+                         e.g. # if the temperature is smaller than 1,
+                              # similarity scores are enlarged than before.
+                              # e.g. [100, 1] -> [1000, 10]
+                              # It has an effect to train hard negative cases.
+                              similarity_scores = np.array([100, 1])
+                              temperature = 0.1
+                              similarity_scores = similarity_scores / temperature
         """
         super().__init__(model, cfg, train_dataloader, val_dataloader, device=device)
 

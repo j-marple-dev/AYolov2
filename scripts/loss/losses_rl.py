@@ -61,7 +61,14 @@ class InfoNCELoss:
         Args:
             batch_size: batch size to use in iterator.
             n_trans: the number of times to apply transformations for representation learning.
-            temperature: softmax temperature
+            temperature: the value to adjust similarity scores.
+                         e.g. # if the temperature is smaller than 1,
+                              # similarity scores are enlarged than before.
+                              # e.g. [100, 1] -> [1000, 10]
+                              # It has an effect to train hard negative cases.
+                              similarity_scores = np.array([100, 1])
+                              temperature = 0.1
+                              similarity_scores = similarity_scores / temperature
         """
         self.batch_size = batch_size
         self.n_trans = n_trans

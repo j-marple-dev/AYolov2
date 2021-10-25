@@ -28,7 +28,7 @@ from scripts.utils.torch_utils import select_device
 def test_crop_bboxes(show_gui: bool = False, force: bool = False):
     if not force:
         return
-      
+
     MIN_SIZE = 32
     img_dir = "tests/res/datasets/coco/images/val2017"
     save_dir = "tests/res/datasets/coco/images/val2017_cropped"

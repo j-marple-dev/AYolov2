@@ -6,6 +6,7 @@
 
 import gc
 import multiprocessing
+import random
 
 import cv2
 import numpy as np
@@ -20,7 +21,10 @@ from scripts.utils.general import xywh2xyxy
 from scripts.utils.plot_utils import draw_labels
 
 
-def test_load_images(show_gui: bool = False):
+def test_load_images(show_gui: bool = False, p: float = 0.5):
+    if random.random() > p:
+        return
+
     batch_size = 16
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
@@ -53,7 +57,10 @@ def test_load_images(show_gui: bool = False):
     gc.collect()
 
 
-def test_load_images_and_labels(show_gui: bool = False):
+def test_load_images_and_labels(show_gui: bool = False, p: float = 0.5):
+    if random.random() > p:
+        return
+
     batch_size = 16
     label2str = LABELS["COCO"]
 

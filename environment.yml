@@ -46,4 +46,5 @@ dependencies:
     - onnx-simplifier>=0.3.6
     - einops==0.3.2
     - wandb==0.12.3
+    - tensorly==0.6.0
 

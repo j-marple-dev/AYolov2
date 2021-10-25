@@ -312,7 +312,9 @@ class LoadImages(Dataset):
                 im = cv2.resize(
                     im,
                     (int(w0 * r), int(h0 * r)),
-                    interpolation=cv2.INTER_AREA if r < 1 else cv2.INTER_LINEAR,
+                    interpolation=cv2.INTER_AREA
+                    if r < 1 and not self.augmentation
+                    else cv2.INTER_LINEAR,
                 )
 
             if self.cache_images is not None and self.cache_images.startswith(

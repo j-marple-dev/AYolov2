@@ -7,6 +7,7 @@
 import gc
 import multiprocessing
 import os
+import random
 import shutil
 from glob import glob
 
@@ -25,10 +26,13 @@ from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
 from scripts.utils.torch_utils import select_device
 
 
-def test_crop_bboxes(show_gui: bool = False, force: bool = False):
+def test_crop_bboxes(show_gui: bool = False, force: bool = False, p: float = 0.5):
     if not force:
         return
-      
+
+    if random.random() > p:
+        return
+
     MIN_SIZE = 32
     img_dir = "tests/res/datasets/coco/images/val2017"
     save_dir = "tests/res/datasets/coco/images/val2017_cropped"
@@ -72,8 +76,11 @@ def test_crop_bboxes(show_gui: bool = False, force: bool = False):
     assert num_cropped_imgs == num_targets
 
 
-def test_train_rl(force: bool = False) -> None:
+def test_train_rl(force: bool = False, p: float = 0.5) -> None:
     if not force:
+        return
+
+    if random.random() > p:
         return
 
     with open(

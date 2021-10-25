@@ -6,6 +6,7 @@
 
 import gc
 import os
+import random
 
 import numpy as np
 import torch
@@ -24,7 +25,10 @@ from scripts.utils.train_utils import YoloValidator
 LOGGER = get_logger(__name__)
 
 
-def test_model_validator() -> None:
+def test_model_validator(p: float = 0.5) -> None:
+    if random.random() > p:
+        return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

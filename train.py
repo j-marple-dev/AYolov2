@@ -7,8 +7,10 @@ import argparse
 import os
 import pprint
 
+import torch
 import yaml
 from kindle import YOLOModel
+from torch import nn
 
 import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
@@ -37,7 +39,11 @@ def get_parser() -> argparse.Namespace:
         "--model",
         type=str,
         default=os.path.join("res", "configs", "model", "yolov5s.yaml"),
-        help=colorstr("Model config") + " file path",
+        help="Model "
+        + colorstr("config")
+        + " or "
+        + colorstr("weight")
+        + "  file path",
     )
     parser.add_argument(
         "--data",
@@ -77,8 +83,11 @@ if __name__ == "__main__":
     with open(args.cfg, "r") as f:
         train_cfg = yaml.safe_load(f)
 
-    with open(args.model, "r") as f:
-        model_cfg = yaml.safe_load(f)
+    if args.model.endswith(".pt"):
+        model_cfg = args.model
+    else:
+        with open(args.model, "r") as f:
+            model_cfg = yaml.safe_load(f)
 
     if args.log_dir:
         train_cfg["train"]["log_dir"] = args.log_dir
@@ -118,7 +127,16 @@ if __name__ == "__main__":
                 config_fp, base_path=os.path.dirname(config_fp), policy="now"
             )
 
-    model = YOLOModel(model_cfg, verbose=True)
+    if isinstance(model_cfg, dict):
+        model = YOLOModel(model_cfg, verbose=True)
+    else:
+        ckpt = torch.load(model_cfg)
+        if isinstance(ckpt, nn.Module):
+            model = ckpt.float()
+        elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
+            model = ckpt["ema"].float()
+        else:
+            model = ckpt["model"].float()
 
     train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()

@@ -29,7 +29,7 @@ from scripts.utils.torch_utils import select_device
 def test_crop_bboxes(show_gui: bool = False, force: bool = False):
     if not force:
         return
-      
+
     MIN_SIZE = 32
     img_dir = "tests/res/datasets/coco/images/val2017"
     save_dir = "tests/res/datasets/coco/images/val2017_cropped"
@@ -73,23 +73,12 @@ def test_crop_bboxes(show_gui: bool = False, force: bool = False):
     assert num_cropped_imgs == num_targets
 
 
-def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
+def test_train_rl(force: bool = False) -> None:
     if not force:
         return
 
-    if rl_type == "base":
-        train_cofig_fname = "train_config_rl.yaml"
-        get_aug_policy = AugmentationPolicy
-        load_images = LoadImagesForRL
-        model_fname = "model_yolov5s_rl.yaml"
-    else:  # rl_type == "simclr":
-        train_cofig_fname = "train_config_simclr.yaml"
-        get_aug_policy = MultiAugmentationPolicies
-        load_images = LoadImagesForSimCLR
-        model_fname = "model_simclr.yaml"
-
     with open(
-        os.path.join("tests", "res", "configs", train_cofig_fname), "r"
+        os.path.join("tests", "res", "configs", "train_config_rl.yaml"), "r"
     ) as f:
         cfg = yaml.safe_load(f)
 
@@ -101,15 +90,15 @@ def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
 
     device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
 
-    aug_policy = get_aug_policy(cfg["augmentation"])
+    aug_policy = AugmentationPolicy(cfg["augmentation"])
 
-    train_dataset = load_images(
+    train_dataset = LoadImagesForRL(
         "tests/res/datasets/coco/images/train2017",
         img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
         n_skip=cfg["val"]["n_skip"],
         augmentation=aug_policy,
-        # preprocess=lambda x: (x / 255.0).astype(np.float32),
+        preprocess=lambda x: (x / 255.0).astype(np.float32),
         representation_learning=True,
         n_trans=2,
     )
@@ -117,15 +106,15 @@ def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
         train_dataset,
         batch_size=cfg["train"]["batch_size"],
         num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
-        collate_fn=load_images.collate_fn,
+        collate_fn=LoadImagesForRL.collate_fn,
     )
-    val_dataset = load_images(
+    val_dataset = LoadImagesForRL(
         "tests/res/datasets/coco/images/val2017",
         img_size=cfg["train"]["image_size"],
         batch_size=cfg["train"]["batch_size"],
         n_skip=cfg["val"]["n_skip"],
         augmentation=aug_policy,
-        # preprocess=lambda x: (x / 255.0).astype(np.float32),
+        preprocess=lambda x: (x / 255.0).astype(np.float32),
         representation_learning=True,
         n_trans=2,
     )
@@ -133,10 +122,12 @@ def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
         val_dataset,
         batch_size=cfg["train"]["batch_size"],
         num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
-        collate_fn=load_images.collate_fn,
+        collate_fn=LoadImagesForRL.collate_fn,
     )
 
-    model = Model(os.path.join("tests", "res", "configs", model_fname), verbose=True,)
+    model = Model(
+        os.path.join("tests", "res", "configs", "model_yolov5s_rl.yaml"), verbose=True,
+    )
 
     temperature = cfg["train"].get("temperature", 0.0)
     trainer = YoloRepresentationLearningTrainer(
@@ -146,7 +137,89 @@ def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
         val_dataloader=val_loader,
         device=device,
         n_trans=2,
-        rl_type=rl_type,
+        rl_type="base",
+        temperature=temperature,
+    )
+    trainer.train()
+
+    del (
+        device,
+        aug_policy,
+        train_dataset,
+        train_loader,
+        val_dataset,
+        val_loader,
+        model,
+        trainer,
+    )
+    gc.collect()
+
+
+def test_train_simclr(force: bool = False) -> None:
+    if not force:
+        return
+
+    with open(
+        os.path.join("tests", "res", "configs", "train_config_simclr.yaml"), "r"
+    ) as f:
+        cfg = yaml.safe_load(f)
+
+    cfg["train"]["epochs"] = 1
+    cfg["train"]["n_skip"] = 10
+    cfg["train"]["image_size"] = 320
+    if not torch.cuda.is_available():
+        cfg["train"]["device"] = "cpu"
+
+    device = select_device(cfg["train"]["device"], cfg["train"]["batch_size"])
+
+    aug_policy = MultiAugmentationPolicies(cfg["augmentation"])
+
+    train_dataset = LoadImagesForSimCLR(
+        "tests/res/datasets/coco/images/train2017",
+        img_size=cfg["train"]["image_size"],
+        batch_size=cfg["train"]["batch_size"],
+        n_skip=cfg["val"]["n_skip"],
+        augmentation=aug_policy,
+        preprocess=lambda x: (x / 255.0).astype(np.float32),
+        representation_learning=True,
+        n_trans=2,
+    )
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=cfg["train"]["batch_size"],
+        num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
+        collate_fn=LoadImagesForSimCLR.collate_fn,
+    )
+    val_dataset = LoadImagesForSimCLR(
+        "tests/res/datasets/coco/images/val2017",
+        img_size=cfg["train"]["image_size"],
+        batch_size=cfg["train"]["batch_size"],
+        n_skip=cfg["val"]["n_skip"],
+        augmentation=aug_policy,
+        preprocess=lambda x: (x / 255.0).astype(np.float32),
+        representation_learning=True,
+        n_trans=2,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=cfg["train"]["batch_size"],
+        num_workers=min(cfg["train"]["batch_size"], multiprocessing.cpu_count()),
+        collate_fn=LoadImagesForSimCLR.collate_fn,
+    )
+
+    model = Model(
+        os.path.join("tests", "res", "configs", "model_simclr.yaml"), verbose=True,
+    )
+
+    temperature = cfg["train"].get("temperature", 0.0)
+    trainer = YoloRepresentationLearningTrainer(
+        model,
+        cfg,
+        train_dataloader=train_loader,
+        val_dataloader=val_loader,
+        device=device,
+        n_trans=2,
+        rl_type="simclr",
         temperature=temperature,
     )
     trainer.train()
@@ -166,5 +239,5 @@ def test_train_rl(rl_type: str = "base", force: bool = False) -> None:
 
 if __name__ == "__main__":
     test_crop_bboxes()
-    test_train_rl("base")
-    test_train_rl("simclr")
+    test_train_rl()
+    test_train_simclr()

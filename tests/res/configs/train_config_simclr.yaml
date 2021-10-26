@@ -1,0 +1,73 @@
+train:
+  weights: ''  # Model weight path
+  epochs: 30 # 300 
+  batch_size: 32 # 64
+  image_size: 640   # Train, val image size
+  rect: false  # Use rectangular training
+  resume: false  # resume previous training
+  validate_period: 1 # 3  # Run validation on every x epoch
+  auto_anchor: true  # Check anchors and auto-fix anchors
+  cache_image: null  # Use caching images. This should be among 'ram', 'disk', or null
+  n_skip: 2  # skip image by n which reduces images to be used
+  image_weights: false  # Use weighted image selection for training
+  device: ""  # CUDA device to use. '' will use all GPUs. EX) "0,2" or "cpu"
+  multi_scale: false  # Use multi scaled training (+/- 50% image size)
+  single_cls: false  # Train multi-class data as single-class
+  sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
+  workers: 8  # Maximum number of dataloader workers
+  linear_lr: false  # Use linear learning rate
+  label_smoothing: 0.0  # Label smoothing epsilon
+  freeze: 0  # Number of layers to freeze.
+  save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
+  log_dir: "exp-simclr" # Directory to save a model
+  n_trans: 2 # The number of transformations(augmentations) for representation learning
+  temperature: 0.07 # the value to adjust similarity scores
+
+
+val:
+  n_skip: 0
+
+
+# SimCLR
+hyper_params:
+  optimizer: 'Adam'
+  optimizer_params:
+    lr: 0.0003 # SGD: 0.01 -> Adam: 0.0003
+
+  lrf: 0.006 # SGD: 0.2 -> Adam: 0.006
+  momentum: 0.9  # SGD momentum/Adam beta1
+  weight_decay: 0.0001  # optimizer weight decay 1e-4
+  warmup_epochs: 3.0  # warmup epochs (fractions ok)
+  warmup_momentum: 0.024  # warmup initial momentum
+  warmup_bias_lr: 0.003  # warmup initial bias lr
+
+
+augmentation:
+  - policy:
+      RandomResizedCrop:
+        height: 640
+        width: 640
+        p: 1.0
+      HorizontalFlip:
+        p: 0.5
+    prob: 1.0
+  - policy:
+      RandomBrightnessContrast:
+        brightness_limit: 0.8
+        contrast_limit: 0.8
+        p: 1.0
+      HueSaturationValue:
+        hue_shift_limit: 144
+        sat_shift_limit: 51
+        val_shift_limit: 0
+        p: 1.0
+    prob: 0.5
+  - policy:
+      ToGray: 
+        p: 0.2
+      GaussianBlur:
+        blur_limit: 65
+        sigma_limit:
+          - 0.1
+          - 2.0
+    prob: 1.0

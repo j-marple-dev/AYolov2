@@ -1,0 +1,2 @@
+train_path: "/home/user/coco/images/train2017"
+val_path: "/home/user/coco/images/val2017"

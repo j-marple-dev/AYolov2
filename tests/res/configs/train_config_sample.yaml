@@ -68,7 +68,11 @@ yolo_augmentation:
   fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
   mixup: 0.1  # image mixup (probability)
-  copy_paste: 0.5  # segment copy-paste (probability)
+  copy_paste:  # config for copy-paste
+    p: 0.5  # copy-paste (probability)
+    area_thr: 10  # area threshold for copy paste
+    scale_min: 0.9  # scale factor min value
+    scale_max: 1.1  # scale factor max value
 
 
 augmentation:

@@ -784,7 +784,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         return mosaic_img, mosaic_labels_np
 
     def _load_copy_paste(
-        self, img: int, label: np.ndarray, seg: np.ndarray
+        self, img: np.ndarray, label: np.ndarray, seg: List[np.ndarray]
     ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
         """Load copy paste augmentation.
 

@@ -7,6 +7,7 @@
 import gc
 import math
 import os
+import random
 
 import cv2
 import torch
@@ -14,14 +15,18 @@ import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from scripts.augmentation.augmentation import (AugmentationPolicy,
-                                               MultiAugmentationPolicies)
+from scripts.augmentation.augmentation import (
+    AugmentationPolicy,
+    MultiAugmentationPolicies,
+)
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS
 from scripts.utils.plot_utils import draw_labels
 
 
 def test_multi_aug_policies(show_gui: bool = False):
+    if random.random() > 0.5:
+        return
     label2str = LABELS["COCO"]
     batch_size = 8
     minimum_pixel = 4
@@ -91,6 +96,8 @@ def test_augmentation(show_gui: bool = False):
         {"Blur": {"p": aug_prob}, "Flip": {"p": aug_prob}, "ToGray": {"p": aug_prob}},
         prob=0.5,
     )
+    if random.random() > 0.5:
+        return
 
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",

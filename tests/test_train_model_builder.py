@@ -6,6 +6,7 @@
 
 import gc
 import os
+import random
 
 import numpy as np
 import pytorch_lightning as pl
@@ -28,6 +29,8 @@ RANK = int(os.getenv("RANK", -1))
 
 
 def test_train_model_builder() -> None:
+    if random.random() > 0.5:
+        return
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:
@@ -62,6 +65,8 @@ def test_train_model_builder() -> None:
 
 
 def test_train() -> None:
+    if random.random() > 0.5:
+        return
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

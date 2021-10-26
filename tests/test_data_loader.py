@@ -6,6 +6,7 @@
 
 import gc
 import multiprocessing
+import random
 
 import cv2
 import numpy as np
@@ -29,6 +30,8 @@ def test_load_images(show_gui: bool = False):
         batch_size=batch_size,
         rect=False,
     )
+    if random.random() > 0.5:
+        return
 
     dataset_loader = DataLoader(
         dataset, batch_size=batch_size, collate_fn=LoadImages.collate_fn
@@ -53,6 +56,8 @@ def test_load_images(show_gui: bool = False):
 
 
 def test_load_images_and_labels(show_gui: bool = False):
+    if random.random() > 0.5:
+        return
     batch_size = 16
     label2str = LABELS["COCO"]
 

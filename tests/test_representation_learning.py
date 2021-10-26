@@ -9,6 +9,7 @@ import multiprocessing
 import os
 import shutil
 from glob import glob
+import random
 
 import cv2
 import numpy as np
@@ -17,8 +18,10 @@ import yaml
 from kindle import Model
 from torch.utils.data import DataLoader
 
-from scripts.augmentation.augmentation import (AugmentationPolicy,
-                                               MultiAugmentationPolicies)
+from scripts.augmentation.augmentation import (
+    AugmentationPolicy,
+    MultiAugmentationPolicies,
+)
 from scripts.data_loader.data_loader_rl import LoadImagesForRL
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
 from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer
@@ -26,7 +29,7 @@ from scripts.utils.torch_utils import select_device
 
 
 def test_crop_bboxes(show_gui: bool = False):
-    if __name__ != "__main__":
+    if random.random() > 0.5:
         return
     MIN_SIZE = 32
     img_dir = "tests/res/datasets/coco/images/val2017"
@@ -73,6 +76,8 @@ def test_crop_bboxes(show_gui: bool = False):
 
 
 def test_train_rl() -> None:
+    if random.random() > 0.5:
+        return
     with open(
         os.path.join("tests", "res", "configs", "train_config_rl.yaml"), "r"
     ) as f:

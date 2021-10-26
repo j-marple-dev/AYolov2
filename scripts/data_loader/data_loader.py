@@ -19,8 +19,12 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste2,
-                                                    mixup, random_perspective)
+from scripts.augmentation.yolo_augmentation import (
+    augment_hsv,
+    copy_paste2,
+    mixup,
+    random_perspective,
+)
 from scripts.utils.constants import LABELS
 from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
 from scripts.utils.logger import get_logger

@@ -8,6 +8,7 @@ import gc
 import importlib
 import os
 import time
+import random
 
 import numpy as np
 import onnx
@@ -19,6 +20,8 @@ from scripts.model_converter.model_converter import ModelConverter
 
 
 def test_model_converter_torchscript() -> None:
+    if random.random() > 0.5:
+        return
     test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -44,6 +47,8 @@ def test_model_converter_torchscript() -> None:
 
 
 def test_model_converter_onnx() -> None:
+    if random.random() > 0.5:
+        return
     test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True

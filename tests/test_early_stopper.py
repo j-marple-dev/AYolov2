@@ -3,10 +3,13 @@
 - Auther: Haneol Kim
 - Contect: hekim@jmarple.ai
 """
+import random
 from scripts.utils.torch_utils import EarlyStopping
 
 
 def test_early_stopper():
+    if random.random() > 0.5:
+        return
     stopper = EarlyStopping(patience=10)
 
     for i in range(20):

@@ -19,8 +19,12 @@ from tqdm import tqdm
 from scripts.loss.losses import ComputeLoss
 from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
 from scripts.utils.logger import get_logger
-from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
-                                   non_max_suppression)
+from scripts.utils.metrics import (
+    ConfusionMatrix,
+    ap_per_class,
+    box_iou,
+    non_max_suppression,
+)
 
 LOGGER = get_logger(__name__)
 

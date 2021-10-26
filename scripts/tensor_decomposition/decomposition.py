@@ -4,11 +4,13 @@
 - Contact: limjk@jmarple.ai
 """
 
-from typing import Dict, List, Optional, Tuple
+from copy import deepcopy
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import tensorly as tl
 import torch
+import torch.nn.utils.prune as prune
 from scipy.optimize import minimize_scalar
 from tensorly.decomposition import partial_tucker
 from torch import nn
@@ -204,7 +206,37 @@ def EVBMF(
     return U[:, :pos], np.diag(d), V[:, :pos], post
 
 
-def decompose_model(model: nn.Module, loss_thr: float = 0.1) -> None:
+def decompose_layer_evaluation(
+    layer: nn.Conv2d, test_input: torch.Tensor, origin_out: torch.Tensor
+) -> Tuple[Optional[nn.Sequential], Union[torch.Tensor, float]]:
+    """Decompose layer and evaluate loss.
+
+    Args:
+        layer: layer to apply tensor decomposition.
+        test_input: test input tensor to feedforward layer.
+        origin_out: original output tensor: layer(test_input).
+
+    Return:
+        (decomposed_layer, loss)
+        (None, inf) if failed to decompose the layer.
+    """
+    original_layer = deepcopy(layer)
+    decomposed_layer = None
+    try:
+        decomposed_layer = tucker_decomposition_conv_layer(original_layer)
+    except ValueError:
+        LOGGER.info("Decompose tensor failed.")
+        return None, float("inf")
+
+    decomposed_out = decomposed_layer(test_input)
+    loss = torch.abs(origin_out - decomposed_out).sum() / origin_out.numel()
+
+    return decomposed_layer, loss
+
+
+def decompose_model(
+    model: nn.Module, loss_thr: float = 0.1, prune_step: float = 0.01
+) -> None:
     """Decompose conv in model recursively.
 
     Decompose all (n, n) conv to (1, 1) -> (n, n) -> (1, 1)
@@ -217,10 +249,15 @@ def decompose_model(model: nn.Module, loss_thr: float = 0.1) -> None:
             loss = (o1 - o2).abs().sum() / o1.numel()
             o1: original conv out
             o2: decomposed conv out
+        prune_step: pruning ratio step size.
+            i.e. prune_step=0.1 will try to prune (0.1, 0.2, 0.3, ...) before decomposition until loss is larger than loss_thr.
+            if prune_step is equal or smaller than 0.0, prunning will not be applied.
     """
     for i, (name, module) in enumerate(model.named_children()):
         if len(list(module.children())) > 0:
-            decompose_model(module, loss_thr=loss_thr)  # Call recursively
+            decompose_model(
+                module, loss_thr=loss_thr, prune_step=prune_step
+            )  # Call recursively
 
         if isinstance(module, nn.Conv2d):
             if isinstance(model, nn.ModuleList):
@@ -236,26 +273,67 @@ def decompose_model(model: nn.Module, loss_thr: float = 0.1) -> None:
 
             test_input = torch.rand((1, conv.weight.shape[1], 32, 32))
             origin_out = conv(test_input)
-            try:
-                decomposed_conv = tucker_decomposition_conv_layer(conv)
-            except ValueError:
-                LOGGER.info(f"Decompose tensor failed. Skip {name} module.")
-                continue
+            decomposed_conv = None
 
-            decomposed_conv.in_channels = conv.in_channels
-            decomposed_conv.out_channels = conv.out_channels
-            decomposed_conv.kernel_size = conv.kernel_size
-
-            decomposed_out = decomposed_conv(test_input)
-
-            loss = torch.abs(origin_out - decomposed_out).sum() / origin_out.numel()
-
-            LOGGER.info(f"{name}: Loss(mean): {loss}, ")
+            # Run decomposition before searching prunning ratio to check if it's worthy.
+            decomposed_conv_candidate, loss = decompose_layer_evaluation(
+                conv, test_input, origin_out
+            )
+            LOGGER.info(f"{name} (Prune: {0.0:.3f}): Loss(mean): {loss}, ")
             if loss < loss_thr:
+                run_b_search = True
+                decomposed_conv = decomposed_conv_candidate
+            else:
+                run_b_search = False
+
+            if prune_step <= 0:
+                run_b_search = False
+
+            max_prune_ratio = 1.0
+            min_prune_ratio = 0.0
+            prune_ratio = (max_prune_ratio + min_prune_ratio) / 2
+
+            while run_b_search:  # Binary search for pruning ratio.
+                original_conv = deepcopy(conv)
+                if prune_ratio > 0.0:
+                    prune.l1_unstructured(
+                        original_conv, name="weight", amount=prune_ratio
+                    )
+                    prune.remove(original_conv, "weight")
+
+                decomposed_conv_candidate, loss = decompose_layer_evaluation(
+                    original_conv, test_input, origin_out
+                )
+
+                LOGGER.info(f"{name} (Prune: {prune_ratio:.3f}): Loss(mean): {loss}, ")
+
+                if loss < loss_thr:
+                    min_prune_ratio = prune_ratio
+                    decomposed_conv = decomposed_conv_candidate
+                else:
+                    max_prune_ratio = prune_ratio
+
+                next_prune_ratio = (max_prune_ratio + min_prune_ratio) / 2
+                if (
+                    abs(prune_ratio - next_prune_ratio) == 0
+                    or abs(prune_ratio - next_prune_ratio) < prune_step
+                ):
+                    break
+
+                prune_ratio = next_prune_ratio
+
+            if decomposed_conv is not None:
+                for attr_name in ["in_channels", "out_channels", "kernel_size"]:
+                    setattr(decomposed_conv, attr_name, getattr(conv, attr_name))
+                # decomposed_conv.in_channels = conv.in_channels
+                # decomposed_conv.out_channels = conv.out_channels
+                # decomposed_conv.kernel_size = conv.kernel_size
+
                 if isinstance(model, nn.ModuleList):
                     model[i] = decomposed_conv
                 else:
                     model.conv = decomposed_conv
+
                 LOGGER.info("    |---------- Switching conv to decomposed conv")
             else:
                 LOGGER.info("    |---------- Skip switching to decomposed conv.")

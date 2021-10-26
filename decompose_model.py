@@ -20,7 +20,7 @@ from torch import nn
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.tensor_decomposition.decomposition import decompose_model
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import count_param, prune, select_device
+from scripts.utils.torch_utils import count_param, select_device
 from scripts.utils.train_utils import YoloValidator
 
 LOGGER = get_logger(__name__)
@@ -60,10 +60,10 @@ def get_parser() -> argparse.Namespace:
         help="Image height. (-1 will set image height to be identical to image width.)",
     )
     parser.add_argument(
-        "--prune",
-        default=0.2,
+        "--prune-step",
+        default=0.01,
         type=float,
-        help="Prunning level. (0.2 will only 20%% of parameters will become zeros)",
+        help="Prunning trial max step. Maximum step while searching prunning ratio with binary search. Pruning will be applied priro to decomposition. If prune-step is equal or smaller than 0.0, prunning will not be applied.",
     )
     parser.add_argument(
         "--loss-thr",
@@ -112,7 +112,7 @@ def run_decompose(
 
     Args:
         args: arguments for the tensor decomposition.
-            args.prune(float): prune ratio.
+            args.prune_step(float): prune step.
             args.loss_thr(float): Loss threshold for decomposition.
         model: Original model.
         validator: validation runner.
@@ -127,11 +127,12 @@ def run_decompose(
         )
     """
     decomposed_model = deepcopy(model.cpu())
-    prune(decomposed_model, amount=args.prune)
-    decompose_model(decomposed_model, loss_thr=args.loss_thr)
+    decompose_model(
+        decomposed_model, loss_thr=args.loss_thr, prune_step=args.prune_step
+    )
 
     LOGGER.info(
-        f"Decomposed with prunning level : {args.prune}, decomposition loss threshold: {args.loss_thr}"
+        f"Decomposed with prunning step: {args.prune_step}, decomposition loss threshold: {args.loss_thr}"
     )
     LOGGER.info(f"  Original # of param: {count_param(model)}")
     LOGGER.info(f"Decomposed # of param: {count_param(decomposed_model)}")

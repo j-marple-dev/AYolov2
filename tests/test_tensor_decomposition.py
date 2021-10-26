@@ -27,16 +27,15 @@ def test_tensor_decomposition(p: float = 0.5) -> None:
     ckpt = torch.load(os.path.join("tests", "res", "weights", "yolov5s_kindle.pt"))
 
     model = ckpt["model"].float()
-    prune(model, 0.2)
 
     decomposed_model = deepcopy(model)
-    decompose_model(decomposed_model, loss_thr=0.13)
-
-    LOGGER.info(f"Origin:     # parameter: {count_param(model):,d}")
-    LOGGER.info(f"Decomposed: # parameter: {count_param(decomposed_model):,d}")
+    decompose_model(decomposed_model, loss_thr=0.13, prune_step=0.1)
 
     model.export().eval()
     decomposed_model.export().eval()
+
+    LOGGER.info(f"Origin:     # parameter: {count_param(model):,d}")
+    LOGGER.info(f"Decomposed: # parameter: {count_param(decomposed_model):,d}")
 
     origin_out = model(test_input)
     decomposed_out = decomposed_model(test_input)
@@ -46,9 +45,9 @@ def test_tensor_decomposition(p: float = 0.5) -> None:
     LOGGER.info(f"Full forward loss: {loss}")
 
     assert count_param(model) == 7266973
-    assert count_param(decomposed_model) == 6328573
+    assert count_param(decomposed_model) == 6336589
     assert loss < 0.015
 
 
 if __name__ == "__main__":
-    test_tensor_decomposition()
+    test_tensor_decomposition(p=1.0)

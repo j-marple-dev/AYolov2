@@ -9,7 +9,8 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 import torch
 
-from scripts.augmentation.augmentation import MultiAugmentationPolicies
+from scripts.augmentation.augmentation import (
+    MultiAugmentationPolicies, MultiAugPoliciesWithUniformAugment)
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.utils.general import TimeChecker
 from scripts.utils.logger import get_logger
@@ -68,6 +69,13 @@ def create_dataloader(
 
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
+        if cfg.get("uniform_augment"):
+            augmentation = MultiAugPoliciesWithUniformAugment(
+                cfg["augmentation"], cfg["uniform_augment"]
+            )
+        else:
+            augmentation = MultiAugmentationPolicies(cfg["augmentation"])
+
         dataset = LoadImagesAndLabels(
             path,
             img_size=cfg["train"]["image_size"],
@@ -84,9 +92,7 @@ def create_dataloader(
             prefix=prefix,
             # image_weights=image_weights,
             yolo_augmentation=cfg["yolo_augmentation"] if not validation else None,
-            augmentation=MultiAugmentationPolicies(cfg["augmentation"])
-            if not validation
-            else None,
+            augmentation=augmentation if not validation else None,
             preprocess=preprocess,
         )
     time_checker.add("dataset")

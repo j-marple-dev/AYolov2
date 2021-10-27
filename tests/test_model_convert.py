@@ -7,8 +7,8 @@
 import gc
 import importlib
 import os
-import time
 import random
+import time
 
 import numpy as np
 import onnx

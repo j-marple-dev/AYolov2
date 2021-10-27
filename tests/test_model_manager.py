@@ -18,11 +18,11 @@ from scripts.utils.model_manager import YOLOModelManager
 
 
 def test_model_manager() -> None:
+    if random.random() > 0.5:
+        return
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:
-    if random.random() > 0.5:
-        return
         cfg = yaml.safe_load(f)
     cfg["train"]["epochs"] = 1
     cfg["train"]["n_skip"] = 4

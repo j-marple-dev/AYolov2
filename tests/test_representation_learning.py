@@ -7,9 +7,9 @@
 import gc
 import multiprocessing
 import os
+import random
 import shutil
 from glob import glob
-import random
 
 import cv2
 import numpy as np
@@ -18,10 +18,8 @@ import yaml
 from kindle import Model
 from torch.utils.data import DataLoader
 
-from scripts.augmentation.augmentation import (
-    AugmentationPolicy,
-    MultiAugmentationPolicies,
-)
+from scripts.augmentation.augmentation import (AugmentationPolicy,
+                                               MultiAugmentationPolicies)
 from scripts.data_loader.data_loader_rl import LoadImagesForRL
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
 from scripts.train.yolo_rl_trainer import YoloRepresentationLearningTrainer

@@ -15,10 +15,8 @@ import yaml
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from scripts.augmentation.augmentation import (
-    AugmentationPolicy,
-    MultiAugmentationPolicies,
-)
+from scripts.augmentation.augmentation import (AugmentationPolicy,
+                                               MultiAugmentationPolicies)
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
 from scripts.utils.constants import LABELS
 from scripts.utils.plot_utils import draw_labels

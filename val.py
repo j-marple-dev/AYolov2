@@ -257,11 +257,11 @@ if __name__ == "__main__":
                     f"Overriding {k} from TorchScript config value {ts_cfg[k]}."
                 )
                 args.__setattr__(k, ts_cfg[k])
-    else:  # wandb
+    else:  # load model from wandb
         model = load_model_from_wandb(
             args.weights, load_weights=not args.no_weight_wandb
         )
-        stride_size = int(max(model.stride))
+        stride_size = int(max(model.stride))  # type: ignore
 
     if model is None:
         LOGGER.error(

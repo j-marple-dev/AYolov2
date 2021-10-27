@@ -19,8 +19,9 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste2,
-                                                    mixup, random_perspective)
+from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
+                                                    copy_paste2, mixup,
+                                                    random_perspective)
 from scripts.utils.constants import LABELS
 from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
 from scripts.utils.logger import get_logger
@@ -631,14 +632,21 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
 
             if self.labels[index] is None:
                 labels = np.empty((0, 5), dtype=np.float32)
+                segments = []
             else:
                 labels = self.labels[index].copy()
+                segments = self.segments[index].copy()
 
             # Adjust bboxes to the letterbox.
             if labels.size:
                 labels[:, 1:] = xywh2xyxy(
                     labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad
                 )
+                segments = [xyn2xy(x, wh=(w1, h1), pad=pad) for x in segments]
+
+            img, labels, segments = self._load_copy_paste(
+                img=img, label=labels, seg=segments
+            )
 
             if self.yolo_augmentation.get("augment", False):
                 img, labels = random_perspective(
@@ -759,16 +767,18 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         for x in (mosaic_labels_np[:, 1:], *mosaic_segments):
             np.clip(x, 1e-3, 2 * self.img_size, out=x)
 
-        # mosaic_img, mosaic_labels_np, mosaic_segments = copy_paste(
-        #     mosaic_img,
-        #     mosaic_labels_np,
-        #     mosaic_segments,
-        #     p=self.yolo_augmentation.get("copy_paste", 0.0),
-        # )
+        mosaic_img, mosaic_labels_np, mosaic_segments = copy_paste(
+            mosaic_img,
+            mosaic_labels_np,
+            mosaic_segments,
+            p=self.yolo_augmentation.get("copy_paste", 0.0),
+        )
 
+        # Copy-paste 2
         mosaic_img, mosaic_labels_np, mosaic_segments = self._load_copy_paste(
             mosaic_img, mosaic_labels_np, mosaic_segments
         )
+
         mosaic_img, mosaic_labels_np = random_perspective(
             mosaic_img,
             mosaic_labels_np,
@@ -815,8 +825,8 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             seg_for_copy = [xyn2xy(x, wh=(w, h), pad=(0, 0)) for x in seg_for_copy]
 
         copy_paste_cfg = (
-            self.yolo_augmentation["copy_paste"]
-            if self.yolo_augmentation["copy_paste"]
+            self.yolo_augmentation["copy_paste2"]
+            if "copy_paste2" in self.yolo_augmentation.keys()
             else {}
         )
 

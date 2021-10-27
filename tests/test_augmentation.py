@@ -73,7 +73,7 @@ def test_multi_aug_policies(show_gui: bool = False):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(500)
+                cv2.waitKey(0)
 
             if smaller_box_idx.sum() > 0:
                 print(
@@ -87,6 +87,8 @@ def test_multi_aug_policies(show_gui: bool = False):
 
 
 def test_augmentation(show_gui: bool = False):
+    if random.random() > 0.5:
+        return
     label2str = LABELS["VOC"]
     batch_size = 16
     aug_prob = 0.5
@@ -94,8 +96,6 @@ def test_augmentation(show_gui: bool = False):
         {"Blur": {"p": aug_prob}, "Flip": {"p": aug_prob}, "ToGray": {"p": aug_prob}},
         prob=0.5,
     )
-    if random.random() > 0.5:
-        return
 
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
@@ -123,7 +123,7 @@ def test_augmentation(show_gui: bool = False):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(500)
+                cv2.waitKey(0)
 
             del np_image
         gc.collect()
@@ -134,4 +134,4 @@ def test_augmentation(show_gui: bool = False):
 
 if __name__ == "__main__":
     test_augmentation(show_gui=False)
-    test_multi_aug_policies(show_gui=False)
+    test_multi_aug_policies(show_gui=True)

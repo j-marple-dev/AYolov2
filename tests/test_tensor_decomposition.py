@@ -14,7 +14,6 @@ from kindle import YOLOModel
 from scripts.tensor_decomposition.decomposition import decompose_model
 from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import count_param, prune
-from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
 
 LOGGER = get_logger(__name__)
 
@@ -50,30 +49,5 @@ def test_tensor_decomposition(p: float = 0.5) -> None:
     assert loss < 0.015
 
 
-def test_wandb_loader_for_tensor_decomposition(
-    force: bool = False, p: float = 0.5
-) -> None:
-    if not force:
-        return
-
-    if random.random() > p:
-        return
-
-    # You should define wandb run path that you want to load.
-    # e.g. wandb_path = "j-marple/AYolov2/3a1r9rb"
-    wandb_path = "j-marple/AYolov2/5v1o0e54"
-    ckpt_path = get_ckpt_path_from_wandb(wandb_path)
-    ckpt = torch.load(ckpt_path)
-    if isinstance(ckpt, YOLOModel):
-        model = ckpt.float()
-    elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
-        model = ckpt["ema"].float()
-    elif "model" in ckpt.keys():
-        model = ckpt["model"]
-
-    assert model is not None
-
-
 if __name__ == "__main__":
     test_tensor_decomposition(p=1.0)
-    test_wandb_loader_for_tensor_decomposition()

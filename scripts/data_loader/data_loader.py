@@ -630,7 +630,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 img, new_shape=shape, auto=False, scale_fill=False, scale_up=False
             )
 
-            if self.labels[index] is None:
+            if self.labels[index].shape[0] == 0:
                 labels = np.empty((0, 5), dtype=np.float32)
                 segments = []
             else:

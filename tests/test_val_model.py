@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import yaml
 from kindle import YOLOModel
+from torch import nn
 from torch.utils.data import DataLoader
 
 from scripts.data_loader.data_loader_utils import create_dataloader
@@ -21,6 +22,7 @@ from scripts.utils.general import get_logger
 from scripts.utils.model_manager import YOLOModelManager
 from scripts.utils.torch_utils import select_device
 from scripts.utils.train_utils import YoloValidator
+from scripts.utils.wandb_utils import load_model_from_wandb
 
 LOGGER = get_logger(__name__)
 
@@ -88,5 +90,20 @@ def test_model_validator(p: float = 0.5) -> None:
     gc.collect()
 
 
+def test_wandb_loader_for_val(force: bool = False, p: float = 0.5) -> None:
+    if not force:
+        return
+
+    if random.random() > p:
+        return
+
+    # You should define wandb run path that you want to load.
+    # e.g. wandb_path = "j-marple/AYolov2/3a1r9rb"
+    wandb_path = "j-marple/AYolov2/5v1o0e54"
+    model = load_model_from_wandb(wandb_path)
+    assert isinstance(model, nn.Module)
+
+
 if __name__ == "__main__":
     test_model_validator()
+    test_wandb_loader_for_val()

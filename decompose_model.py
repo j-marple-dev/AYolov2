@@ -22,6 +22,7 @@ from scripts.tensor_decomposition.decomposition import decompose_model
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import count_param, select_device
 from scripts.utils.train_utils import YoloValidator
+from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
 
 LOGGER = get_logger(__name__)
 
@@ -156,10 +157,10 @@ if __name__ == "__main__":
     if args.img_height < 0:
         args.img_height = args.img_width
 
-    if not args.weights.endswith(".pt"):
+    if not args.weights:
         LOGGER.error(
             "Either "
-            + colorstr("bold", "--weight")
+            + colorstr("bold", "--weights")
             + " must be provided. (Current value: "
             + colorstr("bold", f"{args.weights}")
             + ")"
@@ -168,7 +169,11 @@ if __name__ == "__main__":
 
     device = select_device(args.device, args.batch_size)
 
-    ckpt = torch.load(args.weights)
+    if args.weights.endswith(".pt"):
+        ckpt_path = args.weights
+    else:  # get ckpt_path from wandb
+        ckpt_path = get_ckpt_path_from_wandb(args.weights)
+    ckpt = torch.load(ckpt_path)
 
     if isinstance(ckpt, YOLOModel):
         model = ckpt.float()

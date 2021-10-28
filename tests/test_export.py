@@ -1,4 +1,5 @@
 import random
+
 import torch
 
 from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
@@ -7,7 +8,7 @@ from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
 def test_wandb_loader_for_export(force: bool = False, p: float = 0.5):
     if not force:
         return
-        
+
     if random.random() > p:
         return
 

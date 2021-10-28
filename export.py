@@ -16,6 +16,7 @@ from torch import nn
 from scripts.model_converter.model_converter import ModelConverter
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import load_model_weights
+from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
 
 LOGGER = get_logger(__name__)
 
@@ -121,7 +122,12 @@ if __name__ == "__main__":
             + " will convert randomly initialized model. Please use only for a experiment purpose."
         )
     else:
-        ckpt = torch.load(args.weights)
+        if args.weights.endswith(".pt"):
+            ckpt_path = args.weights
+        else:  # load ckpt path from wandb
+            ckpt_path = get_ckpt_path_from_wandb(args.weights)
+
+        ckpt = torch.load(ckpt_path)
         if isinstance(ckpt, dict):
             ckpt_model = ckpt["ema"] if "ema" in ckpt.keys() else ckpt["model"]
         else:
@@ -152,6 +158,8 @@ if __name__ == "__main__":
     )
     model_ext = ""
 
+    if not os.path.isdir(args.dst):
+        os.mkdir(args.dst)
     if args.type in ("torchscript", "ts"):
         # TODO(jeikeilim): Add NMS layer
         converter.to_torch_script(

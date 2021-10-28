@@ -36,6 +36,44 @@ def download_from_wandb(
     return download_path
 
 
+def summary(wandb_run: wandb.apis.public.Run, model: nn.Module = None) -> None:
+    """Print summary of model from wandb.
+
+    Args:
+        wandb_run: wandb run object
+        model: pytorch model from wandb
+    """
+    wandb_map50 = wandb_run.summary.get("mAP50", 0.0)
+    print(f"Model from wandb (wandb url: {wandb_run.url})")
+    print(f":: {wandb_run.project}/{wandb_run.name} - #{', #'.join(wandb_run.tags)}")
+    print(f":: mAP@0.5: {wandb_map50:.4f}")
+    if model and isinstance(model.model, nn.Module):
+        n_param = sum([p.numel() for p in model.model.parameters()])
+        print(f":: # parameters: {n_param:,d}")
+
+
+def get_ckpt_path_from_wandb(
+    wandb_path: str,
+    weight_path: str = "best.pt",
+    download_root: str = "wandb/downloads",
+) -> str:
+    """Load a checkpoint dictionary from a wandb run path.
+
+    Args:A
+        wandb_path: run path in wandb
+        weight_path: weight path in wandb
+        download_root: root directory to download files from wandb
+    Returns:
+        ckpt_path: checkpoint file (.pt file) path
+    """
+    api = wandb.Api()
+    wandb_run = api.run(wandb_path)
+    download_root = os.path.join(download_root, wandb_path)
+    ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
+    summary(wandb_run)
+    return ckpt_path
+
+
 def load_model_from_wandb(
     wandb_path: str,
     weight_path: str = "best.pt",
@@ -63,12 +101,5 @@ def load_model_from_wandb(
         model = load_pytorch_model(ckpt_path)
 
     if verbose > 0:
-        wandb_map50 = wandb_run.summary.get("mAP50", 0.0)
-        n_param = sum([p.numel() for p in model.model.parameters()])
-        print(f"Model from wandb (wandb url: {wandb_run.url})")
-        print(
-            f":: {wandb_run.project}/{wandb_run.name} - #{', #'.join(wandb_run.tags)}"
-        )
-        print(f":: mAP@0.5: {wandb_map50:.4f}, # parameters: {n_param:,d}")
-
+        summary(wandb_run)
     return model

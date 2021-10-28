@@ -47,7 +47,10 @@ class RLLoss:
 
 
 class InfoNCELoss:
-    """InfoNCE Loss for SimCLR https://arxiv.org/pdf/1807.03748v2.pdf."""
+    """InfoNCE Loss for SimCLR https://arxiv.org/pdf/1807.03748v2.pdf.
+
+    This class was implemented with reference to https://github.com/sthalles/SimCLR/blob/master/simclr.py.
+    """
 
     def __init__(
         self,
@@ -89,7 +92,6 @@ class InfoNCELoss:
             feature_shape: the shape of encoded features
         """
         batch_size = min(self.batch_size, int(features.shape[0] / self.n_trans))
-        # labels = torch.cat([torch.arange() for i in range(self.n_trans)], dim=0)
         labels = torch.cat(
             [torch.tensor([i for _ in range(self.n_trans)]) for i in range(batch_size)],
             dim=0,

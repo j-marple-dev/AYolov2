@@ -8,9 +8,10 @@ import random
 from scripts.utils.torch_utils import EarlyStopping
 
 
-def test_early_stopper():
-    if random.random() > 0.5:
+def test_early_stopper(p: float = 0.5):
+    if random.random() > p:
         return
+
     stopper = EarlyStopping(patience=10)
 
     for i in range(20):

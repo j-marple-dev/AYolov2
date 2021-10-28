@@ -17,9 +17,10 @@ from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.utils.model_manager import YOLOModelManager
 
 
-def test_model_manager() -> None:
-    if random.random() > 0.5:
+def test_model_manager(p: float = 0.5) -> None:
+    if random.random() > p:
         return
+
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

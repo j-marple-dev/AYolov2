@@ -89,7 +89,7 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--gpu-mem",
         type=int,
-        default=2,
+        default=6,
         help="Target GPU memory restriction (GiB) (TensorRT only)",
     )
     parser.add_argument("--verbose", type=int, default=1, help="Verbosity level")
@@ -127,19 +127,21 @@ if __name__ == "__main__":
         else:
             ckpt_model = ckpt
 
-        ckpt = ckpt.cpu().float()
+        if ckpt_model:
+            ckpt_model = ckpt_model.cpu().float()
 
-    if ckpt is None and args.model_cfg == "":
+    if ckpt_model is None and args.model_cfg == "":
         LOGGER.warning("No weights and no model_cfg has been found.")
         exit(1)
 
-    if args.model_cfg != "":
+    if args.model_cfg != "" and ckpt_model:
         model = YOLOModel(args.model_cfg, verbose=args.verbose > 0)
-        model = load_model_weights(model, ckpt.state_dict(), exclude=[])
+        model = load_model_weights(model, ckpt_model.state_dict(), exclude=[])
     else:
-        model = ckpt
+        model = ckpt_model
 
-    model = model.eval().fuse().export(verbose=args.verbose > 0)
+    args.stride_size = int(max(model.stride))  # type: ignore
+    model = model.eval().export(verbose=args.verbose > 0)
     converter = ModelConverter(
         model, args.batch_size, (args.img_height, args.img_width), verbose=args.verbose
     )
@@ -151,7 +153,10 @@ if __name__ == "__main__":
     model_ext = ""
 
     if args.type in ("torchscript", "ts"):
-        converter.to_torch_script(os.path.join(args.dst, f"{model_name}.ts"))
+        # TODO(jeikeilim): Add NMS layer
+        converter.to_torch_script(
+            os.path.join(args.dst, f"{model_name}.ts"), half=args.dtype == "fp16"
+        )
         model_ext = "ts"
     elif args.type in ("onnx",):
         converter.to_onnx(
@@ -159,6 +164,7 @@ if __name__ == "__main__":
         )
         model_ext = "onnx"
     elif args.type in ("tensorrt", "trt"):
+        model.model[-1].out_xyxy = True
         converter.to_tensorrt(
             os.path.join(args.dst, f"{model_name}.trt"),
             opset_version=args.opset,

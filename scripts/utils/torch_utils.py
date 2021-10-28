@@ -21,6 +21,18 @@ from scripts.utils.logger import get_logger
 LOGGER = get_logger(__name__)
 
 
+def count_param(model: nn.Module) -> int:
+    """Count number of all parameters.
+
+    Args:
+        model: PyTorch model.
+
+    Return:
+        Sum of # of parameters
+    """
+    return sum(list(x.numel() for x in model.parameters()))
+
+
 @contextmanager
 def torch_distributed_zero_first(local_rank: int) -> Generator:
     """Make sure torch distributed call is run on only local_rank -1 or 0.
@@ -197,6 +209,44 @@ def load_model_weights(
         )
     )
     return model
+
+
+def sparsity(model: nn.Module) -> float:
+    """Compute global model sparsity.
+
+    Args:
+        model: PyTorch model.
+
+    Return:
+        sparsity ratio (sum of zeros / # of parameters)
+    """
+    n_param, zero_param = 0.0, 0.0
+    for p in model.parameters():
+        n_param += p.numel()
+        zero_param += (p == 0).sum()  # type: ignore
+    return zero_param / n_param
+
+
+def prune(model: nn.Module, amount: float = 0.3) -> None:
+    """Prune model to requested global sparsity.
+
+    Note that this is in-place operation.
+
+    Args:
+        model: PyTorch model.
+        amount: target sparsity ratio.
+            i.e. 0.1 = 10% of sparsity. (Weak prunning)
+                 0.9 = 90% of sparsity. (Strong prunning)
+    """
+    import torch.nn.utils.prune as prune
+
+    LOGGER.info("Pruning model... ")
+
+    for _, m in model.named_modules():
+        if isinstance(m, nn.Conv2d):
+            prune.l1_unstructured(m, name="weight", amount=amount)  # prune
+            prune.remove(m, "weight")  # make permanent
+    LOGGER.info(" |---  %.3g global sparsity" % sparsity(model))
 
 
 class EarlyStopping:

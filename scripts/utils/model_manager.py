@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from scripts.utils.torch_utils import ModelEMA
 
 import torch
+import wandb
 from torch import nn
 
 from scripts.utils.general import check_img_size, labels_to_class_weights
@@ -113,9 +114,16 @@ class YOLOModelManager(AbstractModelManager):
         Return:
             weights loaded model.
         """
-        # TODO(jeikeilim): Make load weight from wandb.
         start_epoch = 0
         pretrained = path.endswith(".pt")
+        if path and not pretrained:
+            best_weight = wandb.restore("best.pt", run_path=path)
+            if not best_weight:
+                LOGGER.warn(f"Failed downloading weight from wandb run path {path}")
+            else:
+                path = best_weight.name
+                pretrained = path.endswith(".pt")
+
         if pretrained:
             ckpt = torch.load(path, map_location=self.device)
             # TODO(jeikeilim): Re-visit here.
@@ -210,6 +218,7 @@ class YOLOModelManager(AbstractModelManager):
         )  # YOLOHead module
 
         models = [self.model]
+
         nl = self.model.module.model[-1].nl if is_parallel(self.model) else self.model.model[-1].nl  # type: ignore
         # grid_size = int(max(self.model.stride))
         grid_size = (

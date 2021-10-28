@@ -1,8 +1,0 @@
-# train_path: "/home/user/coco/images/train2017"
-# val_path: "/home/user/coco/images/val2017"
-# train_path: "/mnt/ssd/datasets/coco_jmarple_rl/images/train2017"
-# val_path: "/mnt/ssd/datasets/coco_jmarple_rl/images/val2017"
-# train_path: "/mnt/ssd/datasets/coco_jmarple_rl/images/train2017_cropped"
-# val_path: "/mnt/ssd/datasets/coco_jmarple_rl/images/val2017_cropped"
-train_path: "/mnt/ssd/datasets/coco_rl/split/train2017"
-val_path: "/mnt/ssd/datasets/coco_rl/split/val2017"

@@ -3,14 +3,16 @@
 - Author: Jongkuk Lim
 - Contact: limjk@jmarple.ai
 """
-
 import argparse
 import os
 import pprint
 
+import torch
 import yaml
 from kindle import YOLOModel
+from torch import nn
 
+import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
@@ -37,7 +39,11 @@ def get_parser() -> argparse.Namespace:
         "--model",
         type=str,
         default=os.path.join("res", "configs", "model", "yolov5s.yaml"),
-        help=colorstr("Model config") + " file path",
+        help="Model "
+        + colorstr("config")
+        + " or "
+        + colorstr("weight")
+        + "  file path",
     )
     parser.add_argument(
         "--data",
@@ -57,6 +63,13 @@ def get_parser() -> argparse.Namespace:
         default=-1,
         help="DDP parameter. " + colorstr("red", "bold", "Do not modify"),
     )
+    parser.add_argument(
+        "--wlog", action="store_true", default=False, help="Use Wandb logger."
+    )
+    parser.add_argument(
+        "--wlog_name", type=str, default="", help="The run id for Wandb log."
+    )
+    parser.add_argument("--log_dir", type=str, default="", help="Log root directory.")
 
     return parser.parse_args()
 
@@ -70,8 +83,18 @@ if __name__ == "__main__":
     with open(args.cfg, "r") as f:
         train_cfg = yaml.safe_load(f)
 
-    with open(args.model, "r") as f:
-        model_cfg = yaml.safe_load(f)
+    if args.model.endswith(".pt"):
+        model_cfg = args.model
+    else:
+        with open(args.model, "r") as f:
+            model_cfg = yaml.safe_load(f)
+
+    if args.log_dir:
+        train_cfg["train"]["log_dir"] = args.log_dir
+    log_dir = train_cfg["train"]["log_dir"]
+    if not log_dir:
+        log_dir = "exp"
+        train_cfg["train"]["log_dir"] = log_dir
 
     cfg_all = {
         "data_cfg": data_cfg,
@@ -92,7 +115,28 @@ if __name__ == "__main__":
     # TODO(jeikeilim): Need to implement
     #   loading a  model from saved ckpt['model'].yaml
 
-    model = YOLOModel(model_cfg, verbose=True)
+    # WanDB Logger
+    wandb_run = None
+    if args.wlog and RANK in [-1, 0]:
+        wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
+        assert isinstance(
+            wandb_run, wandb.sdk.wandb_run.Run
+        ), "Failed initializing WanDB"
+        for config_fp in [args.data, args.cfg, args.model]:
+            wandb_run.save(
+                config_fp, base_path=os.path.dirname(config_fp), policy="now"
+            )
+
+    if isinstance(model_cfg, dict):
+        model = YOLOModel(model_cfg, verbose=True)
+    else:
+        ckpt = torch.load(model_cfg)
+        if isinstance(ckpt, nn.Module):
+            model = ckpt.float()
+        elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
+            model = ckpt["ema"].float()
+        else:
+            model = ckpt["model"].float()
 
     train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()
@@ -133,6 +177,7 @@ if __name__ == "__main__":
         ema=ema,
         device=train_builder.device,
         log_dir=train_builder.log_dir,
+        wandb_run=wandb_run,
     )
 
     trainer.train(start_epoch=model_manager.start_epoch)

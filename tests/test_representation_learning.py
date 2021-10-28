@@ -76,7 +76,7 @@ def test_crop_bboxes(show_gui: bool = False, force: bool = False, p: float = 0.5
     # Check all whether all targets are cropped well or not
     assert num_cropped_imgs == num_targets
 
-    
+
 def test_train_repr(force: bool = False, p: float = 0.5) -> None:
     if not force:
         return

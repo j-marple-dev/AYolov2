@@ -811,6 +811,8 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
     ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
         """Load copy paste augmentation.
 
+        This method will copy paste objects from another image file.
+
         Args:
             img: input image.
             labels: image labels.

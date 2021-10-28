@@ -68,10 +68,10 @@ def get_center(bbox: np.ndarray) -> tuple:
     """Get centor of bbox.
 
     Args:
-        bbox: bounding box.
+        bbox: bounding box with class label.
 
     Returns:
-        Centor coordinates of bbox.
+        Centor coordinates of bbox(xy coords).
     """
     return (bbox[3] - bbox[1]) / 2 + bbox[1], (bbox[4] - bbox[2]) / 2 + bbox[2]
 

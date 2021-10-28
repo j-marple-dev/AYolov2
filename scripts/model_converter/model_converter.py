@@ -77,21 +77,22 @@ class ModelConverter:
             "half: export half precision model."
         """
         device = torch.device("cuda:0")  # Half precision only works in GPU.
+        self.model.to(device).eval()
+
+        test_input = self.test_input.to(device)
         if half:
-            self.model.half().to(device)
-            test_input = self.test_input.half().to(device)
+            test_input.half()
 
-            for attr_name in dir(self.model.model[-1]):  # type: ignore
-                attr = getattr(self.model.model[-1], attr_name)  # type: ignore
-                if isinstance(attr, torch.Tensor):
-                    LOGGER.info(f"Converting {attr_name} to half precision ...")
-                    setattr(self.model.model[-1], attr_name, attr.half().to(device))  # type: ignore
+        for attr_name in dir(self.model.model[-1]):  # type: ignore
+            attr = getattr(self.model.model[-1], attr_name)  # type: ignore
+            if isinstance(attr, torch.Tensor):
+                LOGGER.info(
+                    f"Converting {attr_name} to {'half' if half else 'fp32'} precision ..."
+                )
+                setattr(self.model.model[-1], attr_name, attr.half().to(device) if half else attr.to(device))  # type: ignore
 
-            self.model(test_input)
-        else:
-            test_input = self.test_input
-
-        ts = torch.jit.trace(self.model, test_input)
+        self.model(test_input)
+        ts = torch.jit.trace(self.model.to(device), test_input)
         ts.save(path)
 
     def to_onnx(self, path: str, opset_version: int = 11, **kwargs: Any) -> None:

@@ -101,6 +101,10 @@ def copy_paste2(
         scale_min: scale factor min value.
         scale_max: scale factor max value.
         p: Probability of copy paste.
+        n_trial: Maximum # of trial to place copied object to random location.
+        area_thr: Area size threshold to copy object.
+            i.e. area_thr = 10 represents objects that are smaller than
+                (2x5, 5x2, 3.16x3.16, ...) are ignored to apply copy-paste2.
 
     Returns:
         Copy-pasted image,

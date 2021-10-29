@@ -71,7 +71,7 @@ yolo_augmentation:
   copy_paste: 0.0  # segment copy-paste (probability)
   copy_paste2:  # config for copy-paste2
     p: 0.0  # copy-paste (probability)
-    area_thr: 10  # area threshold for copy paste
+    area_thr: 10  # area threshold for copy paste (ex. 2 * 5 = 10)
     scale_min: 0.9  # scale factor min value
     scale_max: 1.1  # scale factor max value
 

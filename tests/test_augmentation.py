@@ -75,7 +75,7 @@ def test_multi_aug_policies(show_gui: bool = False, p: float = 0.5):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(500)
+                cv2.waitKey(0)
 
             if smaller_box_idx.sum() > 0:
                 print(
@@ -131,7 +131,7 @@ def test_augmentation(show_gui: bool = False, p: float = 0.5):
 
             if show_gui:
                 cv2.imshow("test", np_image)
-                cv2.waitKey(500)
+                cv2.waitKey(0)
 
             del np_image
         gc.collect()

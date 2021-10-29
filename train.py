@@ -8,11 +8,11 @@ import os
 import pprint
 
 import torch
-import wandb
 import yaml
 from kindle import YOLOModel
 from torch import nn
 
+import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer

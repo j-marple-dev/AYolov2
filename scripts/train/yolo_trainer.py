@@ -32,7 +32,6 @@ from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
     import wandb.sdk.wandb_run.Run
-
     from scripts.utils.torch_utils import ModelEMA
 
 LOCAL_RANK = int(

@@ -15,7 +15,7 @@ train:
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
   single_cls: false  # Train multi-class data as single-class
   sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
-  workers: 16  # Maximum number of dataloader workers
+  workers: 18  # Maximum number of dataloader workers
   linear_lr: false  # Use linear learning rate
   label_smoothing: 0.0  # Label smoothing epsilon
   freeze: 0  # Number of layers to freeze.
@@ -36,7 +36,7 @@ hyper_params:
   # optimizer_param:
   #   betas: [0.937, 0.999]
 
-  lrf: 0.2  # final OneCycleLR learning rate (lr0 * lrf)
+  lrf: 0.1  # final OneCycleLR learning rate (lr0 * lrf)
   momentum: 0.937  # SGD momentum/Adam beta1
   weight_decay: 0.0005  # optimizer weight decay 5e-4
   warmup_epochs: 3.0  # warmup epochs (fractions ok)
@@ -68,7 +68,7 @@ yolo_augmentation:
   # fliplr: 0.5  # image flip left-right (probability)
   mosaic: 1.0  # image mosaic (probability)
   mixup: 0.0  # image mixup (probability)
-  copy_paste: 0.0  # segment copy-paste (probability)
+  copy_paste: 0.1  # segment copy-paste (probability)
 
 
 augmentation:

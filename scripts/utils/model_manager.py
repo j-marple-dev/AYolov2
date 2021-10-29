@@ -13,9 +13,9 @@ if TYPE_CHECKING:
     from scripts.utils.torch_utils import ModelEMA
 
 import torch
-import wandb
 from torch import nn
 
+import wandb
 from scripts.utils.general import check_img_size, labels_to_class_weights
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import is_parallel, load_model_weights

@@ -69,19 +69,26 @@ class ModelConverter:
         self.model.eval()
         self.model(self.test_input)
 
-    def to_torch_script(self, path: str, half: bool = False) -> None:
+    @torch.no_grad()
+    def to_torch_script(
+        self, path: str, half: bool = False, use_cuda: bool = True
+    ) -> None:
         """Export model to TorchScript.
 
         Args:
             path: export path.
-            "half: export half precision model."
+            half: export half precision model.
+            use_cuda: use cuda device.
         """
-        device = torch.device("cuda:0")  # Half precision only works in GPU.
+        device = torch.device(
+            "cuda:0" if (half or use_cuda) else "cpu"
+        )  # Half precision works on GPU only.
+        test_input = self.test_input.to(device)
         self.model.to(device).eval()
 
-        test_input = self.test_input.to(device)
         if half:
-            test_input.half()
+            self.model.half()
+            test_input = test_input.half()
 
         for attr_name in dir(self.model.model[-1]):  # type: ignore
             attr = getattr(self.model.model[-1], attr_name)  # type: ignore
@@ -89,10 +96,19 @@ class ModelConverter:
                 LOGGER.info(
                     f"Converting {attr_name} to {'half' if half else 'fp32'} precision ..."
                 )
-                setattr(self.model.model[-1], attr_name, attr.half().to(device) if half else attr.to(device))  # type: ignore
+                attr.to(device)
+                setattr(self.model.model[-1], attr_name, attr.half() if half else attr)  # type: ignore
+            elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
+                for i in range(len(attr)):
+                    LOGGER.info(
+                        f"Converting {attr_name}[{i}] to {'half' if half else 'fp32'} precision ..."
+                    )
+                    attr[i] = attr[i].to(device)
+                    attr[i] = attr[i].half() if half else attr[i]
+                setattr(self.model.model[-1], attr_name, attr)  # type: ignore
 
         self.model(test_input)
-        ts = torch.jit.trace(self.model.to(device), test_input)
+        ts = torch.jit.trace(self.model, test_input)
         ts.save(path)
 
     def to_onnx(self, path: str, opset_version: int = 11, **kwargs: Any) -> None:

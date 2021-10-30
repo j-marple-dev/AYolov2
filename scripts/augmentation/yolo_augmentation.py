@@ -171,6 +171,12 @@ def copy_paste2(
                         int(label[3]),
                         int(label[4]),
                     )
+                    # Filter area threshold with scale_factor
+                    if (
+                        int((x2 - x1) * scale_factor) * int((y2 - y1) * scale_factor)
+                    ) < area_thr:
+                        continue
+
                     temp_obj = temp_result[y1:y2, x1:x2, :]
                     obj = cv2.resize(temp_obj, (0, 0), fx=scale_factor, fy=scale_factor)
 

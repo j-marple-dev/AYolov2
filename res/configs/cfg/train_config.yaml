@@ -2,7 +2,7 @@ train:
   weights: ''  # Model weight path
   data: ''  # data config path
   epochs: 300
-  batch_size: 128
+  batch_size: 64
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
@@ -36,7 +36,7 @@ hyper_params:
   # optimizer_param:
   #   betas: [0.937, 0.999]
 
-  lrf: 0.2  # final OneCycleLR learning rate (lr0 * lrf)
+  lrf: 0.1  # final OneCycleLR learning rate (lr0 * lrf)
   momentum: 0.937  # SGD momentum/Adam beta1
   weight_decay: 0.0005  # optimizer weight decay 5e-4
   warmup_epochs: 3.0  # warmup epochs (fractions ok)
@@ -70,9 +70,9 @@ yolo_augmentation:
   mixup: 0.0  # image mixup (probability)
   copy_paste: 0.0  # segment copy-paste (probability)
   copy_paste2:  # config for copy-paste2
-    p: 0.0  # copy-paste (probability)
+    p: 0.4  # copy-paste (probability)
     area_thr: 10  # area threshold for copy paste (ex. 2 * 5 = 10)
-    scale_min: 0.9  # scale factor min value
+    scale_min: 0.25  # scale factor min value
     scale_max: 1.1  # scale factor max value
 
 

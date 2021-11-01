@@ -8,11 +8,11 @@ import os
 import pprint
 
 import torch
-import wandb
 import yaml
 from kindle import YOLOModel
 from torch import nn
 
+import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
@@ -70,6 +70,18 @@ def get_parser() -> argparse.Namespace:
         "--wlog_name", type=str, default="", help="The run id for Wandb log."
     )
     parser.add_argument("--log_dir", type=str, default="", help="Log root directory.")
+    parser.add_argument(
+        "--use_swa",
+        action="store_true",
+        default=False,
+        help="Apply SWA (Stochastic Weight Averaging) or not",
+    )
+    parser.add_argument(
+        "--swa_epochs",
+        type=int,
+        default=12,
+        help="the number of epochs to average weights from the last epoch",
+    )
 
     return parser.parse_args()
 
@@ -178,6 +190,8 @@ if __name__ == "__main__":
         device=train_builder.device,
         log_dir=train_builder.log_dir,
         wandb_run=wandb_run,
+        use_swa=args.use_swa,
+        swa_epochs=args.swa_epochs,
     )
 
     trainer.train(start_epoch=model_manager.start_epoch)

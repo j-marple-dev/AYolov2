@@ -187,3 +187,74 @@ class MultiAugmentationPolicies:
                 img = transform(img)  # type: ignore
 
         return img, labels if labels is not None else img
+
+
+class MultiAugPoliciesWithUniformAugment(MultiAugmentationPolicies):
+    """Multiple augmentation policies with UniformAugment."""
+
+    def __init__(
+        self, policies: List[Dict], uniaug_policies: Dict, augs_num: int = 2
+    ) -> None:
+        """Initialize multiple augmentation policies and UniformAugment policy.
+
+        polices: List of augmentation policies described in dictionary format.
+            each key name represents albumentations. {KEY} augmentation and
+            value contains keyword arguments for the albumentations.
+            EX) [
+                    {
+                        "policy":
+                            {
+                                "Blur": {"p": 0.5},
+                                "Flip": {"p": 0.5}
+                            },
+                        "prob": 0.3
+                    },
+                    {
+                        "policy":
+                        {
+                            "RandomGamma": {"p": 0.5},
+                            "HorizontalFlip": {"p": 0.5}
+                        },
+                        "prob": 0.3
+                    }
+                ]
+        uniaug_policy: augmentation policy for UniformAugment described in dictionary format.
+            each key name represents albumentations. {KEY} augmentation and value contains
+            keyword arguments for the albumentation.
+            EX) {
+                    "Rotate": {"limit": 30}
+                    "RandomBrightness": {"limit": [0.1, 1.9]}
+                }
+        augs_num: the number of augmentations selected by random.choices function
+        """
+        super().__init__(policies)
+        self.uniaug_policies = [
+            AugmentationPolicy(aug["policy"]) for aug in uniaug_policies
+        ]
+        self.augs_num = augs_num
+
+    def __call__(
+        self, img: np.ndarray, labels: Optional[np.ndarray] = None
+    ) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+        """Apply multiple augmentation policies and UniformAugment with label.
+
+        Args:
+            img: image (HWC) to augment with (0 ~ 255) range.
+            labels: (n, 5) labels. (class_id, x1, y1, x2, y2) with pixel coordinates.
+
+        Returns:
+            augmented image if labels is None.
+            (augmented image, labels) if labels is not None.
+        """
+        # Apply UniformAugment
+        uniaug_policies = random.choices(self.uniaug_policies, k=self.augs_num)
+        for uniaug_policy in uniaug_policies:
+            prob = random.random()
+            if random.random() < prob:
+                if labels is not None:
+                    img, labels = uniaug_policy(img, labels)
+                else:
+                    img = uniaug_policy(img)  # type: ignore
+
+        # Apply multiple augmentation policies
+        return super().__call__(img, labels)

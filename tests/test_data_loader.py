@@ -34,6 +34,8 @@ def test_load_images(show_gui: bool = False, p: float = 0.5):
         batch_size=batch_size,
         rect=False,
     )
+    if random.random() > 0.5:
+        return
 
     dataset_loader = DataLoader(
         dataset, batch_size=batch_size, collate_fn=LoadImages.collate_fn

@@ -19,6 +19,7 @@ from torch import nn
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import load_pytorch_model, select_device
+
 from scripts.utils.train_utils import YoloValidator
 from scripts.utils.wandb_utils import load_model_from_wandb
 
@@ -240,8 +241,8 @@ if __name__ == "__main__":
         if ts_cfg:
             for k in [
                 "batch_size",
-                "conf_t",
-                "iou_t",
+                # "conf_t",
+                # "iou_t",
                 "img_width",
                 "img_height",
                 "rect",
@@ -304,6 +305,7 @@ if __name__ == "__main__":
         model.to(device).eval()
     elif isinstance(model, nn.Module):
         model.to(device).fuse().eval()  # type: ignore
+        LOGGER.info(f"# of parameters: {count_param(model):,d}")
         if args.half:
             model.half()
 

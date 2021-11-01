@@ -24,13 +24,20 @@ link_directories(/usr/lib/x86_64-linux-gnu/)
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
+# LibTorch
+set(Torch_DIR $ENV{HOME}/libs/libtorch/share/cmake/Torch)
+find_package(Torch REQUIRED)
+
 include_directories( include )
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
 
 add_library( ${PROJECT_NAME}_lib ${SOURCES} )
 
+target_link_libraries( ${PROJECT_NAME}_lib ${TORCH_LIBRARIES} )
+
 add_executable( ${PROJECT_NAME}
-    src/tensorrt_runner/main.cpp
+    # src/tensorrt_runner/main.cpp
+    src/torchscript_runner/main.cpp
 )
 
 target_link_libraries(${PROJECT_NAME} ${PROJECT_NAME}_lib)

@@ -18,7 +18,8 @@ from torch import nn
 
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import load_model_weights, select_device
+from scripts.utils.torch_utils import (count_param, load_model_weights,
+                                       select_device)
 from scripts.utils.train_utils import YoloValidator
 
 if importlib.util.find_spec("tensorrt") is not None:
@@ -351,6 +352,7 @@ if __name__ == "__main__":
         model.to(device).eval()
     elif isinstance(model, nn.Module):
         model.to(device).fuse().eval()  # type: ignore
+        LOGGER.info(f"# of parameters: {count_param(model):,d}")
         if args.half:
             model.half()
 

@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
     if args.model_cfg != "" and ckpt_model:
         model = YOLOModel(args.model_cfg, verbose=args.verbose > 0)
-        model = load_model_weights(model, ckpt_model.state_dict(), exclude=[])
+        model = load_model_weights(model, {"model": ckpt_model}, exclude=[])
     else:
         model = ckpt_model
 

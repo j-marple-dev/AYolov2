@@ -22,7 +22,7 @@ from scripts.tensor_decomposition.decomposition import decompose_model
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.torch_utils import count_param, select_device
 from scripts.utils.train_utils import YoloValidator
-from scripts.utils.wandb_utils import get_ckpt_path_from_wandb
+from scripts.utils.wandb_utils import get_ckpt_path
 
 LOGGER = get_logger(__name__)
 
@@ -168,11 +168,7 @@ if __name__ == "__main__":
         exit(1)
 
     device = select_device(args.device, args.batch_size)
-
-    if args.weights.endswith(".pt"):
-        ckpt_path = args.weights
-    else:  # get ckpt_path from wandb
-        ckpt_path = get_ckpt_path_from_wandb(args.weights)
+    ckpt_path = get_ckpt_path(args.weights)
     ckpt = torch.load(ckpt_path)
 
     if isinstance(ckpt, YOLOModel):

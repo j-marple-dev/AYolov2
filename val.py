@@ -182,12 +182,6 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Run NMS with hybrid information (ground truth label + predicted result.) (PyTorch only) This is for auto-labeling purpose.",
     )
-    parser.add_argument(
-        "--no_weight_wandb",
-        action="store_true",
-        default=False,
-        help="load weights from wandb run path",
-    )
 
     return parser.parse_args()
 
@@ -258,9 +252,7 @@ if __name__ == "__main__":
                 )
                 args.__setattr__(k, ts_cfg[k])
     else:  # load model from wandb
-        model = load_model_from_wandb(
-            args.weights, load_weights=not args.no_weight_wandb
-        )
+        model = load_model_from_wandb(args.weights)
         stride_size = int(max(model.stride))  # type: ignore
 
     if model is None:

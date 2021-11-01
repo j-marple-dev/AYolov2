@@ -4,7 +4,7 @@
 - Contact: hwkim@jmarple.ai
 """
 import os
-from typing import Optional
+from typing import Optional, Union
 
 from torch import nn
 
@@ -31,18 +31,25 @@ def download_from_wandb(
     """
     download_path = os.path.join(local_root, wandb_path)
     if force or not os.path.isfile(download_path):
+        os.makedirs(local_root, exist_ok=True)
         wandb_run.file(wandb_path).download(local_root, replace=True)
 
     return download_path
 
 
-def summary(wandb_run: wandb.apis.public.Run, model: nn.Module = None) -> None:
+def summary(
+    wandb_run: Union[wandb.apis.public.Run, str], model: nn.Module = None
+) -> None:
     """Print summary of model from wandb.
 
     Args:
-        wandb_run: wandb run object
+        wandb_run: wandb run object or wandb run path
         model: pytorch model from wandb
     """
+    if isinstance(wandb_run, str):
+        api = wandb.Api()
+        wandb_run = api.run(wandb_run)
+
     wandb_map50 = wandb_run.summary.get("mAP50", 0.0)
     print(f"Model from wandb (wandb url: {wandb_run.url})")
     print(f":: {wandb_run.project}/{wandb_run.name} - #{', #'.join(wandb_run.tags)}")
@@ -52,7 +59,7 @@ def summary(wandb_run: wandb.apis.public.Run, model: nn.Module = None) -> None:
         print(f":: # parameters: {n_param:,d}")
 
 
-def get_ckpt_path_from_wandb(
+def get_ckpt_path(
     wandb_path: str,
     weight_path: str = "best.pt",
     download_root: str = "wandb/downloads",
@@ -64,13 +71,17 @@ def get_ckpt_path_from_wandb(
         weight_path: weight path in wandb
         download_root: root directory to download files from wandb
     Returns:
-        ckpt_path: checkpoint file (.pt file) path
+        ckpt_path: checkpoint file path
     """
-    api = wandb.Api()
-    wandb_run = api.run(wandb_path)
-    download_root = os.path.join(download_root, wandb_path)
-    ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
-    summary(wandb_run)
+    exts = (".pt",)
+    if wandb_path.endswith(exts):
+        ckpt_path = wandb_path
+    else:
+        api = wandb.Api()
+        wandb_run = api.run(wandb_path)
+        download_root = os.path.join(download_root, wandb_path)
+        ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
+        summary(wandb_run)
     return ckpt_path
 
 
@@ -78,7 +89,6 @@ def load_model_from_wandb(
     wandb_path: str,
     weight_path: str = "best.pt",
     download_root: str = "wandb/downloads",
-    load_weights: bool = True,
     verbose: int = 1,
 ) -> Optional[nn.Module]:
     """Load a model from a wandb run path.
@@ -87,7 +97,6 @@ def load_model_from_wandb(
         wandb_path: run path in wandb
         weight_path: weight path in wandb
         download_root: root directory to download files from wandb
-        load_weights: load weights from wandb run path
         verbose: level to print model information
     Returns:
         PyTorch model,
@@ -96,9 +105,8 @@ def load_model_from_wandb(
     api = wandb.Api()
     wandb_run = api.run(wandb_path)
     download_root = os.path.join(download_root, wandb_path)
-    if load_weights:
-        ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
-        model = load_pytorch_model(ckpt_path)
+    ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
+    model = load_pytorch_model(ckpt_path)
 
     if verbose > 0:
         summary(wandb_run)

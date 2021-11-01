@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import yaml
 from kindle import YOLOModel
+from torch import nn
 from torch.utils.data import DataLoader
 
 from scripts.data_loader.data_loader_utils import create_dataloader

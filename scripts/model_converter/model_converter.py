@@ -69,28 +69,45 @@ class ModelConverter:
         self.model.eval()
         self.model(self.test_input)
 
-    def to_torch_script(self, path: str, half: bool = False) -> None:
+    @torch.no_grad()
+    def to_torch_script(
+        self, path: str, half: bool = False, use_cuda: bool = True
+    ) -> None:
         """Export model to TorchScript.
 
         Args:
             path: export path.
-            "half: export half precision model."
+            half: export half precision model.
+            use_cuda: use cuda device.
         """
-        device = torch.device("cuda:0")  # Half precision only works in GPU.
+        device = torch.device(
+            "cuda:0" if (half or use_cuda) else "cpu"
+        )  # Half precision works on GPU only.
+        test_input = self.test_input.to(device)
+        self.model.to(device).eval()
+
         if half:
-            self.model.half().to(device)
-            test_input = self.test_input.half().to(device)
+            self.model.half()
+            test_input = test_input.half()
 
-            for attr_name in dir(self.model.model[-1]):  # type: ignore
-                attr = getattr(self.model.model[-1], attr_name)  # type: ignore
-                if isinstance(attr, torch.Tensor):
-                    LOGGER.info(f"Converting {attr_name} to half precision ...")
-                    setattr(self.model.model[-1], attr_name, attr.half().to(device))  # type: ignore
+        for attr_name in dir(self.model.model[-1]):  # type: ignore
+            attr = getattr(self.model.model[-1], attr_name)  # type: ignore
+            if isinstance(attr, torch.Tensor):
+                LOGGER.info(
+                    f"Converting {attr_name} to {'half' if half else 'fp32'} precision ..."
+                )
+                attr.to(device)
+                setattr(self.model.model[-1], attr_name, attr.half() if half else attr)  # type: ignore
+            elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
+                for i in range(len(attr)):
+                    LOGGER.info(
+                        f"Converting {attr_name}[{i}] to {'half' if half else 'fp32'} precision ..."
+                    )
+                    attr[i] = attr[i].to(device)
+                    attr[i] = attr[i].half() if half else attr[i]
+                setattr(self.model.model[-1], attr_name, attr)  # type: ignore
 
-            self.model(test_input)
-        else:
-            test_input = self.test_input
-
+        self.model(test_input)
         ts = torch.jit.trace(self.model, test_input)
         ts.save(path)
 

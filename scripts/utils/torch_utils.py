@@ -14,9 +14,10 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
+from kindle import YOLOModel
 from torch import nn
 
-from scripts.utils.logger import get_logger
+from scripts.utils.logger import colorstr, get_logger
 
 LOGGER = get_logger(__name__)
 
@@ -208,6 +209,57 @@ def load_model_weights(
             weights if isinstance(weights, str) else weights.keys(),
         )
     )
+    return model
+
+
+def load_pytorch_model(
+    weight_path: str, model_cfg_path: str = "", load_ema: bool = True
+) -> Optional[nn.Module]:
+    """Load PyTorch model.
+
+    Args:
+        weight_path: weight path which ends with .pt
+        model_cfg_path: if provided, the model will first construct by the model_cfg,
+                        and transfer weights to the constructed model.
+                        In case of model_cfg_path was provided but not weight_path,
+                        the model weights will be randomly initialized
+                        (for experiment purpose).
+        load_ema: load EMA weights if possible.
+
+    Return:
+        PyTorch model,
+        None if loading PyTorch model has failed.
+    """
+    if weight_path == "":
+        LOGGER.warning(
+            "Providing "
+            + colorstr("bold", "no weights path")
+            + " will validate a randomly initialized model. Please use only for a experiment purpose."
+        )
+    else:
+        ckpt = torch.load(weight_path)
+        if isinstance(ckpt, dict):
+            model_key = (
+                "ema"
+                if load_ema and "ema" in ckpt.keys() and ckpt["ema"] is not None
+                else "model"
+            )
+            ckpt_model = ckpt[model_key]
+        elif isinstance(ckpt, nn.Module):
+            ckpt_model = ckpt
+
+        ckpt_model = ckpt_model.cpu().float()
+
+    if ckpt_model is None and model_cfg_path == "":
+        LOGGER.warning("No weights and no model_cfg has been found.")
+        return None
+
+    if model_cfg_path != "":
+        model = YOLOModel(model_cfg_path, verbose=True)
+        model = load_model_weights(model, {"model": ckpt_model}, exclude=[])
+    else:
+        model = ckpt_model
+
     return model
 
 

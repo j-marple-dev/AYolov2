@@ -20,7 +20,8 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
-                                                    mixup, random_perspective)
+                                                    copy_paste2, mixup,
+                                                    random_perspective)
 from scripts.utils.constants import LABELS
 from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
 from scripts.utils.logger import get_logger
@@ -642,16 +643,23 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             )
             shapes = (h0, w0), ((h1 / h0, w1 / w0), pad)
 
-            if self.labels[index] is None:
+            if self.labels[index].shape[0] == 0:
                 labels = np.empty((0, 5), dtype=np.float32)
+                segments = []
             else:
                 labels = self.labels[index].copy()
+                segments = self.segments[index].copy()
 
             # Adjust bboxes to the letterbox.
             if labels.size:
                 labels[:, 1:] = xywh2xyxy(
                     labels[:, 1:], ratio=ratio, wh=(w1, h1), pad=pad
                 )
+                segments = [xyn2xy(x, wh=(w1, h1), pad=pad) for x in segments]
+
+            img, labels, segments = self._load_copy_paste(
+                img=img, label=labels, seg=segments
+            )
 
             if self.yolo_augmentation.get("augment", False):
                 img, labels = random_perspective(
@@ -778,6 +786,12 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             mosaic_segments,
             p=self.yolo_augmentation.get("copy_paste", 0.0),
         )
+
+        # Copy-paste 2
+        mosaic_img, mosaic_labels_np, mosaic_segments = self._load_copy_paste(
+            mosaic_img, mosaic_labels_np, mosaic_segments
+        )
+
         mosaic_img, mosaic_labels_np = random_perspective(
             mosaic_img,
             mosaic_labels_np,
@@ -791,6 +805,60 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         )  # border to remove
 
         return mosaic_img, mosaic_labels_np
+
+    def _load_copy_paste(
+        self, img: np.ndarray, label: np.ndarray, seg: List[np.ndarray]
+    ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
+        """Load copy paste augmentation.
+
+        This method will copy paste objects from another image file.
+
+        Args:
+            img: input image.
+            labels: image labels.
+            seg: image object segmentations.
+
+        Returns:
+            Copy-pasted image.
+            Copy-pasted labels.
+            Copy-pasted segmentations.
+        """
+        img_idx_for_copy = random.choice(self.indices)
+        img_for_copy, _, (h, w) = self._load_image(img_idx_for_copy)
+
+        if self.labels[img_idx_for_copy].shape[0] == 0:
+            labels_for_copy = np.empty((0, 5), dtype=np.float32)
+            seg_for_copy = []
+        else:
+            labels_for_copy = self.labels[img_idx_for_copy].copy()
+            seg_for_copy = self.segments[img_idx_for_copy].copy()
+
+        if labels_for_copy.size:
+            labels_for_copy[:, 1:] = xywh2xyxy(
+                labels_for_copy[:, 1:], wh=(w, h), pad=(0, 0)
+            )
+            seg_for_copy = [xyn2xy(x, wh=(w, h), pad=(0, 0)) for x in seg_for_copy]
+
+        copy_paste_cfg = (
+            self.yolo_augmentation["copy_paste2"]
+            if "copy_paste2" in self.yolo_augmentation.keys()
+            else {}
+        )
+
+        copy_paste_img, copy_paste_label, copy_paste_seg = copy_paste2(
+            im1=img,
+            labels1=label,
+            seg1=seg,
+            im2=img_for_copy,
+            labels2=labels_for_copy,
+            seg2=seg_for_copy,
+            scale_min=copy_paste_cfg.get("scale_min", 0.9),
+            scale_max=copy_paste_cfg.get("scale_max", 1.1),
+            p=copy_paste_cfg.get("p", 0.0),
+            area_thr=copy_paste_cfg.get("area_thr", 10),
+        )
+
+        return copy_paste_img, copy_paste_label, copy_paste_seg
 
     @staticmethod
     def collate_fn(  # type: ignore

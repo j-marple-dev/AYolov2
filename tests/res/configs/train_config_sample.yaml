@@ -66,14 +66,15 @@ yolo_augmentation:
   perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
   flipud: 0.0  # image flip up-down (probability)
   fliplr: 0.5  # image flip left-right (probability)
-  mosaic: 1.0  # image mosaic (probability)
-  mixup: 0.1  # image mixup (probability)
+  mosaic: 0.5  # image mosaic (probability)
+  mixup: 0.0  # image mixup (probability)
   copy_paste: 0.1  # copy-paste (probability)
   copy_paste2:  # config for copy-paste2
     p: 0.5  # copy-paste probability per object.
-    area_thr: 10  # area threshold for copy paste (ex. 2 * 5 = 10)
-    scale_min: 0.9  # scale factor min value
-    scale_max: 1.1  # scale factor max value
+    n_img: 3  # Number of images to be used for copy-paste2
+    area_thr: 200  # area threshold for copy paste (ex. 2 * 5 = 10)
+    scale_min: 0.35  # scale factor min value
+    scale_max: 1.0  # scale factor max value
 
 
 augmentation:

@@ -70,10 +70,11 @@ yolo_augmentation:
   mixup: 0.0  # image mixup (probability)
   copy_paste: 0.1  # segment copy-paste (probability)
   copy_paste2:  # config for copy-paste2
-    p: 0.0  # copy-paste (probability)
-    area_thr: 10  # area threshold for copy paste (ex. 2 * 5 = 10)
+    p: 0.0  # copy-paste probability per object.
+    n_img: 3  # Number of images to be used for copy-paste2
+    area_thr: 200  # area threshold for copy paste (ex. 2 * 5 = 10)
     scale_min: 0.35  # scale factor min value
-    scale_max: 0.65  # scale factor max value
+    scale_max: 1.0  # scale factor max value
 
 
 

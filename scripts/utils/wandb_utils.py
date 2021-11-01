@@ -9,7 +9,10 @@ from typing import Optional, Union
 from torch import nn
 
 import wandb
+from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import load_pytorch_model
+
+LOGGER = get_logger(__name__)
 
 
 def download_from_wandb(
@@ -31,8 +34,12 @@ def download_from_wandb(
     """
     download_path = os.path.join(local_root, wandb_path)
     if force or not os.path.isfile(download_path):
+        LOGGER.info(f"Downloading model from wandb to {download_path}")
         os.makedirs(local_root, exist_ok=True)
         wandb_run.file(wandb_path).download(local_root, replace=True)
+        LOGGER.info("  |-- Download completed.")
+    else:
+        LOGGER.info(f"Found downloaded model weight in {download_path}")
 
     return download_path
 

@@ -14,7 +14,7 @@ import numpy as np
 import torch
 from torch.multiprocessing import Process, Queue
 
-from scripts.utils.general import scale_coords
+from scripts.utils.general import scale_coords, xyxy2xywh
 
 
 class MultiProcessQueue(abc.ABC):
@@ -162,6 +162,10 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
             bbox = outputs[i][:, :4] if outputs[i] is not None else None
             shape = None if shapes is None else shapes[i]
             scaled_bbox = self.scale_coords(img_size, bbox, shape)
+
+            # Normalize and xyxy to xywh
+            if shape is not None:
+                scaled_bbox = xyxy2xywh(scaled_bbox, wh=shape[0][::-1])
 
             conf = outputs[i][:, 4:] if outputs[i] is not None else None
             self.add_predicted_box(names[i], scaled_bbox, conf)

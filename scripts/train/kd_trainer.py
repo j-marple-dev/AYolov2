@@ -9,18 +9,21 @@ if TYPE_CHECKING:
     import wandb.sdk.wandb_run.Run
 
 import math
+import os
 
 import numpy as np
 import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from torch import nn
-from torch.cuda import amp
 from torch.utils.data import DataLoader
 
+from scripts.augmentation.augmentation import AugmentationPolicy
 from scripts.loss.losses import ComputeLoss
 from scripts.train.abstract_trainer import AbstractTrainer
+from scripts.utils.general import check_img_size, xyxy2xywh
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import non_max_suppression
+from scripts.utils.plot_utils import plot_images
 
 LOGGER = get_logger(__name__)
 
@@ -55,6 +58,7 @@ class SoftTeacherTrainer(AbstractTrainer):
             incremental_log_dir,
             wandb_run,
         )
+        # TODO(hsshin): ad-hoc attribute for debugging
         self.debug = True
 
         self.teacher = teacher.to(self.device).eval()
@@ -64,13 +68,24 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.num_warmups = max(
             round(self.cfg_hyp["warmup_epochs"] * len(self.train_dataloader)), 1e3
         )
+        if isinstance(self.cfg_train["image_size"], int):
+            self.cfg_train["image_size"] = [self.cfg_train["image_size"]] * 2
 
         self.nbs = 64  # nominal batch size
         self.accumulate = max(round(self.nbs / self.cfg_train["batch_size"]), 1)
         self.optimizer, self.scheduler = self._init_optimizer()
 
-        self.optimizer, self.scheduler = self._init_optimizer()
         self.loss = ComputeLoss(self.model)
+
+        self.pseudo_loss_weight = 0.5
+        try:
+            policy = cfg["strong_augmentation"]
+            self.augment = AugmentationPolicy(policy)
+        except KeyError:
+            self.augment = None
+            LOGGER.warn(
+                "No augmentation policy is specified for pseudo-labeled images."
+            )
 
     ####################################################
     # Abstact methods
@@ -90,29 +105,47 @@ class SoftTeacherTrainer(AbstractTrainer):
         Returns:
             Result of loss function.
         """
-        import pdb
-
-        pdb.set_trace()
-
         num_integrated_batches = batch_idx + len(self.train_dataloader) * epoch
 
         if num_integrated_batches <= self.num_warmups:
             self.warmup(num_integrated_batches, epoch)
 
-        # compute loss for pseudo-labeled data
-        unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
-
         # compute loss for labeled data
         imgs, labels, _, _ = batch
         imgs = self.prepare_img(imgs)
-        if unlabeled_imgs is not None:
-            imgs = torch.stack([imgs, unlabeled_imgs])
-            labels = torch.stack([labels, pseudo_labels])
 
         labels = labels.to(self.device)
-        with amp.autocast(enabled=self.cuda):
-            pred = self.model(imgs)
-            loss, loss_items = self.loss(pred, labels)
+        pred = self.model(imgs)
+        loss, loss_items = self.loss(pred, labels)
+
+        # compute loss for pseudo-labeled data
+        unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
+        pseudo_pred = self.model(unlabeled_imgs.to(self.device))
+        pseudo_loss, pseudo_loss_items = self.loss(
+            pseudo_pred, pseudo_labels.to(self.device)
+        )
+
+        # total loss as a weighted sum
+        total_loss = loss + self.pseudo_loss_weight * pseudo_loss
+
+        # backward
+        total_loss.backward()
+
+        # Optimize
+        if num_integrated_batches % self.accumulate == 0:
+            for optimizer in self.optimizer:
+                optimizer.step()
+                optimizer.update()
+                optimizer.zero_grad()
+
+        # TODO(ulken94): Log intermediate results to wandb. And then, remove noqa.
+        self.print_intermediate_results(  # noqa
+            loss_items, labels.shape, imgs.shape, epoch, batch_idx
+        )
+
+        self.log_dict({"step_loss": total_loss[0].item()})
+
+        return total_loss[0]
 
     def _lr_function(self, x: float, schedule_type: str = "") -> float:
         """Learning rate scheduler function."""
@@ -186,13 +219,34 @@ class SoftTeacherTrainer(AbstractTrainer):
     ####################################################
     # Overrided methods
     ####################################################
+    def on_train_start(self) -> None:
+        """Run on start training."""
+        # TODO(jeikeilim): Make load weight from wandb.
+        labels = np.concatenate(self.train_dataloader.dataset.labels, 0)
+        mlc = labels[:, 0].max()  # type: ignore
+        nc = len(self.train_dataloader.dataset.names)
+        # nb = len(self.train_dataloader)
+        assert mlc < nc, (
+            "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
+            % (mlc, nc, self.cfg["data"], nc - 1)
+        )
+
+        grid_size = int(max(self.model.stride))  # type: ignore
+        imgsz, _ = [check_img_size(x, grid_size) for x in self.cfg_train["image_size"]]
+
+        for scheduler in self.scheduler:
+            scheduler.last_epoch = self.start_epoch - 1  # type: ignore
+
+    def on_train_end(self) -> None:
+        """Run on the end of the training."""
+        self._save_weights(-1, "last.pt")
 
     ####################################################
     # End of Override
     ####################################################
     @torch.no_grad()
     def get_pseudo_labeled_batch(self) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Construct pseudo-labels using prediction of teacher."""
+        """Construct pseudo-labels using the prediction of teacher."""
         # TODO: implement `get_batch` method for unlabeled dataset
         try:
             weak_augmented_batch = next(self.unlabeled_iterator)
@@ -200,29 +254,85 @@ class SoftTeacherTrainer(AbstractTrainer):
             self.unlabeled_iterator = iter(self.unlabeled_dataloader)
             weak_augmented_batch = next(self.unlabeled_iterator)
 
-        imgs, _, _, _ = weak_augmented_batch  # img, path, shapes
+        imgs, _, paths, _ = weak_augmented_batch  # img, labels, paths, shapes
         imgs = self.prepare_img(imgs)
-        with amp.autocast(enabled=self.cuda):
-            teacher_predicts_aggregated, _ = self.teacher(imgs)
+        teacher_predicts_aggregated, _ = self.teacher(imgs)
+
+        # TODO(hsshin): modify hard coded NMS params
         preds_after_nms = non_max_suppression(
-            teacher_predicts_aggregated, conf_thres=0.25, iou_thres=0.45
+            teacher_predicts_aggregated, conf_thres=0.25, iou_thres=0.45,
         )
 
-        pseudo_boxes_cls = self.score_filter(preds_after_nms)
-        pseudo_boxes_reg = self.box_regression_variance_filter(preds_after_nms)
+        labels_yolo = self.prepare_labels_for_augmention(preds_after_nms, thr=0.26)
+
+        if not self.augment:
+            # TODO(hsshin) implement this case
+            return None
 
         # Strong augmented imgs and labels
+        augmented_imgs = []
+        augmented_cls_id_bboxes = []
+        imgs_np = imgs.cpu().numpy()
+        imgs_np = (255 * imgs_np).astype(np.uint8)
+        imgs_np = imgs_np.transpose((0, 2, 3, 1))  # (batch, H, W, C)
+        for idx, (img, cls_ids_bboxes) in enumerate(zip(imgs_np, labels_yolo)):
+            augmented_img, cls_id_bboxes = self.augment(img, cls_ids_bboxes)
+            augmented_imgs.append(augmented_img)
+            # add `batch idx` column
+            batch_ids = np.array([idx] * len(cls_id_bboxes))
+            augmented_cls_id_bboxes.append(
+                np.hstack([batch_ids[:, np.newaxis], cls_id_bboxes])
+            )
 
-        return 0, 0
+        batch_imgs = (
+            np.stack(augmented_imgs, axis=0).transpose((0, 3, 1, 2)).astype(np.float32)
+        )
+        batch_imgs /= 255.0
+        batch_imgs = torch.Tensor(batch_imgs)
+        batch_cls_id_bboxes = np.vstack(augmented_cls_id_bboxes)
+        batch_cls_id_bboxes = torch.Tensor(batch_cls_id_bboxes)
 
-    def score_filter(self, preds: List[torch.Tensor]) -> torch.Tensor:
-        """Filter predicted bounding boxes."""
+        if self.debug:
+            # plot images.
+            f_name = os.path.join(self.log_dir, "strong_augmented_batch.jpg",)
+            plot_images(  # noqa
+                images=batch_imgs,
+                targets=batch_cls_id_bboxes,
+                paths=paths,
+                fname=f_name,
+            )
+            self.debug = False
+
+        return batch_imgs, batch_cls_id_bboxes
+
+    def prepare_labels_for_augmention(
+        self, preds: List[torch.Tensor], thr: float = 0.0, min_size: float = 0.0
+    ) -> List[np.ndarray]:
+        """Filter out bboxes with an optional criterion and convert to yolo format."""
+        width, height = self.cfg_train["image_size"]
+        whwh = np.array([width, height, width, height])
         # NMS
-        # TODO: modify hardcoded params
-        # filtered_bboxes = filter_invalid()
+        cls_ids_bboxes = []
+        for pred in preds:
+            bbox, label = self.filter_invalid(
+                bbox=pred[:, :4],
+                label=pred[:, 5],
+                score=pred[:, 4],
+                thr=thr,
+                min_size=min_size,
+            )
+            cls_ids = label.cpu().numpy()
+            bboxes = bbox.cpu().numpy()
+            # Transform to normal coord (for Albumentation yolo format)
+            # NOTE(hsshin): work only for square image
+            bboxes /= whwh
+            bboxes.clip(min=0, max=1, out=bboxes)
+            # Transform to YOLO format (xyxy > xywh)
+            bboxes = xyxy2xywh(bboxes)
 
-        pseudo_boxes_cls = None
-        return pseudo_boxes_cls
+            cls_ids_bboxes.append(np.hstack([cls_ids[:, np.newaxis], bboxes]))
+
+        return cls_ids_bboxes
 
     @staticmethod
     def filter_invalid(
@@ -232,12 +342,66 @@ class SoftTeacherTrainer(AbstractTrainer):
         thr: float = 0.0,
         min_size: float = 0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        pass
+        """Filter out invalid bboxes."""
+        if score is not None:
+            valid = score > thr
+            bbox = bbox[valid]
+            if label is not None:
+                label = label[valid]
 
-    def box_regression_variance_filter(self, preds: torch.Tensor) -> torch.Tensor:
-        # TODO: implement
-        pseudo_boxes_reg = None
-        return pseudo_boxes_reg
+        if min_size is not None:
+            bw = bbox[:, 2] - bbox[:, 0]
+            bh = bbox[:, 3] - bbox[:, 1]
+            valid = (bw > min_size) & (bh > min_size)
+            bbox = bbox[valid]
+            if label is not None:
+                label = label[valid]
+
+        return bbox, label
+
+    # def box_regression_variance_filter(self, preds: torch.Tensor) -> torch.Tensor:
+    #     # TODO: implement
+    #     pseudo_boxes_reg = None
+    #     return pseudo_boxes_reg
+
+    def print_intermediate_results(
+        self,
+        loss_items: torch.Tensor,
+        t_shape: torch.Size,
+        img_shape: torch.Size,
+        epoch: int,
+        batch_idx: int,
+    ) -> str:
+        """Print intermediate_results during training batches.
+
+        Args:
+            loss_items: loss items from model.
+            t_shape: torch label shape.
+            img_shape: torch image shape.
+            epoch: current epoch.
+            batch_idx: current batch index.
+
+        Returns:
+            string for print.
+        """
+        self.mloss = (self.mloss * batch_idx + loss_items) / (batch_idx + 1)
+        mem = "%.3gG" % (
+            torch.cuda.memory_reserved() / 1e9  # to GBs
+            if torch.cuda.is_available()
+            else 0
+        )
+        s = ("%10s" * 2 + "%10.4g" * 6) % (
+            "%g/%g" % (epoch, self.epochs - 1),
+            mem,
+            *self.mloss,
+            t_shape[0],
+            img_shape[-1],
+        )
+
+        if self.pbar:
+            self.pbar.set_description(s)
+
+        return s
 
     def warmup(self, ni: int, epoch: int) -> None:
         """Warmup before training.
@@ -267,16 +431,3 @@ class SoftTeacherTrainer(AbstractTrainer):
                         x_intp,
                         [self.cfg_hyp["warmup_momentum"], self.cfg_hyp["momentum"]],
                     )
-
-
-if __name__ == "__main__":
-    trainer = SoftTeacherTrainer(
-        model,
-        teacher,
-        cfg,
-        train_dataloader,
-        unlabeled_dataloader,
-        val_dataloader,
-        device,
-        log_dir="debug",
-    )

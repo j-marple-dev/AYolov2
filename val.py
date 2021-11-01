@@ -291,8 +291,8 @@ if __name__ == "__main__":
         if ts_cfg:
             for k in [
                 "batch_size",
-                "conf_t",
-                "iou_t",
+                # "conf_t",
+                # "iou_t",
                 "img_width",
                 "img_height",
                 "rect",

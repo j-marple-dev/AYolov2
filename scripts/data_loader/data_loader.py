@@ -863,6 +863,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             scale_max=copy_paste_cfg.get("scale_max", 1.1),
             p=copy_paste_cfg.get("p", 0.0),
             area_thr=copy_paste_cfg.get("area_thr", 10),
+            ioa_thr=copy_paste_cfg.get("ioa_thr", 0.3),
         )
 
         return copy_paste_img, copy_paste_label, copy_paste_seg

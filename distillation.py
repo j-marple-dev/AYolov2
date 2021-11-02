@@ -5,7 +5,6 @@
 """
 import argparse
 import os
-from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 
@@ -18,7 +17,7 @@ from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.kd_trainer import SoftTeacherTrainer
 from scripts.utils.logger import get_logger
 from scripts.utils.model_manager import YOLOModelManager
-from scripts.utils.torch_utils import load_pytorch_model, select_device
+from scripts.utils.torch_utils import load_pytorch_model
 from scripts.utils.wandb_utils import load_model_from_wandb
 
 LOGGER = get_logger(__name__)
@@ -125,7 +124,10 @@ if __name__ == "__main__":
         pad=0.5,
     )
 
-    device = select_device(args.device)
+    # TODO(hsshin): revisit here
+    device_id = "cpu" if args.device.lower() == "cpu" else f"cuda:{args.device}"
+    device = torch.device(device_id)
+    # device = select_device(args.device)
     wdir = Path(os.path.join("exp", "weights"))
 
     # student

@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 import math
 import os
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -25,6 +26,7 @@ from scripts.utils.general import check_img_size, xyxy2xywh
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import non_max_suppression
 from scripts.utils.plot_utils import plot_images
+from scripts.utils.train_utils import YoloValidator
 
 LOGGER = get_logger(__name__)
 
@@ -66,6 +68,7 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.unlabeled_dataloader = unlabeled_dataloader
         self.unlabeled_iterator = iter(unlabeled_dataloader)
 
+        self.best_score = 0.0
         self.mloss: torch.Tensor  # mean loss
         self.num_warmups = max(
             round(self.cfg_hyp["warmup_epochs"] * len(self.train_dataloader)), 1e3
@@ -87,6 +90,11 @@ class SoftTeacherTrainer(AbstractTrainer):
             self.augment = None
             LOGGER.warn(
                 "No augmentation policy is specified for pseudo-labeled images."
+            )
+
+        if self.val_dataloader is not None:
+            self.validator = YoloValidator(
+                self.model, self.val_dataloader, self.device, cfg, log_dir=self.log_dir,
             )
 
     ####################################################
@@ -207,10 +215,6 @@ class SoftTeacherTrainer(AbstractTrainer):
                 optimizer.load_state_dict(ckpt["optimizer"][0])
                 self.best_score = ckpt["best_score"]
 
-            if self.ema and ckpt.get("ema"):
-                self.ema.ema.load_state_dict(ckpt["ema"].float().state_dict())
-                self.ema.updates = ckpt["updates"]
-
         return [optimizer], [scheduler]
 
     ####################################################
@@ -241,6 +245,41 @@ class SoftTeacherTrainer(AbstractTrainer):
     def on_train_end(self) -> None:
         """Run on the end of the training."""
         self._save_weights(-1, "last.pt")
+
+    def validation(self) -> None:
+        """Validate model."""
+        val_result = self.validator.validation()
+        self.log_dict(
+            {
+                "mP": val_result[0][0],
+                "mR": val_result[0][1],
+                "mAP50": val_result[0][2],
+                "mAP50_95": val_result[0][3],
+                "loss_box": val_result[0][4],
+                "loss_obj": val_result[0][5],
+                "loss_cls": val_result[0][6],
+                "mAP50_by_cls": {
+                    k: val_result[1][i]
+                    for i, k in enumerate(self.val_dataloader.dataset.names)
+                },
+            }
+        )
+
+        self.val_maps = val_result[1]
+
+        if val_result[0][2] > self.best_score:
+            self.best_score = val_result[0][2]
+
+        self._save_weights(self.current_epoch, "last.pt")
+
+        # TODO(jeikeilim): Better metric to measure the best score so far.
+        if val_result[0][2] == self.best_score:
+            if self.wandb_run:
+                self.wandb_run.save(
+                    os.path.join(self.wdir, "best.pt"), base_path=self.wdir
+                )
+            self.best_score = val_result[0][2]
+            self._save_weights(self.current_epoch, "best.pt")
 
     ####################################################
     # End of Override
@@ -443,3 +482,13 @@ class SoftTeacherTrainer(AbstractTrainer):
                         x_intp,
                         [self.cfg_hyp["warmup_momentum"], self.cfg_hyp["momentum"]],
                     )
+
+    def _save_weights(self, epoch: int, w_name: str) -> None:
+        ckpt = {
+            "epoch": epoch,
+            "best_score": self.best_score,
+            "model": deepcopy(self.model).half(),
+            "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
+        }
+        torch.save(ckpt, os.path.join(self.wdir, w_name))
+        del ckpt

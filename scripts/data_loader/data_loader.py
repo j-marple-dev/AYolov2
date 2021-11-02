@@ -657,9 +657,13 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
                 )
                 segments = [xyn2xy(x, wh=(w1, h1), pad=pad) for x in segments]
 
-            img, labels, segments = self._load_copy_paste(
-                img=img, label=labels, seg=segments
-            )
+            # Copy-paste 2
+            copy_paste_cfg = self.yolo_augmentation.get("copy_paste2", {})
+            if copy_paste_cfg.get("p", 0.0) > 0.0:
+                for _ in range(copy_paste_cfg.get("n_img", 3)):
+                    img, labels, segments = self._load_copy_paste(
+                        img=img, label=labels, seg=segments
+                    )
 
             if self.yolo_augmentation.get("augment", False):
                 img, labels = random_perspective(
@@ -788,9 +792,12 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         )
 
         # Copy-paste 2
-        mosaic_img, mosaic_labels_np, mosaic_segments = self._load_copy_paste(
-            mosaic_img, mosaic_labels_np, mosaic_segments
-        )
+        copy_paste_cfg = self.yolo_augmentation.get("copy_paste2", {})
+        if copy_paste_cfg.get("p", 0.0) > 0.0:
+            for _ in range(copy_paste_cfg.get("n_img", 3)):
+                mosaic_img, mosaic_labels_np, mosaic_segments = self._load_copy_paste(
+                    mosaic_img, mosaic_labels_np, mosaic_segments
+                )
 
         mosaic_img, mosaic_labels_np = random_perspective(
             mosaic_img,
@@ -856,6 +863,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
             scale_max=copy_paste_cfg.get("scale_max", 1.1),
             p=copy_paste_cfg.get("p", 0.0),
             area_thr=copy_paste_cfg.get("area_thr", 10),
+            ioa_thr=copy_paste_cfg.get("ioa_thr", 0.3),
         )
 
         return copy_paste_img, copy_paste_label, copy_paste_seg

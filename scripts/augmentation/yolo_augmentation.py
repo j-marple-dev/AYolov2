@@ -88,8 +88,9 @@ def copy_paste2(
     p: float = 0.5,
     n_trial: int = 5,
     area_thr: float = 10,
+    ioa_thr: float = 0.3,
 ) -> Tuple[np.ndarray, np.ndarray, List[np.ndarray]]:
-    """Copy-paste augmentation in different images.a.
+    """Copy-paste augmentation in different images.
 
     Args:
         im1: base image.
@@ -101,6 +102,13 @@ def copy_paste2(
         scale_min: scale factor min value.
         scale_max: scale factor max value.
         p: Probability of copy paste.
+        n_trial: Maximum # of trial to place copied object to random location.
+        area_thr: Area size threshold to copy object.
+            i.e. area_thr = 10 represents objects that are smaller than
+                (2x5, 5x2, 3.16x3.16, ...) are ignored to apply copy-paste2.
+        ioa_thr: Intersection of Area threshold.
+            The new object can not be pasted if it overlaps with
+            existing object by ioa_thr value.
 
     Returns:
         Copy-pasted image,
@@ -112,11 +120,17 @@ def copy_paste2(
         h, w, c = im1.shape  # height, width, channels
         im_new = np.zeros(im1.shape, np.uint8)
         for j in random.sample(range(n), k=round(p * n)):
-            l, s = labels2[j], seg2[j]
+            label, segment = labels2[j], seg2[j]
+
+            # Some labels has 0 height or width by converting to int.
+            if (int(label[4] - label[2]) * int(label[3] - label[1])) < area_thr:
+                continue
 
             # move box coords and segmentation coords to 0, 0 start
-            zero_moved_box = l - np.array([0, l[1], l[2], l[1], l[2]])
-            zero_moved_seg = s - l[1:3]
+            zero_moved_box = label - np.array(
+                [0, label[1], label[2], label[1], label[2]]
+            )
+            zero_moved_seg = segment - label[1:3]
 
             for _ in range(n_trial):
                 # get scale factor
@@ -124,18 +138,25 @@ def copy_paste2(
 
                 # scale box with scale factors
                 scaled_moved_box = zero_moved_box[1:] * scale_factor
-                x = random.uniform(0, w - (scaled_moved_box[2] - scaled_moved_box[0]))
-                y = random.uniform(0, h - (scaled_moved_box[3] - scaled_moved_box[1]))
-                new_box = np.concatenate(([l[0]], scaled_moved_box)) + np.array(
+
+                x = random.uniform(
+                    0, w - (scaled_moved_box[2] - scaled_moved_box[0]) - 1
+                )
+                y = random.uniform(
+                    0, h - (scaled_moved_box[3] - scaled_moved_box[1]) - 1
+                )
+                new_box = np.concatenate(([label[0]], scaled_moved_box)) + np.array(
                     [0, x, y, x, y]
                 )
                 ioa = bbox_ioa(new_box[1:5], labels1[:, 1:5])
-                if (ioa < 0.3).all():
-                    bbox_w = new_box[3] - new_box[1]
-                    bbox_h = new_box[4] - new_box[2]
+                if (ioa < ioa_thr).all():
+                    bbox_w = int(new_box[3]) - int(new_box[1])
+                    bbox_h = int(new_box[4]) - int(new_box[2])
 
-                    if bbox_w * bbox_h < area_thr or bbox_w == 0 or bbox_h == 0:
-                        break
+                    # Filter area threshold with scale_factor
+                    if bbox_w * bbox_h < area_thr:
+                        continue
+
                     labels1 = np.concatenate((labels1, [new_box]), 0)
                     new_seg = zero_moved_seg * scale_factor + np.array([x, y])
                     seg1.append(new_seg)
@@ -150,7 +171,13 @@ def copy_paste2(
                     temp_result = cv2.bitwise_and(src1=im2, src2=img_temp)
 
                     # crop object
-                    x1, y1, x2, y2 = int(l[1]), int(l[2]), int(l[3]), int(l[4])
+                    x1, y1, x2, y2 = (
+                        int(label[1]),
+                        int(label[2]),
+                        int(label[3]),
+                        int(label[4]),
+                    )
+
                     temp_obj = temp_result[y1:y2, x1:x2, :]
                     obj = cv2.resize(temp_obj, (0, 0), fx=scale_factor, fy=scale_factor)
 

@@ -16,6 +16,7 @@ import torch
 import torch.optim.lr_scheduler as lr_scheduler
 from torch import nn
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from scripts.augmentation.augmentation import AugmentationPolicy
 from scripts.loss.losses import ComputeLoss
@@ -65,6 +66,7 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.unlabeled_dataloader = unlabeled_dataloader
         self.unlabeled_iterator = iter(unlabeled_dataloader)
 
+        self.mloss: torch.Tensor  # mean loss
         self.num_warmups = max(
             round(self.cfg_hyp["warmup_epochs"] * len(self.train_dataloader)), 1e3
         )
@@ -135,7 +137,6 @@ class SoftTeacherTrainer(AbstractTrainer):
         if num_integrated_batches % self.accumulate == 0:
             for optimizer in self.optimizer:
                 optimizer.step()
-                optimizer.update()
                 optimizer.zero_grad()
 
         # TODO(ulken94): Log intermediate results to wandb. And then, remove noqa.
@@ -402,6 +403,17 @@ class SoftTeacherTrainer(AbstractTrainer):
             self.pbar.set_description(s)
 
         return s
+
+    def on_epoch_start(self, epoch: int) -> None:
+        """Run on an epoch starts."""
+        LOGGER.info(
+            ("\n" + "%10s" * 8)
+            % ("Epoch", "gpu_mem", "box", "obj", "cls", "total", "targets", "img_size",)
+        )
+        self.pbar = tqdm(
+            enumerate(self.train_dataloader), total=len(self.train_dataloader)
+        )
+        self.mloss = torch.zeros(4, device=self.device)
 
     def warmup(self, ni: int, epoch: int) -> None:
         """Warmup before training.

@@ -19,7 +19,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from scripts.augmentation.augmentation import AugmentationPolicy
+from scripts.augmentation.augmentation import MultiAugmentationPolicies
 from scripts.loss.losses import ComputeLoss
 from scripts.train.abstract_trainer import AbstractTrainer
 from scripts.utils.general import check_img_size, xyxy2xywh
@@ -85,7 +85,7 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.pseudo_loss_weight = 0.5
         try:
             policy = cfg["strong_augmentation"]
-            self.augment = AugmentationPolicy(policy)
+            self.augment = MultiAugmentationPolicies(policy)
         except KeyError:
             self.augment = None
             LOGGER.warn(

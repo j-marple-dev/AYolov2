@@ -59,7 +59,6 @@ class AbstractTrainer(ABC):
         incremental_log_dir: bool = False,
         wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
         use_swa: bool = False,
-        swa_epochs: int = 0,
     ) -> None:
         """Initialize AbstractTrainer class."""
         super().__init__()
@@ -95,7 +94,6 @@ class AbstractTrainer(ABC):
             LOGGER.info("Log directory: " + colorstr("bold", f"{self.log_dir}"))
         self.wandb_run = wandb_run
         self.use_swa = use_swa
-        self.swa_epochs = swa_epochs
 
     @abstractmethod
     def training_step(

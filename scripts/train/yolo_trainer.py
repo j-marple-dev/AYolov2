@@ -58,7 +58,6 @@ class YoloTrainer(AbstractTrainer):
         incremental_log_dir: bool = False,
         wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
         use_swa: bool = False,
-        swa_epochs: int = 0,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -68,7 +67,6 @@ class YoloTrainer(AbstractTrainer):
             train_dataloader: dataloader for training.
             val_dataloader: dataloader for validation.
             use_swa: apply SWA (Stochastic Weight Averaging) or not
-            swa_epochs: the number of epochs to average weights from the last epoch
         """
         super().__init__(
             model,
@@ -80,7 +78,6 @@ class YoloTrainer(AbstractTrainer):
             incremental_log_dir=incremental_log_dir,
             wandb_run=wandb_run,
             use_swa=use_swa,
-            swa_epochs=swa_epochs,
         )
 
         self.cfg_hyp["label_smoothing"] = self.cfg_train["label_smoothing"]
@@ -382,6 +379,8 @@ class YoloTrainer(AbstractTrainer):
                 "model": deepcopy(de_parallel(self.model)).half(),
                 "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
             }
+            if self.use_swa:
+                ckpt["mAP50"] = self.state["val_log"]["mAP50"]
             if self.ema is not None:
                 ckpt.update(
                     {"ema": deepcopy(self.ema.ema).half(), "updates": self.ema.updates}
@@ -389,37 +388,6 @@ class YoloTrainer(AbstractTrainer):
 
             torch.save(ckpt, os.path.join(self.wdir, w_name))
             del ckpt
-
-    def _save_mean_weights(self, w_name: str) -> None:
-        """Save mean weights to apply SWA.
-
-           This function was implemented with reference to: https://github.com/hyz-xmaster/swa_object_detection/blob/master/swa/get_swa_model.py.
-
-        Args:
-            w_name: file name to save weights
-        """
-        if RANK in [-1, 0]:
-            min_epoch = max(0, self.epochs - self.swa_epochs)
-            model_dirs = [
-                os.path.join(self.wdir, "epoch_" + str(i) + ".pt")
-                for i in range(min_epoch, self.epochs)
-            ]
-            models = [torch.load(model_dir) for model_dir in model_dirs]
-            model_num = len(models)
-            state_dict = models[-1]["model"].state_dict()
-            model_keys = state_dict.keys()
-            new_state_dict = state_dict.copy()
-            ref_model = models[-1]
-
-            for key in model_keys:
-                sum_weight = 0.0
-                for m in models:
-                    sum_weight += m["model"].state_dict()[key]
-                avg_weight = sum_weight / model_num
-                new_state_dict[key] = avg_weight
-            ref_model["model"].load_state_dict(new_state_dict)
-            save_dir = os.path.join(self.wdir, w_name)
-            torch.save(ref_model, save_dir)
 
     def validation(self) -> None:
         """Validate model."""
@@ -447,7 +415,7 @@ class YoloTrainer(AbstractTrainer):
                 self.best_score = val_result[0][2]
 
             self._save_weights(self.current_epoch, "last.pt")
-            if (self.epochs - self.current_epoch) <= self.swa_epochs:
+            if self.use_swa:
                 self._save_weights(self.current_epoch, f"epoch_{self.current_epoch}.pt")
 
             # TODO(jeikeilim): Better metric to measure the best score so far.
@@ -617,8 +585,6 @@ class YoloTrainer(AbstractTrainer):
     def on_train_end(self) -> None:
         """Run on the end of the training."""
         self._save_weights(-1, "last.pt")
-        if self.use_swa:
-            self._save_mean_weights("swa.pt")
 
     def log_train_cfg(self) -> None:
         """Log train configurations."""

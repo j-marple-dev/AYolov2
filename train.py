@@ -76,12 +76,6 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Apply SWA (Stochastic Weight Averaging) or not",
     )
-    parser.add_argument(
-        "--swa_epochs",
-        type=int,
-        default=12,
-        help="the number of epochs to average weights from the last epoch",
-    )
 
     return parser.parse_args()
 
@@ -191,7 +185,6 @@ if __name__ == "__main__":
         log_dir=train_builder.log_dir,
         wandb_run=wandb_run,
         use_swa=args.use_swa,
-        swa_epochs=args.swa_epochs,
     )
 
     trainer.train(start_epoch=model_manager.start_epoch)

@@ -137,4 +137,4 @@ tests/.*
 
 # Train file.
 exp/
-./*.json
+*.json

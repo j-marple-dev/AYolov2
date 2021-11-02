@@ -16,7 +16,7 @@ from tqdm import tqdm
 from scripts.data_loader.data_loader import LoadImages
 from scripts.utils.general import TimeChecker
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.metrics import non_max_suppression
+from scripts.utils.metrics import COCOmAPEvaluator, non_max_suppression
 from scripts.utils.multi_queue import ResultWriterTorch
 from scripts.utils.torch_utils import (count_param, load_pytorch_model,
                                        select_device)
@@ -96,6 +96,18 @@ def get_parser() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Run half preceision model (PyTorch only)",
+    )
+    parser.add_argument(
+        "--check-map",
+        action="store_true",
+        default=True,
+        help="Check mAP after inference.",
+    )
+    parser.add_argument(
+        "--export",
+        type=str,
+        default="",
+        help="Export all inference results if path is given.",
     )
 
     return parser.parse_args()
@@ -190,7 +202,9 @@ if __name__ == "__main__":
         out = model(img.to(device, non_blocking=True))[0]
 
         # TODO(jeikeilim): Find better and faster NMS method.
-        outputs = non_max_suppression(out, conf_thres=args.conf_t, iou_thres=args.iou_t)
+        outputs = non_max_suppression(
+            out, conf_thres=args.conf_t, iou_thres=args.iou_t, multi_label=True
+        )
         result_writer.add_outputs(path, outputs, img.shape[2:4], shapes=shape)
     time_checker.add("Inference")
 
@@ -198,3 +212,18 @@ if __name__ == "__main__":
     time_checker.add("End")
 
     LOGGER.info(str(time_checker))
+
+    # Check mAP
+    if args.check_map:
+        gt_path = os.path.join("tests", "res", "instances_val2017.json")
+        json_path = "answersheet_4_04_000000.json"
+
+        is_export = args.export != ""
+
+        coco_eval = COCOmAPEvaluator(
+            gt_path,
+            img_root=args.data if is_export else None,
+            export_root=args.export if is_export else None,
+        )
+        result = coco_eval.evaluate(json_path, debug=is_export)
+        LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")

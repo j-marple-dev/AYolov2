@@ -17,19 +17,18 @@ import torch
 from kindle import Model, YOLOModel
 
 from scripts.model_converter.model_converter import ModelConverter
+from scripts.utils.constants import probably_run
 
 
+@probably_run()
 def test_model_converter_torchscript(p: float = 0.5) -> None:
-    if random.random() > p:
-        return
-
     if not torch.cuda.is_available():
         return
 
-    test_input = torch.rand((8, 3, 320, 320))
+    test_input = torch.rand((8, 3, 320, 320), device=torch.device("cuda:0"))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
-    )
+    ).to(torch.device("cuda:0"))
     model.eval()
     out_tensor = model(test_input)
     model.export(verbose=True)
@@ -50,10 +49,8 @@ def test_model_converter_torchscript(p: float = 0.5) -> None:
     gc.collect()
 
 
+@probably_run()
 def test_model_converter_onnx(p: float = 0.5) -> None:
-    if random.random() > p:
-        return
-
     test_input = torch.rand((8, 3, 320, 320))
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True
@@ -81,6 +78,7 @@ def test_model_converter_onnx(p: float = 0.5) -> None:
     gc.collect()
 
 
+@probably_run(p=0.0)
 def test_model_converter_tensorrt(
     keep_trt: bool = False, check_trt_exists: bool = False
 ) -> None:
@@ -96,8 +94,6 @@ def test_model_converter_tensorrt(
     import tensorrt as trt
 
     from scripts.utils.tensorrt_runner import TrtWrapper
-
-    return
 
     model = YOLOModel(
         os.path.join("tests", "res", "configs", "model_yolov5s.yaml"), verbose=True

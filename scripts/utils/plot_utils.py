@@ -238,7 +238,10 @@ def plot_images(
 
 
 def draw_labels(
-    img: np.ndarray, label_list: np.ndarray, label_info: Dict[int, str]
+    img: np.ndarray,
+    label_list: np.ndarray,
+    label_info: Dict[int, str],
+    norm_xywh: bool = True,
 ) -> np.ndarray:
     """Draw label informations on the image.
 
@@ -247,15 +250,18 @@ def draw_labels(
         label_list: (n, 5) label informations of img with normalized xywh format.
                     (class_id, centered x, centered y, width, height)
         label_info: label names. Ex) {0: 'Person', 1:'Car', ...}
+        norm_xywh: Flag for label as normalized (0.0 ~ 1.0) xywh format.
+            Otherwise, label will be considered as pixel wise xyxy format.
 
     Returns:
         label drawn image.
     """
     overlay_alpha = 0.3
     label_list = np.copy(label_list)
-    label_list[:, 1:] = xywh2xyxy(
-        label_list[:, 1:], wh=(float(img.shape[1]), float(img.shape[0]))
-    )
+    if norm_xywh:
+        label_list[:, 1:] = xywh2xyxy(
+            label_list[:, 1:], wh=(float(img.shape[1]), float(img.shape[0]))
+        )
 
     for label in label_list:
         class_id = int(label[0])

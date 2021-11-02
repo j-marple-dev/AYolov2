@@ -8,12 +8,12 @@ import random
 import numpy as np
 import torch
 
+from scripts.utils.constants import probably_run
 from scripts.utils.general import xywh2xyxy, xyxy2xywh
 
 
+@probably_run()
 def test_xyxy2xywh() -> None:
-    if random.random() > 0.5:
-        return
     xy = np.random.uniform(0, 1, (100, 2))
     wh = (1 - xy) * np.random.uniform(0.2, 0.8, (100, 1))
 
@@ -27,9 +27,8 @@ def test_xyxy2xywh() -> None:
     assert np.isclose(xyxy, out_xyxy, rtol=1e-24).all()
 
 
+@probably_run()
 def test_xyxy2xywh_pixel() -> None:
-    if random.random() > 0.5:
-        return
     img_size = np.random.randint(300, 800, 2)
     xy = np.random.uniform(0, 1, (100, 2))
     wh = (1 - xy) * np.random.uniform(0.2, 0.8, (100, 1))

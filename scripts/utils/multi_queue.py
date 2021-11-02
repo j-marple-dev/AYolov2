@@ -255,4 +255,7 @@ class ResultWriterTorch(ResultWriterBase):
         if bboxes is None:
             return None
 
-        return scale_coords(img_shape, bboxes, ratio_pad[0], ratio_pad=ratio_pad[1])
+        # return scale_coords(img_shape, bboxes, ratio_pad[0], ratio_pad=ratio_pad[1])
+        return scale_coords(
+            img_shape, bboxes, ratio_pad[0]
+        )  # This shows better result.

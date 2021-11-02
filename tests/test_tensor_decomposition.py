@@ -12,16 +12,15 @@ import torch
 from kindle import YOLOModel
 
 from scripts.tensor_decomposition.decomposition import decompose_model
+from scripts.utils.constants import probably_run
 from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import count_param, prune
 
 LOGGER = get_logger(__name__)
 
 
+@probably_run()
 def test_tensor_decomposition(p: float = 0.5) -> None:
-    if random.random() > p:
-        return
-
     test_input = torch.rand((1, 3, 320, 320))
 
     ckpt = torch.load(os.path.join("tests", "res", "weights", "yolov5s_kindle.pt"))

@@ -107,8 +107,8 @@ class Objective:
         baseline_validator = YoloValidator(
             self.baseline_model,
             baseline_dataloader,
-            device,
-            cfg,
+            self.device,
+            self.cfg,
             compute_loss=isinstance(self.baseline_model, YOLOModel)
             and hasattr(model, "hyp"),
             hybrid_label=self.args.hybrid_label,
@@ -137,7 +137,7 @@ class Objective:
         return (
             alpha * (self.baseline_n_params / self.model_params)
             + beta * (self.baseline_t / time)
-            + gamma * (self.baseline_map50 / map50)
+            + gamma * (map50 / self.baseline_map50)
         )
 
     def __call__(self, trial: optuna.trial.Trial) -> float:
@@ -274,18 +274,6 @@ def get_parser() -> argparse.Namespace:
     )
     parser.add_argument("--verbose", type=int, default=1, help="Verbosity level")
     parser.add_argument(
-        "--profile",
-        action="store_true",
-        default=False,
-        help="Run profiling before validation.",
-    )
-    parser.add_argument(
-        "--n-profile",
-        type=int,
-        default=100,
-        help="Number of n iteration for profiling.",
-    )
-    parser.add_argument(
         "--half",
         action="store_true",
         default=False,
@@ -358,13 +346,10 @@ if __name__ == "__main__":
         "hyper_params": {"conf_t": 0, "iou_t": 0},
     }
 
-    if isinstance(model, torch.jit.ScriptModule):
-        model.to(device).eval()
-    elif isinstance(model, nn.Module):
-        model.to(device).fuse().eval()  # type: ignore
-        LOGGER.info(f"# of parameters: {count_param(model):,d}")
-        if args.half:
-            model.half()
+    model.to(device).fuse().eval()  # type: ignore
+    LOGGER.info(f"# of parameters: {count_param(model):,d}")
+    if args.half:
+        model.half()
 
     objective = Objective(model, device, cfg, args.optim_cfg, data_cfg, args)
     if args.weights.endswith(".pt"):

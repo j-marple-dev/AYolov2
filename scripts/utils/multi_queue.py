@@ -165,7 +165,7 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
 
             # Normalize and xyxy to xywh
             if shape is not None:
-                scaled_bbox = xyxy2xywh(scaled_bbox, wh=shape[0][::-1])
+                scaled_bbox = xyxy2xywh(scaled_bbox, check_validity=False)
 
             conf = outputs[i][:, 4:] if outputs[i] is not None else None
             self.add_predicted_box(names[i], scaled_bbox, conf)

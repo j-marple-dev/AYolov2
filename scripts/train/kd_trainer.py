@@ -92,6 +92,13 @@ class SoftTeacherTrainer(AbstractTrainer):
                 "No augmentation policy is specified for pseudo-labeled images."
             )
 
+        # TODO(hsshin): revisit here
+        self.nms_conf_thr: float = 0.4
+        self.nms_iou_thr: float = 0.7
+
+        self.conf_thr: float = 0.9
+        self.bbox_size_thr: float = 20
+
         if self.val_dataloader is not None:
             self.validator = YoloValidator(
                 self.model, self.val_dataloader, self.device, cfg, log_dir=self.log_dir,
@@ -130,6 +137,7 @@ class SoftTeacherTrainer(AbstractTrainer):
 
         # compute loss for pseudo-labeled data
         unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
+        # LOGGER.info(f"# Pseudo-labeled images: {len(unlabeled_imgs)}")
         pseudo_pred = self.model(unlabeled_imgs.to(self.device))
         pseudo_loss, pseudo_loss_items = self.loss(
             pseudo_pred, pseudo_labels.to(self.device)
@@ -281,6 +289,48 @@ class SoftTeacherTrainer(AbstractTrainer):
             self.best_score = val_result[0][2]
             self._save_weights(self.current_epoch, "best.pt")
 
+    def on_validation_end(self) -> None:
+        """Run on validation end."""
+        if self.state["val_log"]:
+            self.state["val_log"].pop("mAP50_by_cls", None)
+
+    def log_wandb(self) -> None:
+        """Log metrics to WanDB."""
+        if not self.wandb_run:
+            return
+        wlogs = {
+            "epoch": self.state["epoch"],
+            "train_loss": self.state["train_log"]["loss"],
+        }
+        valid_log = self.state["val_log"]
+        if valid_log:
+            valid_loss = 0
+            for key in valid_log:
+                if key in ["mAP50_by_cls"]:
+                    continue
+                if key in ["loss_box", "loss_obj", "loss_cls"]:
+                    loss = valid_log[key]
+                    wlogs.update({"valid_" + key: loss})
+                    valid_loss += loss  # ignoring weight for `box`, `obj`, `cls` losses
+                wlogs.update({key: valid_log[key]})
+            wlogs.update({"valid_loss": valid_loss})
+
+        self.wandb_run.log(wlogs)
+
+    def log_dict(self, data: Dict[str, Any]) -> None:
+        """Log dictionary data."""
+        super().log_dict(data)
+        self.update_loss()
+
+    def update_loss(self) -> None:
+        """Update train loss by `step_loss`."""
+        if not self.state["is_train"]:
+            return
+        train_log = self.state["train_log"]
+        if "loss" not in train_log:
+            train_log["loss"] = 0
+        train_log["loss"] += train_log["step_loss"]
+
     ####################################################
     # End of Override
     ####################################################
@@ -298,12 +348,15 @@ class SoftTeacherTrainer(AbstractTrainer):
         imgs = self.prepare_img(imgs)
         teacher_predicts_aggregated, _ = self.teacher(imgs)
 
-        # TODO(hsshin): modify hard coded NMS params
         preds_after_nms = non_max_suppression(
-            teacher_predicts_aggregated, conf_thres=0.25, iou_thres=0.45,
+            teacher_predicts_aggregated,
+            conf_thres=self.nms_conf_thr,
+            iou_thres=self.nms_iou_thr,
         )
 
-        labels_yolo = self.prepare_labels_for_augmention(preds_after_nms, thr=0.26)
+        labels_yolo = self.prepare_labels_for_augmention(
+            preds_after_nms, thr=self.conf_thr, min_size=self.bbox_size_thr
+        )
 
         if not self.augment:
             # TODO(hsshin) implement this case
@@ -341,6 +394,7 @@ class SoftTeacherTrainer(AbstractTrainer):
                 paths=paths,
                 fname=f_name,
             )
+            LOGGER.info(f"Strong augmented image is saved in {f_name}")
             self.debug = False
 
         return batch_imgs, batch_cls_id_bboxes

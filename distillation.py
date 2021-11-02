@@ -13,6 +13,7 @@ import torch.nn as nn
 import yaml
 from kindle import YOLOModel
 
+import wandb
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.kd_trainer import SoftTeacherTrainer
 from scripts.utils.logger import get_logger
@@ -56,6 +57,15 @@ def get_parser() -> argparse.Namespace:
         help="Training config file path",
     )
     parser.add_argument("--device", type=str, default="0", help="GPU device id.")
+    parser.add_argument(
+        "--wlog", action="store_true", default=False, help="Use Wandb logger."
+    )
+    parser.add_argument(
+        "--wlog_name", type=str, default="", help="The run id for Wandb log."
+    )
+    parser.add_argument(
+        "--log_dir", type=str, default="exp", help="Log root directory."
+    )
     return parser.parse_args()
 
 
@@ -74,6 +84,17 @@ if __name__ == "__main__":
         with open(args.model, "r") as f:
             model_cfg = yaml.safe_load(f)
 
+    # WanDB Logger
+    wandb_run = None
+    if args.wlog:
+        wandb_run = wandb.init(project="AYolov2", name=args.wlog_name)
+        assert isinstance(
+            wandb_run, wandb.sdk.wandb_run.Run
+        ), "Failed initializing WanDB"
+        # TODO(hsshin): revisit for saving model configs
+        config_fps = [args.data, args.cfg]
+        for fp in config_fps:
+            wandb_run.save(fp, base_path=os.path.dirname(fp), policy="now")
     # Load models
     if isinstance(model_cfg, dict):
         model = YOLOModel(model_cfg, verbose=True)
@@ -138,17 +159,18 @@ if __name__ == "__main__":
     model_manager.model = model
     model = model_manager.set_model_params(train_dataset)
 
-    # # teacher
-    # # TODO(hsshin) revisit here
-    # model_manager = YOLOModelManager(teacher, teacher_cfg, device, wdir)
-    # teacher = model_manager.load_model_weights()
-    # # freeze all params in teacher model
-    # teacher = model_manager.freeze(-1)
-
     model_manager.model = teacher
     teacher = model_manager.set_model_params(train_dataset)
 
     trainer = SoftTeacherTrainer(
-        model, teacher, train_cfg, train_loader, unlabeled_loader, val_loader, device,
+        model,
+        teacher,
+        train_cfg,
+        train_loader,
+        unlabeled_loader,
+        val_loader,
+        device,
+        log_dir=args.log_dir,
+        wandb_run=wandb_run,
     )
     trainer.train()

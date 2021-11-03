@@ -5,6 +5,7 @@
 """
 import argparse
 import os
+from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 
@@ -132,9 +133,10 @@ if __name__ == "__main__":
     train_loader, train_dataset = create_dataloader(
         data_cfg["train_path"], train_cfg, stride_size, prefix="[Train] "
     )
-    # TODO(hsshin): revisit this part
+    distil_cfg = deepcopy(train_cfg)
+    distil_cfg["yolo_augmentation"] = None
     unlabeled_loader, unlabeled_dataset = create_dataloader(
-        data_cfg["train_path"], train_cfg, stride_size, prefix="[Unlab] "
+        data_cfg["train_path"], distil_cfg, stride_size, prefix="[Unlab] "
     )
     val_loader, val_dataset = create_dataloader(
         data_cfg["val_path"],

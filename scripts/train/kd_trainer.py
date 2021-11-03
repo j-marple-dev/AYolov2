@@ -164,17 +164,13 @@ class SoftTeacherTrainer(AbstractTrainer):
 
         return total_loss[0]
 
-    def _lr_function(self, x: float, schedule_type: str = "") -> float:
+    def _lr_function(self, x: float, schedule_type: str = "cosine") -> float:
         """Learning rate scheduler function."""
         if schedule_type == "cosine":
-            if self.debug:
-                print("Use Cosine Annealing.")
             return ((1 + math.cos(x * math.pi / self.cfg_train["epochs"])) / 2) * (
                 1 - self.cfg_hyp["lrf"]
             ) + self.cfg_hyp["lrf"]
         else:
-            if self.debug:
-                print("Use Identity scheduler.")
             return x
 
     def _init_optimizer(self) -> Any:
@@ -397,8 +393,8 @@ class SoftTeacherTrainer(AbstractTrainer):
             # plot images.
             f_name = os.path.join(self.log_dir, "strong_augmented_batch.jpg",)
             plot_images(  # noqa
-                images=batch_imgs,
-                targets=batch_cls_id_bboxes,
+                images=imgs,
+                targets=total_bat_ids_cls_ids_bboxes,
                 paths=paths,
                 fname=f_name,
             )
@@ -424,7 +420,7 @@ class SoftTeacherTrainer(AbstractTrainer):
                 min_size=min_size,
             )
             if len(bbox) == 0:
-                cls_ids_bboxes.append(np.zeros(0, 5))
+                cls_ids_bboxes.append(np.zeros((0, 5)))
                 continue
             cls_ids = label.cpu().numpy()
             bboxes = bbox.cpu().numpy()

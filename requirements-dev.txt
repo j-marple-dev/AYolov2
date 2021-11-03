@@ -33,4 +33,4 @@ onnx==1.10.1
 onnx-simplifier>=0.3.6
 tensorly==0.6.0
 orjson==3.6.4
-
+optuna==2.10.0

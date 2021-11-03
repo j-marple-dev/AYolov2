@@ -24,14 +24,13 @@ from scripts.data_loader.data_loader_repr import (LoadImagesForRL,
                                                   LoadImagesForSimCLR)
 from scripts.representation_learning.crop_bboxes import crop_and_save_bboxes
 from scripts.train.yolo_repr_trainer import YoloRepresentationLearningTrainer
+from scripts.utils.constants import probably_run
 from scripts.utils.torch_utils import select_device
 
 
+@probably_run()
 def test_crop_bboxes(show_gui: bool = False, force: bool = False, p: float = 0.5):
     if not force:
-        return
-
-    if random.random() > p:
         return
 
     MIN_SIZE = 32
@@ -77,11 +76,9 @@ def test_crop_bboxes(show_gui: bool = False, force: bool = False, p: float = 0.5
     assert num_cropped_imgs == num_targets
 
 
+@probably_run()
 def test_train_repr(force: bool = False, p: float = 0.5) -> None:
     if not force:
-        return
-
-    if random.random() > p:
         return
 
     with open(
@@ -163,6 +160,7 @@ def test_train_repr(force: bool = False, p: float = 0.5) -> None:
     gc.collect()
 
 
+@probably_run()
 def test_train_simclr(force: bool = False) -> None:
     if not force:
         return

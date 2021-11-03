@@ -14,13 +14,12 @@ from kindle import YOLOModel
 
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
+from scripts.utils.constants import probably_run
 from scripts.utils.model_manager import YOLOModelManager
 
 
+@probably_run()
 def test_model_manager(p: float = 0.5) -> None:
-    if random.random() > p:
-        return
-
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

@@ -16,15 +16,13 @@ from tqdm import tqdm
 
 from scripts.augmentation.augmentation import AugmentationPolicy
 from scripts.data_loader.data_loader import LoadImages, LoadImagesAndLabels
-from scripts.utils.constants import LABELS, PLOT_COLOR
+from scripts.utils.constants import LABELS, PLOT_COLOR, probably_run
 from scripts.utils.general import xywh2xyxy
 from scripts.utils.plot_utils import draw_labels
 
 
+@probably_run()
 def test_load_images(show_gui: bool = False, p: float = 0.5):
-    if random.random() > p:
-        return
-
     batch_size = 16
     dataset = LoadImages(
         "tests/res/datasets/VOC/images/train",
@@ -59,10 +57,8 @@ def test_load_images(show_gui: bool = False, p: float = 0.5):
     gc.collect()
 
 
+@probably_run()
 def test_load_images_and_labels(show_gui: bool = False, p: float = 0.5):
-    if random.random() > p:
-        return
-
     batch_size = 16
     label2str = LABELS["COCO"]
 

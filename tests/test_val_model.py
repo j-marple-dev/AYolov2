@@ -18,6 +18,7 @@ from torch.utils.data import DataLoader
 from scripts.data_loader.data_loader_utils import create_dataloader
 from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
+from scripts.utils.constants import probably_run
 from scripts.utils.general import get_logger
 from scripts.utils.model_manager import YOLOModelManager
 from scripts.utils.torch_utils import select_device
@@ -26,10 +27,8 @@ from scripts.utils.train_utils import YoloValidator
 LOGGER = get_logger(__name__)
 
 
+@probably_run()
 def test_model_validator(p: float = 0.5) -> None:
-    if random.random() > p:
-        return
-
     with open(
         os.path.join("tests", "res", "configs", "train_config_sample.yaml"), "r"
     ) as f:

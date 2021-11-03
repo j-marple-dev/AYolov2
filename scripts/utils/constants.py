@@ -4,7 +4,10 @@
 - Contact: limjk@jmarple.ai
 """
 
+import inspect
 import logging
+import random
+from typing import Any, Callable
 
 import numpy as np
 
@@ -140,3 +143,52 @@ PLOT_COLOR = tuple(
         ),
     )
 )
+
+"""Unit test probability.
+You can control global unit test probability by this variable.
+"""
+P_TEST = 0.5
+
+
+def probably_run(p: float = P_TEST) -> Callable:
+    """Run with probability (Decorator).
+
+    Priority of probability to run is as follow.
+
+    1. function(p=0.5)
+    2. def function(p=0.5)
+    3. @probably_run(p=0.5)
+    4. @probably_run()  (Default p=0.5)
+
+    The function does not necessarily to have p argument.
+    You can simply define the function as
+
+    def function():
+        ...
+
+    In this case, @probably_run(p=0.5) is used..
+
+    Args:
+        p: probability to run the function.
+    """
+
+    def decorator(function: Callable) -> Callable:
+        """Wrap decorator function."""
+
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            """Wrap function."""
+            prob = p
+            default_p = inspect.signature(function).parameters.get("p", None)
+            if default_p is not None:
+                prob = default_p.default
+
+            prob = kwargs.get("p", prob)
+
+            if random.random() > prob:
+                return
+
+            return function(*args, **kwargs)
+
+        return wrapper
+
+    return decorator

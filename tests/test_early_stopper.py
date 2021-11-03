@@ -5,13 +5,12 @@
 """
 import random
 
+from scripts.utils.constants import probably_run
 from scripts.utils.torch_utils import EarlyStopping
 
 
+@probably_run()
 def test_early_stopper(p: float = 0.5):
-    if random.random() > p:
-        return
-
     stopper = EarlyStopping(patience=10)
 
     for i in range(20):

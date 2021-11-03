@@ -4,20 +4,25 @@
 - Contact: limjk@jmarple.ai
 """
 
+import json
 import math
+import os
 import time
 import warnings
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torchvision
+from tabulate import tabulate
+from tqdm import tqdm
 
 from scripts.utils.general import xywh2xyxy
 from scripts.utils.logger import get_logger
-from scripts.utils.plot_utils import plot_mc_curve, plot_pr_curve
+from scripts.utils.plot_utils import draw_labels, plot_mc_curve, plot_pr_curve
 
 LOGGER = get_logger(__name__)
 
@@ -294,7 +299,7 @@ def non_max_suppression(
         conf_thres: confidence threshold.
         iou_thres: IoU threshold.
         classes: Debug purpose to save both ground truth label and predicted result.
-        agnostic: single class or not.
+        agnostic: Separate bboxes by classes for NMS with class separation.
         multi_label: multiple labels per box.
         labels: labels.
         max_det: maximum number of detected objects by model.
@@ -499,3 +504,329 @@ def ap_per_class(
 
     i = f1.mean(0).argmax()  # max F1 index
     return p[:, i], r[:, i], ap, f1[:, i], unique_classes.astype("int32")
+
+
+def check_correct_prediction_by_iou(
+    detections: torch.Tensor,
+    labels: torch.Tensor,
+    iou_s: float = 0.5,
+    iou_e: float = 0.95,
+    iou_step: float = 0.05,
+) -> torch.Tensor:
+    """Return correct predictions of matrix by IoU.
+
+    Both sets of boxes are in (x1, y1, x2, y2) format.
+
+    Args:
+        detections (Array[N, 6]), x1, y1, x2, y2, conf, class
+        labels (Array[M, 5]), class, x1, y1, x2, y2
+        iou_s: start of IoU check value.
+        iou_e: end of IoU check value.
+        iou_step: step of IoU check value.
+            i.e. (iou_s, iou_e, iou_step) = (0.5, 0.95, 0.05)
+                --> torch.arange(iou_s, iou_e + iou_step, iou_step)
+                    --> (0.5, 0.55, 0.60, 0.65, ..., 0.85, 0.90, 0.95)
+
+    Returns:
+        correct (Array[N, 10]), for 10 IoU levels
+    """
+    device = detections.device
+
+    iouv = torch.arange(iou_s, iou_e + iou_step, iou_step, device=device)
+
+    iou = box_iou(labels[:, 1:], detections[:, :4])
+
+    correct = torch.zeros(
+        (detections.shape[0], iouv.shape[0]), dtype=torch.bool, device=device
+    )
+    matched = torch.where((iou >= iouv[0]) & (labels[:, 0:1] == detections[:, 5]))
+    if matched[0].shape[0] > 0:
+        matches = (
+            torch.cat(
+                (torch.stack(matched, 1), iou[matched[0], matched[1]][:, None]), 1
+            )
+            .cpu()
+            .numpy()
+        )
+        matches = matches[matches[:, 2].argsort()[::-1]]
+        matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+
+        matches = torch.Tensor(matches, device=device)
+
+        correct[matches[:, 1].long()] = matches[:, 2:3] > iouv
+
+    return correct
+
+
+class COCOmAPEvaluator:
+    """COCO mAP evaluator with json file."""
+
+    def __init__(
+        self,
+        gt_path: str,
+        img_root: Optional[str] = None,
+        export_root: Optional[str] = None,
+    ) -> None:
+        """Initialize COCOmAPEvaluator.
+
+        Args:
+            gt_path: ground truth annotation path.
+                (Usually, a path of 'instances_val2017.json')
+            img_root: image root directory for ground truth annotation.
+                (This is only necessary for debug purpose.)
+            export_root: export inference result root directory.
+                (This is only necessary for debug purpose.)
+        """
+        with open(gt_path, "r") as f:
+            self.gt_labels = json.load(f)
+
+        self.fix_label = {
+            category["id"]: i for i, category in enumerate(self.gt_labels["categories"])
+        }
+        self.names = [category["name"] for category in self.gt_labels["categories"]]
+        self.unique_img_id = set(
+            [annot["image_id"] for annot in self.gt_labels["annotations"]]
+        )
+        self.gt: Dict[int, List] = {img_id: [] for img_id in self.unique_img_id}
+
+        for gt_label in self.gt_labels["annotations"]:
+            self.gt[gt_label["image_id"]].append(
+                {k: gt_label[k] for k in ["image_id", "bbox", "category_id"]}
+            )
+
+        self.img_sizes = {
+            gt_label["id"]: (gt_label["height"], gt_label["width"])
+            for gt_label in self.gt_labels["images"]
+        }
+        self.img_root = img_root
+        self.export_root = export_root
+
+        if self.export_root is not None:
+            os.makedirs(self.export_root, exist_ok=True)
+
+    def evaluate(self, label_path: str, debug: bool = False) -> Dict[str, Any]:
+        """Evaulate mAP value from JSON file.
+
+        Args:
+            label_path: label .json file path. The JSON file should be as below.
+                [
+                    {
+                        "image_id": IMAGE_ID(int),
+                        "category_id": CATEGORY_ID(int),
+                        "bbox": [CX, CY, WIDTH, HEIGHT],
+                        "score": CONFIDENCE
+                    },
+                    ...
+                ]
+            debug: debug flag to plot or save the inference result.
+                If self.img_root and self.export_root is given,
+                the inference result will be saved.
+                Otherwise it will be plotted.
+
+        Return:
+            Dictionary of the result.
+
+            {
+                "p": precision,
+                "r": recall,
+                "ap": ap,
+                "ap50": ap50,
+                "f1": f1,
+                "mp": mp,
+                "mr": mr,
+                "map50": map50,
+                "map50_95": map50_95,
+                "target_histogram": target_histogram,
+                "names": self.names,
+            }
+        """
+        with open(label_path, "r") as f:
+            preds = json.load(f)
+
+        corrects = []
+        unique_img_id = set([pred["image_id"] for pred in preds])
+        labels: Dict[int, List] = {img_id: [] for img_id in unique_img_id}
+        for pred in preds:
+            labels[pred["image_id"]].append(pred)
+
+        img_ids = set(list(self.unique_img_id) + list(unique_img_id))
+        # img_ids = unique_img_id
+
+        confusion_matrix = ConfusionMatrix(nc=len(self.names))
+
+        for img_id in tqdm(img_ids, "Compute score ..."):
+            if img_id not in unique_img_id:
+                label_pred = torch.zeros(0, 6)
+            else:
+                label_pred = torch.tensor(
+                    [
+                        [*label["bbox"], label["score"], label["category_id"]]
+                        for label in labels[img_id]
+                    ]
+                )
+                label_pred[:, :4] = xywh2xyxy(label_pred[:, :4])
+
+            if img_id not in self.unique_img_id:
+                label_gt = torch.zeros(0, 5)
+            else:
+                label_gt = torch.tensor(
+                    [
+                        [self.fix_label[label["category_id"]], *label["bbox"]]
+                        for label in self.gt[img_id]
+                    ]
+                )
+
+                label_gt[:, 3:5] += label_gt[:, 1:3]  # COCO xy is at top-left point.
+
+            correct = check_correct_prediction_by_iou(label_pred, label_gt)
+            corrects.append(
+                (correct, label_pred[:, 4], label_pred[:, 5], label_gt[:, 0])
+            )
+
+            confusion_matrix.process_batch(label_pred, label_gt)  # type: ignore
+
+            if debug:
+                self._draw_result(img_id, label_pred, label_gt)
+
+        if self.export_root is not None:
+            confusion_matrix.plot(self.names, save_dir=self.export_root)
+
+        corrects_np = [np.concatenate(x, 0) for x in zip(*corrects)]
+        precision, recall, ap, f1, ap_class = ap_per_class(
+            corrects_np[0],
+            corrects_np[1],
+            corrects_np[2],
+            corrects_np[3],
+            plot=(self.export_root is not None),
+            save_dir=(self.export_root if self.export_root is not None else ""),
+            names=self.names,
+        )
+        ap50, ap = ap[:, 0], ap.mean(1)  # type: ignore
+        mp, mr, map50, map50_95 = (
+            precision.mean(),
+            recall.mean(),
+            ap50.mean(),
+            ap.mean(),
+        )
+        target_histogram = np.bincount(
+            corrects_np[3].astype(np.int64), minlength=len(self.names)
+        )
+
+        result = {
+            "p": precision,
+            "r": recall,
+            "ap": ap,
+            "ap50": ap50,
+            "f1": f1,
+            "mp": mp,
+            "mr": mr,
+            "map50": map50,
+            "map50_95": map50_95,
+            "target_histogram": target_histogram,
+            "names": self.names,
+        }
+
+        self.print_result(result)
+
+        return result
+
+    @staticmethod
+    def print_result(result: Dict) -> None:
+        """Print result dictionary with tabulate.
+
+        Args:
+            result: result dictionary generated by self.evaluate
+        """
+        result_by_class = np.stack(
+            (
+                result["target_histogram"],
+                result["p"],
+                result["r"],
+                result["f1"],
+                result["ap50"],
+                result["ap"],
+            ),
+            1,
+        )
+        result_by_all = np.array(
+            [
+                result["target_histogram"].sum(),
+                result["mp"],
+                result["mr"],
+                result["f1"].mean(),
+                result["map50"],
+                result["map50_95"],
+            ]
+        )
+        names = np.array(result["names"] + ["all"])
+
+        contents = np.concatenate(
+            (names[:, None], np.vstack((result_by_class, result_by_all))), 1
+        )
+        LOGGER.info(
+            "\n"
+            + tabulate(
+                contents,
+                headers=["name", "n_targets", "P", "R", "F1", "mAP50", "mAP50:95"],
+                tablefmt="github",
+            )
+        )
+
+    def _draw_result(
+        self, img_id: int, label_pred: torch.Tensor, label_gt: torch.Tensor
+    ) -> None:
+        """Draw or save inference result.
+
+        Args:
+            img_id: image id for label and ground truth.
+            label_pred: prediction result (n, 6)
+            label_gt: ground truth label (n, 5)
+        """
+        if self.img_root is None:
+            return
+
+        img_name = f"{img_id:012d}.jpg"
+        img_path = os.path.join(self.img_root, img_name)
+
+        if not os.path.isfile(img_path):
+            return
+
+        img = cv2.imread(img_path)
+
+        img_pred = draw_labels(
+            img.copy(),
+            np.concatenate((label_pred[:, 5:6], label_pred[:, :4]), 1),
+            {i: self.names[i] for i in range(len(self.names))},
+            norm_xywh=False,
+        )
+        img_gt = draw_labels(
+            img.copy(),
+            np.concatenate((label_gt[:, 0:1], label_gt[:, 1:]), 1),
+            {i: self.names[i] for i in range(len(self.names))},
+            norm_xywh=False,
+        )
+
+        img_merge = np.concatenate(
+            (
+                img_pred,
+                np.full(
+                    (img_gt.shape[0], int(img_gt.shape[1] * 0.03), 3),
+                    127,
+                    dtype=np.uint8,
+                ),
+                img_gt,
+            ),
+            1,
+        )
+
+        if self.export_root is not None:
+            if self.export_root == self.img_root:
+                LOGGER.warn(
+                    "Export and image root directory is same! Skip saving the result."
+                )
+            else:
+                export_path = os.path.join(self.export_root, img_name)
+                cv2.imwrite(export_path, img_merge)
+        else:
+            cv2.imshow("result", img_merge)
+            cv2.waitKey(0)

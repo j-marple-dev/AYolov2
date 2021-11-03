@@ -5,12 +5,12 @@
 """
 
 import abc
-import json
 from pathlib import Path
 from queue import Empty
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
+import orjson
 import torch
 from torch.multiprocessing import Process, Queue
 
@@ -159,15 +159,16 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
                      (padding pixel(width, height)))))
         """
         for i in range(len(names)):
-            bbox = outputs[i][:, :4] if outputs[i] is not None else None
-            shape = None if shapes is None else shapes[i]
-            scaled_bbox = self.scale_coords(img_size, bbox, shape)
+            if outputs[i] is None:
+                scaled_bbox, conf = None, None
+            else:
+                bbox, conf = outputs[i][:, :4], outputs[i][:, 4:]
+                if shapes is not None:
+                    scaled_bbox = self.scale_coords(img_size, bbox, shapes[i])
+                    scaled_bbox = xyxy2xywh(scaled_bbox, check_validity=False)
+                else:
+                    scaled_bbox = bbox
 
-            # Normalize and xyxy to xywh
-            if shape is not None:
-                scaled_bbox = xyxy2xywh(scaled_bbox, check_validity=False)
-
-            conf = outputs[i][:, 4:] if outputs[i] is not None else None
             self.add_predicted_box(names[i], scaled_bbox, conf)
 
     def add_predicted_box(
@@ -190,7 +191,6 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
             return
         self.seen_paths.add(path)
 
-        # TODO(jeikeilim): Make xyxy to xywh option.
         if bboxes is None or confs is None:
             objects = []
         else:
@@ -206,27 +206,14 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
 
         self.total_container.extend(objects)
 
-    # def filter_small_box(self):
-    #     for i, annot in enumerate(self.total_container['annotations']):
-    #         obj_candidate = []
-    #         for j, obj_annot in enumerate(annot['objects']):
-    #             pos = np.array(obj_annot['position'])
-    #             w = np.diff(pos[0::2])
-    #             h = np.diff(pos[1::2])
-    #             if w >= 32 and h >= 32:
-    #                 obj_candidate.append(obj_annot)
-
-    #         self.total_container['annotations'][i]['objects'] = obj_candidate
-
     def to_json(self, filepath: str) -> None:
         """Save result with json format.
 
         Args:
             filepath: filepath to save the result.
         """
-        # self.filter_small_box()
-        with open(filepath, "w") as f:
-            json.dump(self.total_container, f)
+        with open(filepath, "wb") as f:
+            f.write(orjson.dumps(self.total_container))
 
 
 class ResultWriterTorch(ResultWriterBase):

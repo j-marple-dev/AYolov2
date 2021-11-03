@@ -299,7 +299,7 @@ def non_max_suppression(
         conf_thres: confidence threshold.
         iou_thres: IoU threshold.
         classes: Debug purpose to save both ground truth label and predicted result.
-        agnostic: single class or not.
+        agnostic: Separate bboxes by classes for NMS with class separation.
         multi_label: multiple labels per box.
         labels: labels.
         max_det: maximum number of detected objects by model.

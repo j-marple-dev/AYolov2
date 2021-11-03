@@ -16,8 +16,9 @@ from tqdm import tqdm
 from scripts.data_loader.data_loader import LoadImages
 from scripts.utils.general import TimeChecker
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.metrics import COCOmAPEvaluator, non_max_suppression
+from scripts.utils.metrics import COCOmAPEvaluator
 from scripts.utils.multi_queue import ResultWriterTorch
+from scripts.utils.nms import batched_nms
 from scripts.utils.torch_utils import (count_param, load_pytorch_model,
                                        select_device)
 from scripts.utils.wandb_utils import load_model_from_wandb
@@ -67,6 +68,18 @@ def get_parser() -> argparse.Namespace:
     )
     parser.add_argument(
         "-it", "--iou-t", type=float, default=0.65, help="IoU threshold."
+    )
+    parser.add_argument(
+        "--nms-box",
+        type=int,
+        default=500,
+        help="Number of boxes to use before check confidecne threshold.",
+    )
+    parser.add_argument(
+        "--agnostic",
+        action="store_true",
+        default=False,
+        help="Separate bboxes by classes for NMS with class separation.",
     )
     parser.add_argument(
         "--rect",
@@ -200,10 +213,13 @@ if __name__ == "__main__":
         enumerate(val_loader), "Inference ...", total=len(val_loader)
     ):
         out = model(img.to(device, non_blocking=True))[0]
-
         # TODO(jeikeilim): Find better and faster NMS method.
-        outputs = non_max_suppression(
-            out, conf_thres=args.conf_t, iou_thres=args.iou_t, multi_label=True
+        outputs = batched_nms(
+            out,
+            conf_thres=args.conf_t,
+            iou_thres=args.iou_t,
+            nms_box=args.nms_box,
+            agnostic=args.agnostic,
         )
         result_writer.add_outputs(path, outputs, img.shape[2:4], shapes=shape)
     time_checker.add("Inference")

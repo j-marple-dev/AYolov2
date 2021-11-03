@@ -1,8 +1,7 @@
 img_width:  # image width search space with categorical
-  # - 320
-  # - 480
-  - 640
-  - 1280
+  low: 480
+  high: 1280
+  step: 10
 
 iou_thr:  # iou threshold search space
   low: 0.

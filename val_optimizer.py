@@ -67,8 +67,8 @@ class Objective:
 
     def get_param(self, trial: optuna.trial.Trial) -> None:
         """Get hyper params."""
-        self.cfg["train"]["img_size"] = trial.suggest_categorical(
-            "img_width", self.optim_cfg["img_width"]
+        self.cfg["train"]["img_size"] = trial.suggest_int(
+            "img_width", **self.optim_cfg["img_width"]
         )
         self.cfg["hyper_params"]["conf_t"] = trial.suggest_float(
             "conf_thr", **self.optim_cfg["conf_thr"]

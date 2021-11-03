@@ -121,11 +121,11 @@ if __name__ == "__main__":
             f"Load model from {args.teacher} with config {args.teacher_cfg if args.teacher_cfg != '' else 'None'} has failed."
         )
         exit(1)
-    if not stride_size == int(max(teacher.stride)):
+    if stride_size != int(max(teacher.stride)):  # type: ignore
         LOGGER.error("Teacher and Student have different strides.")
         exit(1)
     # Freeze teacher weights
-    for _, v in teacher.model.named_parameters():
+    for _, v in teacher.model.named_parameters():  # type: ignore
         v.requires_grad = False
 
     # Create Dataloaders

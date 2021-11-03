@@ -359,32 +359,40 @@ class SoftTeacherTrainer(AbstractTrainer):
         )
 
         if not self.augment:
-            # TODO(hsshin) implement this case
-            return None
-
-        # Strong augmented imgs and labels
-        augmented_imgs = []
-        augmented_cls_id_bboxes = []
-        imgs_np = imgs.cpu().numpy()
-        imgs_np = (255 * imgs_np).astype(np.uint8)
-        imgs_np = imgs_np.transpose((0, 2, 3, 1))  # (batch, H, W, C)
-        for idx, (img, cls_ids_bboxes) in enumerate(zip(imgs_np, labels_yolo)):
-            augmented_img, cls_id_bboxes = self.augment(img, cls_ids_bboxes)
-            augmented_imgs.append(augmented_img)
-            # add `batch idx` column
-            batch_ids = np.array([idx] * len(cls_id_bboxes))
-            augmented_cls_id_bboxes.append(
-                np.hstack([batch_ids[:, np.newaxis], cls_id_bboxes])
+            bat_ids_cls_ids_bboxes: List[np.ndarray] = []
+            for idx, cls_ids_bboxes in enumerate(labels_yolo):
+                batch_ids = np.array([idx] * len(cls_ids_bboxes))
+                bat_ids_cls_ids_bboxes(
+                    np.hstack([batch_ids[:, np.newaxis], cls_ids_bboxes])
+                )
+            total_bat_ids_cls_ids_bboxes: np.ndarray = np.vstack(bat_ids_cls_ids_bboxes)
+        else:
+            # Strong augmented imgs and labels
+            augmented_cls_id_bboxes: List[np.ndarray] = []
+            augmented_imgs: List[np.ndarray] = []
+            imgs_np = imgs.cpu().numpy()
+            imgs_np = (255 * imgs_np).astype(np.uint8)
+            imgs_np = imgs_np.transpose((0, 2, 3, 1))  # (batch, H, W, C)
+            for idx, (img, cls_ids_bboxes) in enumerate(zip(imgs_np, labels_yolo)):
+                augmented_img, cls_id_bboxes = self.augment(img, cls_ids_bboxes)
+                augmented_imgs.append(augmented_img)
+                # add `batch idx` column
+                batch_ids = np.array([idx] * len(cls_id_bboxes))
+                augmented_cls_id_bboxes.append(
+                    np.hstack([batch_ids[:, np.newaxis], cls_id_bboxes])
+                )
+            imgs_np = (
+                np.stack(augmented_imgs, axis=0)
+                .transpose((0, 3, 1, 2))
+                .astype(np.float32)
+            )
+            imgs_np /= 255.0
+            imgs = torch.Tensor(imgs_np)
+            total_bat_ids_cls_ids_bboxes: np.ndarray = np.vstack(
+                augmented_cls_id_bboxes
             )
 
-        batch_imgs = (
-            np.stack(augmented_imgs, axis=0).transpose((0, 3, 1, 2)).astype(np.float32)
-        )
-        batch_imgs /= 255.0
-        batch_imgs = torch.Tensor(batch_imgs)
-        batch_cls_id_bboxes = np.vstack(augmented_cls_id_bboxes)
-        batch_cls_id_bboxes = torch.Tensor(batch_cls_id_bboxes)
-
+        labels = torch.Tensor(total_bat_ids_cls_ids_bboxes)
         if self.debug:
             # plot images.
             f_name = os.path.join(self.log_dir, "strong_augmented_batch.jpg",)
@@ -397,7 +405,7 @@ class SoftTeacherTrainer(AbstractTrainer):
             LOGGER.info(f"Strong augmented image is saved in {f_name}")
             self.debug = False
 
-        return batch_imgs, batch_cls_id_bboxes
+        return imgs, labels
 
     def prepare_labels_for_augmention(
         self, preds: List[torch.Tensor], thr: float = 0.0, min_size: float = 0.0
@@ -415,6 +423,9 @@ class SoftTeacherTrainer(AbstractTrainer):
                 thr=thr,
                 min_size=min_size,
             )
+            if len(bbox) == 0:
+                cls_ids_bboxes.append(np.zeros(0, 5))
+                continue
             cls_ids = label.cpu().numpy()
             bboxes = bbox.cpu().numpy()
             # Transform to normal coord (for Albumentation yolo format)
@@ -424,7 +435,7 @@ class SoftTeacherTrainer(AbstractTrainer):
             # Transform to YOLO format (xyxy > xywh)
             bboxes = xyxy2xywh(bboxes)
 
-            cls_ids_bboxes.append(np.hstack([cls_ids[:, np.newaxis], bboxes]))
+            cls_ids_bboxes.append(np.hstack([cls_ids[:, np.newaxis], bboxes]))  # (n, 5)
 
         return cls_ids_bboxes
 
@@ -435,7 +446,7 @@ class SoftTeacherTrainer(AbstractTrainer):
         score: Optional[torch.Tensor] = None,
         thr: float = 0.0,
         min_size: float = 0,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Filter out invalid bboxes."""
         if score is not None:
             valid = score > thr

@@ -1,0 +1,12 @@
+img_width:  # image width search space with categorical
+  low: 480
+  high: 1280
+  step: 10
+
+iou_thr:  # iou threshold search space
+  low: 0.
+  high: 1.
+
+conf_thr:  # confidence threshold search space
+  low: 0.
+  high: 1.

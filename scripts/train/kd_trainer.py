@@ -31,6 +31,7 @@ from scripts.utils.plot_utils import plot_images
 from scripts.utils.train_utils import YoloValidator
 
 LOGGER = get_logger(__name__)
+DEVICE = torch.device("cpu")
 
 
 class SoftTeacherTrainer(AbstractTrainer):
@@ -51,6 +52,7 @@ class SoftTeacherTrainer(AbstractTrainer):
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
         wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
+        teacher_device: torch.device = DEVICE,
     ) -> None:
         """Initialize Soft Teacher trainer class."""
         super().__init__(
@@ -67,9 +69,12 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.debug = True
 
         # self.teacher = teacher.to(self.device).eval()
-        self.teacher = teacher.to(torch.device("cuda:1"))
+        self.teacher_device = teacher_device
+        self.teacher = teacher.to(self.teacher_device).eval()
         self.unlabeled_dataloader = unlabeled_dataloader
-        self.unlabeled_iterator = iter(unlabeled_dataloader)
+        # TODO(hsshin): shuffling does not work. fix it.
+        # self.unlabeled_dataloader.dataset.shuffle()
+        self.unlabeled_iterator = iter(self.unlabeled_dataloader)
 
         self.best_score = 0.0
         self.mloss: torch.Tensor  # mean loss
@@ -357,6 +362,7 @@ class SoftTeacherTrainer(AbstractTrainer):
                 weak_augmented_batch = next(self.unlabeled_iterator)
                 break
             except StopIteration:
+                # self.unlabeled_dataloader.dataset.shuffle()
                 self.unlabeled_iterator = iter(self.unlabeled_dataloader)
                 weak_augmented_batch = next(self.unlabeled_iterator)
                 break
@@ -366,7 +372,7 @@ class SoftTeacherTrainer(AbstractTrainer):
 
         imgs, _, paths, _ = weak_augmented_batch  # img, labels, paths, shapes
         # imgs = self.prepare_img(imgs)
-        imgs = imgs.to(torch.device("cuda:1")) / 255.0
+        imgs = imgs.to(self.teacher_device) / 255.0
         teacher_predicts_aggregated, _ = self.teacher(imgs)
 
         preds_after_nms = non_max_suppression(

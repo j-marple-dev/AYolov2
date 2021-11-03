@@ -37,6 +37,12 @@ def get_parser() -> argparse.Namespace:
         help="Model config file path",
     )
     parser.add_argument(
+        "--resume",
+        type=str,
+        default="",
+        help="Model weight filepath or wandb runpath to resume the train.",
+    )
+    parser.add_argument(
         "--teacher", type=str, help="Teacher model checkpoint file path",
     )
     parser.add_argument(
@@ -57,7 +63,15 @@ def get_parser() -> argparse.Namespace:
         default=os.path.join("res", "configs", "cfg", "train_config.yaml"),
         help="Training config file path",
     )
-    parser.add_argument("--device", type=str, default="0", help="GPU device id.")
+    parser.add_argument(
+        "--device", type=str, default="0", help="GPU device id for Student model."
+    )
+    parser.add_argument(
+        "--teacher_device",
+        type=str,
+        default="1",
+        help="GPU device id for Teacher model.",
+    )
     parser.add_argument(
         "--wlog", action="store_true", default=False, help="Use Wandb logger."
     )
@@ -79,11 +93,8 @@ if __name__ == "__main__":
     with open(args.cfg, "r") as f:
         train_cfg = yaml.safe_load(f)
 
-    if args.model.endswith(".pt"):
-        model_cfg = args.model
-    else:
-        with open(args.model, "r") as f:
-            model_cfg = yaml.safe_load(f)
+    with open(args.model, "r") as f:
+        model_cfg = yaml.safe_load(f)
 
     # WanDB Logger
     wandb_run = None
@@ -96,17 +107,17 @@ if __name__ == "__main__":
         config_fps = [args.data, args.cfg]
         for fp in config_fps:
             wandb_run.save(fp, base_path=os.path.dirname(fp), policy="now")
+
     # Load models
-    if isinstance(model_cfg, dict):
-        model = YOLOModel(model_cfg, verbose=True)
+    if args.resume.endswith(".pt"):
+        model = load_pytorch_model(args.resume, args.model)
+        LOGGER.info(f"Load model from {args.resume}")
+    elif args.resume:
+        model = load_model_from_wandb(args.resume)
+        LOGGER.info(f"Load model from {args.resume}")
     else:
-        ckpt = torch.load(model_cfg)
-        if isinstance(ckpt, nn.Module):
-            model = ckpt.float()
-        elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
-            model = ckpt["ema"].float()
-        else:
-            model = ckpt["model"].float()
+        model = YOLOModel(model_cfg, verbose=True)
+        LOGGER.info("Initialized model")
     stride_size = int(max(model.stride))  # type: ignore
 
     # Load teacher model
@@ -114,7 +125,7 @@ if __name__ == "__main__":
     if not args.teacher:
         teacher = None
     elif args.teacher.endswith(".pt"):
-        teacher = load_pytorch_model(args.weights, args.teacher_cfg)
+        teacher = load_pytorch_model(args.teacher, args.teacher_cfg)
     else:  # load model from wandb
         teacher = load_model_from_wandb(args.teacher)
     if teacher is None:
@@ -150,7 +161,10 @@ if __name__ == "__main__":
     # TODO(hsshin): revisit here
     device_id = "cpu" if args.device.lower() == "cpu" else f"cuda:{args.device}"
     device = torch.device(device_id)
-    # device = select_device(args.device)
+    teacher_device_id = (
+        "cpu" if args.teacher_device.lower() == "cpu" else f"cuda:{args.teacher_device}"
+    )
+    teacher_device = torch.device(teacher_device_id)
     wdir = Path(os.path.join("exp", "weights"))
 
     # student
@@ -174,5 +188,6 @@ if __name__ == "__main__":
         device,
         log_dir=args.log_dir,
         wandb_run=wandb_run,
+        teacher_device=teacher_device,
     )
     trainer.train()

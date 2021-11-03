@@ -100,12 +100,13 @@ strong_augmentation:
       Solarize: {p: 0.25}
       RandomBrightnessContrast: {p: 0.25}
       Sharpen: {p: 0.25}
-      CoarseCutout: {max_holes: 5, max_h_size: 128, max_w_size: 128, p: 1}
+      Cutout: {num_holes: 1, max_h_size: 128, max_w_size: 128, p: 0.5}
     prob: 1.0
   - policy:
       Affine:
         scale: [0.5, 1.5]
         p: 0.3
+      Cutout: {num_holes: 1, max_h_size: 128, max_w_size: 128, p: 0.5}
     prob: 1.0
   - policy:
       Affine:
@@ -113,14 +114,17 @@ strong_augmentation:
           x: [0, 0.1]
           y: [0, 0.1]
         p: 0.3
+      Cutout: {num_holes: 1, max_h_size: 128, max_w_size: 128, p: 0.5}
     prob: 1.0
   - policy:
       Affine:
         rotate: [-30, 30]
         p: 0.3
+      Cutout: {num_holes: 1, max_h_size: 128, max_w_size: 128, p: 0.5}
     prob: 1.0
   - policy:
       Affine:
         shear: [-30, 30]
         p: 0.3
+      Cutout: {num_holes: 1, max_h_size: 128, max_w_size: 128, p: 0.5}
     prob: 1.0

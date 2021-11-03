@@ -400,6 +400,7 @@ class TimeChecker:
         ignore_thr: float = 0.05,
         sort: bool = True,
         add_start: bool = True,
+        cuda_sync: bool = False,
     ) -> None:
         """Initialize TimeChecker class.
 
@@ -410,6 +411,7 @@ class TimeChecker:
             add_start: auto add start time
                        TimeChecker requires at least two time checks.
                        The first time will always be used as the start time.
+            cuda_sync: Use cuda synchronized time.
         """
         self.times: Dict[str, List[float]] = dict()
         self.name_idx: Dict[str, int] = dict()
@@ -418,6 +420,7 @@ class TimeChecker:
         self.title = title
         self.ignore_thr = ignore_thr
         self.sort = sort
+        self.cuda_sync = cuda_sync
 
         if add_start:
             self.add("start")
@@ -444,6 +447,10 @@ class TimeChecker:
 
     def add(self, name: str) -> None:
         """Add time point."""
+        if self.cuda_sync:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
         if name not in self.name_idx:
             self.name_idx[name] = len(self.times)
             self.idx_name.append(name)

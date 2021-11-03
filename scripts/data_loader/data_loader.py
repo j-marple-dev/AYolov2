@@ -147,6 +147,16 @@ class LoadImages(Dataset):
                 pbar.desc = f"{prefix}Caching images ({gb / 1E9:.1f}GB {cache_images})"
             pbar.close()
 
+    def shuffle(self) -> None:
+        """Shufle image indices for random image order."""
+        indices = np.arange(0, self.n_img)
+        random.shuffle(indices)
+        self.indices = indices
+
+    def no_shuffle(self) -> None:
+        """Un-shufle image indices for original order."""
+        self.indices = range(self.n_img)
+
     def _get_shapes(self) -> np.ndarray:
         def __get_img_shape(_path: str) -> Tuple[int, int]:
             _err_msg = ""

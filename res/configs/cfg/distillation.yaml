@@ -2,7 +2,7 @@ train:
   weights: ''  # Model weight path
   data: ''  # data config path
   epochs: 300
-  batch_size: 32
+  batch_size: 16
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training

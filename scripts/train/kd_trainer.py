@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 import math
 import os
+import threading
+import time
 from copy import deepcopy
 
 import numpy as np
@@ -64,7 +66,8 @@ class SoftTeacherTrainer(AbstractTrainer):
         # TODO(hsshin): ad-hoc attribute for debugging
         self.debug = True
 
-        self.teacher = teacher.to(self.device).eval()
+        # self.teacher = teacher.to(self.device).eval()
+        self.teacher = teacher.to(torch.device("cuda:1"))
         self.unlabeled_dataloader = unlabeled_dataloader
         self.unlabeled_iterator = iter(unlabeled_dataloader)
 
@@ -99,6 +102,8 @@ class SoftTeacherTrainer(AbstractTrainer):
         self.conf_thr: float = 0.9
         self.bbox_size_thr: float = 20
 
+        self.pseudo_buffer: List[Tuple[torch.Tensor, torch.Tensor]] = []
+
         if self.val_dataloader is not None:
             self.validator = YoloValidator(
                 self.model, self.val_dataloader, self.device, cfg, log_dir=self.log_dir,
@@ -127,26 +132,39 @@ class SoftTeacherTrainer(AbstractTrainer):
         if num_integrated_batches <= self.num_warmups:
             self.warmup(num_integrated_batches, epoch)
 
+        # Parallel batch preparation for pseudo label and image.
+        thread1 = threading.Thread(target=self.get_pseudo_labeled_batch,)
+
+        if len(self.pseudo_buffer) < 3:
+            thread1.start()
+
+        # unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
+        if len(self.pseudo_buffer) == 0:
+            threading.Thread(target=self.get_pseudo_labeled_batch,).start()
+            thread1.join()  # Wait until the buffer has at least one data.
+
+        # Take pseudo image and label in pseudo_buffer.
+        unlabeled_imgs, pseudo_labels = self.pseudo_buffer.pop(0)
+
         # compute loss for labeled data
         imgs, labels, _, _ = batch
+        batch_size = imgs.shape[0]
         imgs = self.prepare_img(imgs)
 
-        labels = labels.to(self.device)
-        pred = self.model(imgs)
-        loss, loss_items = self.loss(pred, labels)
+        imgs = torch.cat((imgs, unlabeled_imgs.to(self.device)))
 
-        # compute loss for pseudo-labeled data
-        unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
-        # LOGGER.info(f"# Pseudo-labeled images: {len(unlabeled_imgs)}")
-        pseudo_pred = self.model(unlabeled_imgs.to(self.device))
+        pred = self.model(imgs)
+
+        pred_origin = [pred[i][:batch_size] for i in range(len(pred))]
+        pred_pseudo = [pred[i][batch_size:] for i in range(len(pred))]
+
+        loss, loss_items = self.loss(pred_origin, labels.to(self.device))
         pseudo_loss, pseudo_loss_items = self.loss(
-            pseudo_pred, pseudo_labels.to(self.device)
+            pred_pseudo, pseudo_labels.to(self.device)
         )
 
         # total loss as a weighted sum
         total_loss = loss + self.pseudo_loss_weight * pseudo_loss
-
-        # backward
         total_loss.backward()
 
         # Optimize
@@ -155,10 +173,10 @@ class SoftTeacherTrainer(AbstractTrainer):
                 optimizer.step()
                 optimizer.zero_grad()
 
-        # TODO(ulken94): Log intermediate results to wandb. And then, remove noqa.
-        self.print_intermediate_results(  # noqa
-            loss_items, labels.shape, imgs.shape, epoch, batch_idx
-        )
+        # # TODO(ulken94): Log intermediate results to wandb. And then, remove noqa.
+        # self.print_intermediate_results(  # noqa
+        #     loss_items, labels.shape, imgs.shape, epoch, batch_idx
+        # )
 
         self.log_dict({"step_loss": total_loss[0].item()})
 
@@ -334,14 +352,21 @@ class SoftTeacherTrainer(AbstractTrainer):
     def get_pseudo_labeled_batch(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """Construct pseudo-labels using the prediction of teacher."""
         # TODO: implement `get_batch` method for unlabeled dataset
-        try:
-            weak_augmented_batch = next(self.unlabeled_iterator)
-        except StopIteration:
-            self.unlabeled_iterator = iter(self.unlabeled_dataloader)
-            weak_augmented_batch = next(self.unlabeled_iterator)
+        while True:
+            try:
+                weak_augmented_batch = next(self.unlabeled_iterator)
+                break
+            except StopIteration:
+                self.unlabeled_iterator = iter(self.unlabeled_dataloader)
+                weak_augmented_batch = next(self.unlabeled_iterator)
+                break
+            except ValueError:
+                time.sleep(0.1)  # Wait until another thread has finished next()
+                continue
 
         imgs, _, paths, _ = weak_augmented_batch  # img, labels, paths, shapes
-        imgs = self.prepare_img(imgs)
+        # imgs = self.prepare_img(imgs)
+        imgs = imgs.to(torch.device("cuda:1")) / 255.0
         teacher_predicts_aggregated, _ = self.teacher(imgs)
 
         preds_after_nms = non_max_suppression(
@@ -358,7 +383,7 @@ class SoftTeacherTrainer(AbstractTrainer):
             bat_ids_cls_ids_bboxes: List[np.ndarray] = []
             for idx, cls_ids_bboxes in enumerate(labels_yolo):
                 batch_ids = np.array([idx] * len(cls_ids_bboxes))
-                bat_ids_cls_ids_bboxes(
+                bat_ids_cls_ids_bboxes.append(
                     np.hstack([batch_ids[:, np.newaxis], cls_ids_bboxes])
                 )
             total_bat_ids_cls_ids_bboxes: np.ndarray = np.vstack(bat_ids_cls_ids_bboxes)
@@ -366,8 +391,8 @@ class SoftTeacherTrainer(AbstractTrainer):
             # Strong augmented imgs and labels
             augmented_cls_id_bboxes: List[np.ndarray] = []
             augmented_imgs: List[np.ndarray] = []
-            imgs_np = imgs.cpu().numpy()
-            imgs_np = (255 * imgs_np).astype(np.uint8)
+            imgs *= 255.0
+            imgs_np = imgs.cpu().numpy().astype(np.uint8)
             imgs_np = imgs_np.transpose((0, 2, 3, 1))  # (batch, H, W, C)
             for idx, (img, cls_ids_bboxes) in enumerate(zip(imgs_np, labels_yolo)):
                 augmented_img, cls_id_bboxes = self.augment(img, cls_ids_bboxes)
@@ -382,18 +407,15 @@ class SoftTeacherTrainer(AbstractTrainer):
                 .transpose((0, 3, 1, 2))
                 .astype(np.float32)
             )
-            imgs_np /= 255.0
-            imgs = torch.Tensor(imgs_np)
-            total_bat_ids_cls_ids_bboxes: np.ndarray = np.vstack(
-                augmented_cls_id_bboxes
-            )
+            imgs = torch.Tensor(imgs_np) / 255.0
+            total_bat_ids_cls_ids_bboxes = np.vstack(augmented_cls_id_bboxes)
 
         labels = torch.Tensor(total_bat_ids_cls_ids_bboxes)
         if self.debug:
             # plot images.
             f_name = os.path.join(self.log_dir, "strong_augmented_batch.jpg",)
             plot_images(  # noqa
-                images=imgs,
+                images=imgs.clone(),
                 targets=total_bat_ids_cls_ids_bboxes,
                 paths=paths,
                 fname=f_name,
@@ -401,6 +423,7 @@ class SoftTeacherTrainer(AbstractTrainer):
             LOGGER.info(f"Strong augmented image is saved in {f_name}")
             self.debug = False
 
+        self.pseudo_buffer.append((imgs, labels))
         return imgs, labels
 
     def prepare_labels_for_augmention(
@@ -422,7 +445,8 @@ class SoftTeacherTrainer(AbstractTrainer):
             if len(bbox) == 0:
                 cls_ids_bboxes.append(np.zeros((0, 5)))
                 continue
-            cls_ids = label.cpu().numpy()
+
+            cls_ids = label.cpu().numpy()  # type: ignore
             bboxes = bbox.cpu().numpy()
             # Transform to normal coord (for Albumentation yolo format)
             # NOTE(hsshin): work only for square image

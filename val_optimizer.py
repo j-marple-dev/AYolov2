@@ -401,7 +401,7 @@ if __name__ == "__main__":
             "image_size": 0,
             "rect": args.rect,
         },
-        "hyper_params": {"conf_t": 0, "iou_t": 0},
+        "hyper_params": {"conf_t": 0.001, "iou_t": 0.65},
     }
 
     model.to(device).fuse().eval()  # type: ignore

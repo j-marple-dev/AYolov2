@@ -11,7 +11,7 @@ from typing import Optional, Union
 import numpy as np
 import torch
 from pycocotools.cocoeval import COCOeval
-from pycootools.coco import COCO
+from pycocotools.coco import COCO
 from torch import nn
 from tqdm import tqdm
 
@@ -124,6 +124,12 @@ def get_parser() -> argparse.Namespace:
         default="",
         help="Export all inference results if path is given.",
     )
+    parser.add_argument(
+        "--nms_type",
+        type=str,
+        default="nms",
+        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)",
+    )
 
     return parser.parse_args()
 
@@ -222,6 +228,7 @@ if __name__ == "__main__":
             iou_thres=args.iou_t,
             nms_box=args.nms_box,
             agnostic=args.agnostic,
+            nms_type=args.nms_type,
         )
         result_writer.add_outputs(path, outputs, img.shape[2:4], shapes=shape)
     time_checker.add("Inference")

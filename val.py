@@ -183,6 +183,12 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Run NMS with hybrid information (ground truth label + predicted result.) (PyTorch only) This is for auto-labeling purpose.",
     )
+    parser.add_argument(
+        "--nms_type",
+        type=str,
+        default="nms",
+        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)"
+    )
 
     return parser.parse_args()
 
@@ -328,6 +334,7 @@ if __name__ == "__main__":
         log_dir=args.dst,
         incremental_log_dir=True,
         export=True,
+        nms_type=args.nms_type,
     )
     t0 = time.monotonic()
     val_result = validator.validation()

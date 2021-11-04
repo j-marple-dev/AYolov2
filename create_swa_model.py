@@ -5,6 +5,7 @@
 """
 
 import argparse
+import gc
 import glob
 import os
 
@@ -52,9 +53,14 @@ def create_swa_model(model_dir: str, model_name: str, best_num: int) -> None:
     for model_path in model_paths:
         model = torch.load(model_path)
         map50 = model["mAP50"]
-        models_with_map50.append((map50, model))
+        models_with_map50.append((map50, model_path))
+        del model
+        gc.collect()
+
     models_with_map50.sort(reverse=True)
-    models = [m for i, (_, m) in enumerate(models_with_map50) if i < best_num]
+    models = [
+        torch.load(p) for i, (_, p) in enumerate(models_with_map50) if i < best_num
+    ]
 
     # Extract model information
     model_num = len(models)

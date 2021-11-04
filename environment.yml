@@ -49,4 +49,5 @@ dependencies:
     - tensorly==0.6.0
     - orjson==3.6.4
     - optuna==2.10.0
+    - pycocotools==2.0.2
 

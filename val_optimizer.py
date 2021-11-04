@@ -236,10 +236,12 @@ class Objective:
         trial.set_user_attr("map50", map50_result)
         trial.set_user_attr("time_took", time_took)
 
+        objective_score = self.calc_objective_fn(time_took, map50_result)
+
         if map50_result < Objective.BASE_mAP50:
-            return 0
+            return map50_result * 0.1  # Punish lower mAP50 result than base mAP50.
         else:
-            return self.calc_objective_fn(time_took, map50_result)
+            return objective_score
 
 
 def get_parser() -> argparse.Namespace:
@@ -333,13 +335,13 @@ def get_parser() -> argparse.Namespace:
         "--beta",
         type=float,
         default=0.3,
-        help="Score weight for parameter. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
+        help="Score weight for time. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
     )
     parser.add_argument(
         "--gamma",
         type=float,
         default=0.6,
-        help="Score weight for parameter. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
+        help="Score weight for mAP50. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
     )
 
     return parser.parse_args()

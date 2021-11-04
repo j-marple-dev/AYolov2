@@ -664,7 +664,7 @@ class COCOmAPEvaluator:
                         for label in labels[img_id]
                     ]
                 )
-                label_pred[:, :4] = xywh2xyxy(label_pred[:, :4])
+                label_pred[:, 2:4] += label_pred[:, 0:2]  # xy is at top-left point
 
             if img_id not in self.unique_img_id:
                 label_gt = torch.zeros(0, 5)

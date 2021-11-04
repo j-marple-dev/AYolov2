@@ -26,9 +26,9 @@ def test_json_evaluator(p=0.5) -> None:
     coco_eval = COCOmAPEvaluator(gt_path)
     result = coco_eval.evaluate(json_path)
 
-    assert result["map50"] == 0.7029683448361
-    assert result["map50_95"] == 0.5205228858116049
+    assert result["map50"] == 0.7479823463944912
+    assert result["map50_95"] == 0.4937183067622847
 
 
 if __name__ == "__main__":
-    test_json_evaluator()
+    test_json_evaluator(p=1)

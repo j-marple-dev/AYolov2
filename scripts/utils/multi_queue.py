@@ -165,7 +165,10 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
                 bbox, conf = outputs[i][:, :4], outputs[i][:, 4:]
                 if shapes is not None:
                     scaled_bbox = self.scale_coords(img_size, bbox, shapes[i])
-                    scaled_bbox = xyxy2xywh(scaled_bbox, check_validity=False)
+                    scaled_bbox[:, 2] = (
+                        scaled_bbox[:, 2] - scaled_bbox[:, 0]
+                    )  # [x1, y1, width, height]
+                    scaled_bbox[:, 3] = scaled_bbox[:, 3] - scaled_bbox[:, 1]
                 else:
                     scaled_bbox = bbox
 

@@ -660,7 +660,12 @@ class COCOmAPEvaluator:
             else:
                 label_pred = torch.tensor(
                     [
-                        [*label["bbox"], label["score"], label["category_id"]]
+                        [
+                            *label["bbox"],
+                            label["score"],
+                            self.fix_label[label["category_id"]],
+                            # Turning back to YOLO id from COCO id.
+                        ]
                         for label in labels[img_id]
                     ]
                 )
@@ -683,7 +688,8 @@ class COCOmAPEvaluator:
                 (correct, label_pred[:, 4], label_pred[:, 5], label_gt[:, 0])
             )
 
-            confusion_matrix.process_batch(label_pred, label_gt)  # type: ignore
+            if self.export_root is not None:
+                confusion_matrix.process_batch(label_pred, label_gt)  # type: ignore
 
             if debug:
                 self._draw_result(img_id, label_pred, label_gt)

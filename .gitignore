@@ -138,3 +138,4 @@ tests/.*
 # Train file.
 exp/
 *.json
+.*.db

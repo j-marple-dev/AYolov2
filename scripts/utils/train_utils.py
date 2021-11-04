@@ -540,7 +540,7 @@ class YoloValidator(AbstractValidator):
         return t
 
     @torch.no_grad()
-    def validation(self) -> Tuple[Tuple[list, ...], np.ndarray, tuple]:  # type: ignore
+    def validation(self, verbose: bool = True) -> Tuple[Tuple[list, ...], np.ndarray, tuple]:  # type: ignore
         """Validate model."""
         s = ("%20s" + "%11s" * 6) % (
             "Class",
@@ -559,7 +559,7 @@ class YoloValidator(AbstractValidator):
         self.compute_statistics()
 
         LOGGER.info(s)
-        t = self.print_results()
+        t = self.print_results(verbose=verbose)
 
         maps = np.zeros(self.nc) + self.statistics["map"]
         for i, c in enumerate(self.statistics["ap_class"]):

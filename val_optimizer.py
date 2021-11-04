@@ -6,19 +6,20 @@
 
 import argparse
 import os
+import shutil
 import time
+from pathlib import Path
 from typing import Optional, Union
 
 import optuna
 import torch
 import yaml
-from kindle import YOLOModel
 from torch import nn
 
 from scripts.data_loader.data_loader import LoadImagesAndLabels
+from scripts.utils.general import increment_path
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import (count_param, load_pytorch_model,
-                                       select_device)
+from scripts.utils.torch_utils import count_param, load_pytorch_model
 from scripts.utils.train_utils import YoloValidator
 from scripts.utils.wandb_utils import load_model_from_wandb
 
@@ -27,6 +28,13 @@ LOGGER = get_logger(__name__)
 
 class Objective:
     """Objective class for validation parameters optimizer."""
+
+    """Base mAP50 threshold.
+
+    If the mAP50 of the test model is under this value,
+    trial objective score becomes zero.
+    """
+    BASE_mAP50: float = 0.688
 
     def __init__(
         self,
@@ -59,11 +67,15 @@ class Objective:
         # original yolov5x model
         self.baseline_model: nn.Module = load_model_from_wandb(
             "j-marple/AYolov2/1gxaqgk4"
-        ).to(device).fuse().eval()
+        ).to(device).eval()
         self.baseline_n_params = count_param(self.baseline_model)
+
+        self.alpha = args.alpha
+        self.beta = args.beta
+        self.gamma = args.gamma
+
         self.baesline_map50: float
         self.baseline_t: float
-        self.test_baseline()
 
     def get_param(self, trial: optuna.trial.Trial) -> None:
         """Get hyper params."""
@@ -109,15 +121,17 @@ class Objective:
             baseline_dataloader,
             self.device,
             self.cfg,
-            compute_loss=isinstance(self.baseline_model, YOLOModel)
-            and hasattr(model, "hyp"),
-            hybrid_label=self.args.hybrid_label,
+            # compute_loss=isinstance(self.baseline_model, YOLOModel)
+            # and hasattr(model, "hyp"),
             log_dir=None,
             incremental_log_dir=False,
             export=False,
         )
+        LOGGER.info(
+            f"Validating baseline model (n_parm: {self.baseline_n_params:,d}) ..."
+        )
         t0 = time.monotonic()
-        baseline_result = baseline_validator.validation()
+        baseline_result = baseline_validator.validation(verbose=False)
         self.baseline_t = time.monotonic() - t0
         self.baseline_map50 = baseline_result[0][2]
 
@@ -133,12 +147,10 @@ class Objective:
         Returns:
             the result based on AIGC metric.
         """
-        alpha, beta, gamma = 0.1, 0.3, 0.6
-        return (
-            alpha * (self.baseline_n_params / self.model_params)
-            + beta * (self.baseline_t / time)
-            + gamma * (map50 / self.baseline_map50)
-        )
+        param_score = self.alpha * (self.baseline_n_params / self.model_params)
+        time_score = self.beta * (self.baseline_t / time)
+        map50_score = self.gamma * (map50 / self.baseline_map50)
+        return param_score + time_score + map50_score
 
     def __call__(self, trial: optuna.trial.Trial) -> float:
         """Run model and compare with baseline model.
@@ -151,6 +163,19 @@ class Objective:
         Returns:
             a result of AIGC metric.
         """
+        assert hasattr(self, "baseline_t") and hasattr(
+            self, "baseline_map50"
+        ), "Baseline information is missing. Required action: either baseline_t and baseline_map50 are set or self.test_baseline() has been called."
+
+        LOGGER.info(f"Starting {trial.number}th trial.")
+        if len(trial.study.best_trials):
+            LOGGER.info("Showing previous best trials ...")
+
+            for i, best_trial in enumerate(trial.study.best_trials):
+                LOGGER.info(
+                    f"[{(i+1):02d}:Best] {best_trial.number}th trial, Params: {best_trial.params}, Score: {best_trial.values}, Attr: {best_trial.user_attrs}"
+                )
+
         self.get_param(trial)
         if args.weights.endswith(".pt"):
             log_dir = os.path.join(args.weights[:-3])
@@ -187,21 +212,31 @@ class Objective:
             val_loader,
             self.device,
             self.cfg,
-            compute_loss=isinstance(self.model, YOLOModel)
-            and hasattr(self.model, "hyp"),
-            hybrid_label=self.args.hybrid_label,
+            # compute_loss=isinstance(self.model, YOLOModel)
+            # and hasattr(self.model, "hyp"),
             half=self.args.half,
             log_dir=log_dir,
             incremental_log_dir=True,
             export=True,
         )
+
+        LOGGER.info(
+            f"{trial.number}th trial, Running validation (conf_thr: {self.cfg['hyper_params']['conf_t']}, iou_thr: {self.cfg['hyper_params']['iou_t']}, img_size: {self.cfg['train']['img_size']})"
+        )
+
         t0 = time.monotonic()
-        val_result = validator.validation()
+        val_result = validator.validation(verbose=False)
         time_took = time.monotonic() - t0
         map50_result = val_result[0][2]
-        print(f"map50: {map50_result}")
 
-        if map50_result < 0.688:
+        LOGGER.info(
+            f"   |----- Finished with mAP50: {map50_result}, time_took: {time_took:.3f}s"
+        )
+
+        trial.set_user_attr("map50", map50_result)
+        trial.set_user_attr("time_took", time_took)
+
+        if map50_result < Objective.BASE_mAP50:
             return 0
         else:
             return self.calc_objective_fn(time_took, map50_result)
@@ -239,18 +274,6 @@ def get_parser() -> argparse.Namespace:
         "--n-trials", type=int, default=100, help="Number of trials for optimization."
     )
     parser.add_argument(
-        "--top-k",
-        type=int,
-        default=512,
-        help="Use top-k objects in NMS layer (TensorRT only)",
-    )
-    parser.add_argument(
-        "-ktk",
-        "--keep-top-k",
-        default=100,
-        help="Keep top-k after NMS. This must be less or equal to top-k (TensorRT only)",
-    )
-    parser.add_argument(
         "--rect",
         action="store_true",
         dest="rect",
@@ -280,10 +303,43 @@ def get_parser() -> argparse.Namespace:
         help="Run half preceision model (PyTorch only)",
     )
     parser.add_argument(
-        "--hybrid-label",
+        "--load-study",
         action="store_true",
         default=False,
-        help="Run NMS with hybrid information (ground truth label + predicted result.) (PyTorch only) This is for auto-labeling purpose.",
+        help="Load previous study if exists.",
+    )
+    parser.add_argument(
+        "--study-name", type=str, default="val_optim", help="Optuna study name."
+    )
+    parser.add_argument(
+        "--base-map50",
+        type=float,
+        default=0,
+        help="Baseline mAP50 metric value. If base-map50 and base-time are given, baseline model validation will be skipped and use these values instead.",
+    )
+    parser.add_argument(
+        "--base-time",
+        type=float,
+        default=0,
+        help="Baseline validation time value. If base-map50 and base-time are given, baseline model validation will be skipped and use these values instead.",
+    )
+    parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.1,
+        help="Score weight for parameter. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
+    )
+    parser.add_argument(
+        "--beta",
+        type=float,
+        default=0.3,
+        help="Score weight for parameter. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
+    )
+    parser.add_argument(
+        "--gamma",
+        type=float,
+        default=0.6,
+        help="Score weight for parameter. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
     )
 
     return parser.parse_args()
@@ -291,9 +347,6 @@ def get_parser() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = get_parser()
-
-    # if args.img_height < 0:
-    #     args.img_height = args.img_width
 
     # Either weights or model_cfg must beprovided.
     if args.weights == "" and args.model_cfg == "":
@@ -306,7 +359,10 @@ if __name__ == "__main__":
         )
         exit(1)
 
-    device = select_device(args.device, args.batch_size)
+    if args.device.lower() == "cpu":
+        device = torch.device("cpu")
+    else:
+        device = torch.device(f"cuda:{args.device}")
 
     # Unpack model from ckpt dict if the model has been saved during training.
     model: Optional[Union[nn.Module]] = None
@@ -360,8 +416,31 @@ if __name__ == "__main__":
         os.makedirs(log_dir, exist_ok=True)
         save_path = os.path.join(log_dir, "params.yaml")
 
-    study = optuna.create_study(direction="maximize")
+    if args.base_map50 > 0 and args.base_time > 0:
+        objective.baseline_t = args.base_time
+        objective.baseline_map50 = args.base_map50
+    else:
+        objective.test_baseline()
+
+    db_file_name = ".val_optim_optuna.db"
+
+    if not args.load_study and os.path.isfile(db_file_name):
+        backup_db_file_name = Path(db_file_name).stem + "_backup.db"
+        backup_db_file_name = increment_path(backup_db_file_name)
+        LOGGER.info(
+            f"Previous study has been found!, previous {colorstr('bold', db_file_name)} has been moved to {colorstr('bold', backup_db_file_name)}"
+        )
+        shutil.move(db_file_name, backup_db_file_name)
+
+    study = optuna.create_study(
+        study_name=args.study_name,
+        storage=f"sqlite:///{db_file_name}",
+        direction="maximize",
+        load_if_exists=args.load_study,
+    )
     study.optimize(objective, n_trials=args.n_trials)
 
-    with open(save_path) as f:
+    with open(save_path, "w") as f:
         yaml.dump(study.best_params, f)
+
+    LOGGER.info(f"Optimized parameter has been saved to {colorstr('bold', save_path)}")

@@ -10,8 +10,8 @@ from typing import Optional, Union
 
 import numpy as np
 import torch
-from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 from torch import nn
 from tqdm import tqdm
 
@@ -123,6 +123,12 @@ def get_parser() -> argparse.Namespace:
         type=str,
         default="",
         help="Export all inference results if path is given.",
+    )
+    parser.add_argument(
+        "--no_coco",
+        action="store_false",
+        default=True,
+        help="Validate with pycocotools.",
     )
 
     return parser.parse_args()

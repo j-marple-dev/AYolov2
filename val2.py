@@ -6,12 +6,13 @@
 
 import argparse
 import os
-from typing import Optional, Union
+import threading
+from typing import Iterator, Optional
 
 import numpy as np
 import torch
-from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 from torch import nn
 from tqdm import tqdm
 
@@ -27,6 +28,99 @@ from scripts.utils.wandb_utils import load_model_from_wandb
 
 torch.set_grad_enabled(False)
 LOGGER = get_logger(__name__)
+
+
+class ModelLoader(threading.Thread):
+    """Parallel model loader with threading."""
+
+    def __init__(self, args: argparse.Namespace, device: torch.device) -> None:
+        """Initialize ModelLoader for parallel model load.
+
+        Args:
+            args: Namespace from __main__
+            device: torch device to run model.
+        """
+        super().__init__()
+        self.args = args
+        self.device = device
+
+        """self.model will be loaded once self.start() has been finished."""
+        self.model: Optional[nn.Module] = None
+        """Default stride_size is 32 but this might change by the model."""
+        self.stride_size = 32
+
+    def run(self) -> None:
+        """Run model load thread.
+
+        Loaded model can be accessed after self.join()
+        """
+        if self.args.weights.endswith(".pt"):
+            self.model = load_pytorch_model(
+                self.args.weights, self.args.model_cfg, load_ema=True
+            )
+        else:
+            self.model = load_model_from_wandb(self.args.weights)
+
+        if self.model is not None:
+            self.model.to(self.device).fuse().eval()  # type: ignore
+            if self.args.half:
+                self.model.half()
+
+            self.stride_size = int(max(self.model.stride))  # type: ignore
+
+            LOGGER.info(f"# of parameters: {count_param(self.model):,d}")
+
+
+class DataLoaderGenerator(threading.Thread):
+    """Parallel dataset and dataloader generator with threading.."""
+
+    def __init__(self, args: argparse.Namespace, stride_size: int = 32) -> None:
+        """Initialize DataLoaderGenerator for parallel dataloader initialization.
+
+        Args:
+            args: Namespace from __main__
+            stride_size: max stride size of the model to decide image sizes to load.
+        """
+        super().__init__()
+        self.args = args
+        self.stride_size = stride_size
+
+        """LoadImages dataset."""
+        self.dataset: Optional[LoadImages] = None
+        """PyTorch dataloader."""
+        self.dataloader: Optional[torch.utils.data.DataLoader] = None
+        """Dataloader iterator to prefetch before actually running the model."""
+        self.iterator: Optional[Iterator] = None
+
+    def run(self) -> None:
+        """Initialize dataset and dataloader with threading."""
+        self.dataset = LoadImages(
+            self.args.data,
+            img_size=self.args.img_width,
+            batch_size=self.args.batch_size,
+            rect=self.args.rect,
+            cache_images=None,
+            stride=self.stride_size,
+            pad=0.5,
+            n_skip=0,
+            prefix="[val]",
+            augmentation=None,
+            preprocess=lambda x: (x / 255.0).astype(
+                np.float16 if self.args.half else np.float32
+            ),
+            use_mp=False,
+        )
+        self.dataloader = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=self.args.batch_size,
+            num_workers=min(os.cpu_count(), self.args.batch_size),  # type: ignore
+            pin_memory=True,
+            collate_fn=LoadImages.collate_fn,
+            prefetch_factor=5,
+        )
+        self.iterator = tqdm(
+            enumerate(self.dataloader), "Inference ...", total=len(self.dataloader)
+        )
 
 
 def get_parser() -> argparse.Namespace:
@@ -119,6 +213,9 @@ def get_parser() -> argparse.Namespace:
         help="Check mAP after inference.",
     )
     parser.add_argument(
+        "--no-check-map", action="store_false", dest="check_map", help="Skip mAP check."
+    )
+    parser.add_argument(
         "--export",
         type=str,
         default="",
@@ -131,6 +228,7 @@ def get_parser() -> argparse.Namespace:
 if __name__ == "__main__":
     time_checker = TimeChecker("val2", ignore_thr=0.0)
     args = get_parser()
+    time_checker.add("get_argparse")
 
     if args.img_height < 0:
         args.img_height = args.img_width
@@ -147,73 +245,30 @@ if __name__ == "__main__":
         exit(1)
 
     device = select_device(args.device, args.batch_size)
+    time_checker.add("device")
 
-    # Unpack model from ckpt dict if the model has been saved during training.
-    model: Optional[Union[nn.Module]] = None
+    # Parallel load model and dataloader
+    model_loader = ModelLoader(args, device)
+    dataloader_generator = DataLoaderGenerator(args, stride_size=32)
 
-    time_checker.add("args")
-    if args.weights == "":
-        LOGGER.warning(
-            "Providing "
-            + colorstr("bold", "no weights path")
-            + " will validate a randomly initialized model. Please use only for a experiment purpose."
-        )
-    elif args.weights.endswith(".pt"):
-        model = load_pytorch_model(args.weights, args.model_cfg, load_ema=True)
-        stride_size = int(max(model.stride))  # type: ignore
-    else:  # load model from wandb
-        model = load_model_from_wandb(args.weights)
-        stride_size = int(max(model.stride))  # type: ignore
+    model_loader.start()
+    dataloader_generator.start()
 
-    if model is None:
-        LOGGER.error(
-            f"Load model from {args.weights} with config {args.model_cfg if args.model_cfg != '' else 'None'} has failed."
-        )
-        exit(1)
+    model_loader.join()
+    dataloader_generator.join()
 
-    time_checker.add("load_model")
+    model = model_loader.model
+    iterator = dataloader_generator.iterator
 
-    val_dataset = LoadImages(
-        args.data,
-        img_size=args.img_width,
-        batch_size=args.batch_size,
-        rect=args.rect,
-        cache_images=None,
-        stride=stride_size,
-        pad=0.5,
-        n_skip=0,
-        prefix="[val]",
-        augmentation=None,
-        preprocess=lambda x: (x / 255.0).astype(
-            np.float16 if args.half else np.float32
-        ),
-    )
-
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        num_workers=min(os.cpu_count(), args.batch_size),  # type: ignore
-        pin_memory=True,
-        collate_fn=LoadImages.collate_fn,
-        prefetch_factor=5,
-    )
-
-    time_checker.add("create_dataloader")
-
-    model.to(device).fuse().eval()  # type: ignore
-    LOGGER.info(f"# of parameters: {count_param(model):,d}")
-    if args.half:
-        model.half()
-
-    time_checker.add("Fuse model")
+    assert (
+        iterator is not None and model is not None
+    ), "Either dataloader or model has not been initialized!"
 
     result_writer = ResultWriterTorch("answersheet_4_04_000000.json")
     result_writer.start()
 
-    time_checker.add("Prepare run")
-    for _, (img, path, shape) in tqdm(
-        enumerate(val_loader), "Inference ...", total=len(val_loader)
-    ):
+    time_checker.add("Prepare model")
+    for _, (img, path, shape) in iterator:
         out = model(img.to(device, non_blocking=True))[0]
         # TODO(jeikeilim): Find better and faster NMS method.
         outputs = batched_nms(

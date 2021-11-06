@@ -62,6 +62,7 @@ class LoadImages(Dataset):
         prefix: str = "",
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
+        use_mp: bool = True,
     ) -> None:
         """Initialize LoadImages instance.
 
@@ -80,6 +81,7 @@ class LoadImages(Dataset):
             prefix: logging prefix message
             preprocess: preprocess function which takes (x: np.ndarray) and returns (np.ndarray)
             augmentation: augmentation function which takes (x: np.ndarray) and returns (np.ndarray)
+            use_mp: use multi process to read image shapes.
         """
         self.stride = stride
         self.img_size = img_size
@@ -89,6 +91,7 @@ class LoadImages(Dataset):
         self.augmentation = augmentation
         self.cache_images = cache_images
         self.n_skip = n_skip
+        self.use_mp = use_mp
 
         # Get image paths
         self.img_files = self.__grep_all_images(path)
@@ -216,14 +219,25 @@ class LoadImages(Dataset):
                 cache = None
 
         if cache is None:
-            shapes = p_map(
-                __get_img_shape, self.img_files, desc="Getting image shapes ..."
-            )
+            if self.use_mp:
+                shapes = p_map(
+                    __get_img_shape, self.img_files, desc="Getting image shapes ...",
+                )
+            else:
+                shapes = [
+                    __get_img_shape(x)
+                    for x in tqdm(self.img_files, "Getting image shapes ...")
+                ]
+
             cache = {
                 "info": {"version": CACHE_VERSION, "hash": files_hash},
                 "shapes": shapes,
             }
-            torch.save(cache, cache_path)
+
+            try:
+                torch.save(cache, cache_path)
+            except PermissionError as e:
+                LOGGER.warn(f"Saving cache to {cache_path} has failed! {e}")
         else:
             shapes = cache["shapes"]
 

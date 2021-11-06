@@ -252,12 +252,13 @@ if __name__ == "__main__":
         )
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
-        if is_export:
-            anno = COCO(gt_path)
-            pred = anno.loadRes(json_path)
-            cocotools_eval = COCOeval(anno, pred, "bbox")
-            cocotools_eval.evaluate()
-            cocotools_eval.accumulate()
-            cocotools_eval.summarize()
-            # if need values
-            # use cocotools_eval.stats
+
+        anno = COCO(gt_path)
+        pred = anno.loadRes(json_path)
+        cocotools_eval = COCOeval(anno, pred, "bbox")
+
+        cocotools_eval.evaluate()
+        cocotools_eval.accumulate()
+        cocotools_eval.summarize()
+        # if need values
+        # use cocotools_eval.stats

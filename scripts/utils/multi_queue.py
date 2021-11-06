@@ -14,7 +14,7 @@ import orjson
 import torch
 from torch.multiprocessing import Process, Queue
 
-from scripts.utils.general import scale_coords, xyxy2xywh
+from scripts.utils.general import scale_coords
 
 
 class MultiProcessQueue(abc.ABC):
@@ -73,6 +73,90 @@ class MultiProcessQueue(abc.ABC):
 
 class ResultWriterBase(MultiProcessQueue, abc.ABC):
     """Abstract YOLO result writer queue processor."""
+
+    """YOLO label id to COCO label id."""
+    label_fixer = [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        28,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        70,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+    ]
 
     def __init__(self, file_name: str) -> None:
         """Initialize ResultWriter.
@@ -165,7 +249,12 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
                 bbox, conf = outputs[i][:, :4], outputs[i][:, 4:]
                 if shapes is not None:
                     scaled_bbox = self.scale_coords(img_size, bbox, shapes[i])
-                    scaled_bbox = xyxy2xywh(scaled_bbox, check_validity=False)
+
+                    if scaled_bbox is not None:
+                        scaled_bbox[:, 2] = (
+                            scaled_bbox[:, 2] - scaled_bbox[:, 0]
+                        )  # [x1, y1, width, height]
+                        scaled_bbox[:, 3] = scaled_bbox[:, 3] - scaled_bbox[:, 1]
                 else:
                     scaled_bbox = bbox
 
@@ -197,7 +286,7 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
             objects = [
                 {
                     "image_id": int(Path(path).stem),
-                    "category_id": int(conf[1]),
+                    "category_id": ResultWriterBase.label_fixer[int(conf[1])],
                     "bbox": [float(p) for p in row],
                     "score": float(conf[0]),
                 }

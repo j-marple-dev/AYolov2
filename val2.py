@@ -1,7 +1,7 @@
 """Validation for YOLO.
 
-- Author: Jongkuk Lim
-- Contact: limjk@jmarple.ai
+- Author: Jongkuk Lim, Haneol Kim
+- Contact: limjk@jmarple.ai, hekim@jmarple.ai
 """
 
 import argparse
@@ -10,6 +10,8 @@ from typing import Optional, Union
 
 import numpy as np
 import torch
+from pycocotools.cocoeval import COCOeval
+from pycocotools.coco import COCO
 from torch import nn
 from tqdm import tqdm
 
@@ -243,3 +245,13 @@ if __name__ == "__main__":
         )
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
+
+        anno = COCO(gt_path)
+        pred = anno.loadRes(json_path)
+        cocotools_eval = COCOeval(anno, pred, "bbox")
+
+        cocotools_eval.evaluate()
+        cocotools_eval.accumulate()
+        cocotools_eval.summarize()
+        # if need values
+        # use cocotools_eval.stats

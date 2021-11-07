@@ -65,6 +65,7 @@ class ModelLoader(threading.Thread):
         self.model: Optional[nn.Module] = None
         """Default stride_size is 32 but this might change by the model."""
         self.stride_size = cfg.get("stride_size", 32)
+        self.n_param = 0
 
     def run(self) -> None:
         """Run model load thread.
@@ -82,8 +83,9 @@ class ModelLoader(threading.Thread):
                 self.model.float()
 
             self.stride_size = int(max(self.model.stride))  # type: ignore
+            self.n_param = count_param(self.model)
 
-            print(f"# of parameters: {count_param(self.model):,d}")
+            print(f"# of parameters: {self.n_param:,d}")
 
 
 class DataLoaderGenerator(threading.Thread):
@@ -198,7 +200,7 @@ if __name__ == "__main__":
         iterator is not None and model is not None
     ), "Either dataloader or model has not been initialized!"
 
-    result_writer = ResultWriterTorch(ANSWER_PATH)
+    result_writer = ResultWriterTorch(ANSWER_PATH, model_loader.n_param)
     result_writer.start()
 
     conf_thres = cfg["inference"].get("conf_t", 0.001)
@@ -240,11 +242,15 @@ if __name__ == "__main__":
 
         from pycocotools.coco import COCO
         from pycocotools.cocoeval import COCOeval
+        import json
 
-        gt_path = os.path.join("..", "tests", "res", "instances_val2017.json")
+        with open(ANSWER_PATH, "r") as f:
+            pred = json.load(f)
+
+        gt_path = os.path.join("instances_val2017.json")
 
         gt_anno = COCO(gt_path)
-        pred_anno = gt_anno.loadRes(ANSWER_PATH)
+        pred_anno = gt_anno.loadRes(pred[2:])
 
         coco_eval = COCOeval(gt_anno, pred_anno, "bbox")
 

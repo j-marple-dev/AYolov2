@@ -157,15 +157,16 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
         90,
     ]
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, file_name: str, n_param: int) -> None:
         """Initialize ResultWriter.
 
         Args:
             file_name: file name to write the result json file.
+            n_param: Number of parameters of the model.
         """
         super().__init__()
 
-        self.total_container: List[Dict] = []
+        self.total_container: List[Dict] = [{"framework": "torch"}, {"Parameters": n_param}]
         self.seen_paths: Set[str] = set()
         self.file_name = file_name
 
@@ -307,9 +308,9 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
 class ResultWriterTorch(ResultWriterBase):
     """Result writer for PyTorch model."""
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, file_name: str, n_param: int) -> None:
         """Initialize ResultWriterTorch."""
-        super().__init__(file_name)
+        super().__init__(file_name, n_param)
 
     def scale_coords(  # type: ignore
         self,

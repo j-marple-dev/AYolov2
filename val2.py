@@ -32,67 +32,6 @@ torch.set_grad_enabled(False)
 LOGGER = get_logger(__name__)
 
 
-def export_model_to_handwritten_model(model: nn.Module, path: str = "aigc") -> None:
-    """Export model class file for submitting AIGC.
-
-    Args:
-        model: target model to export to .py file.
-        path: model file path to export.
-    """
-    contents_header = (
-        '"""AIGC2021 submission model.\n\nNote: This is auto-generated .py DO NOT modify.\n"""\n\n'
-        "import torch\n"
-        "from torch import nn\n\n"
-        "framework = 'torch'  # type: ignore\n\n\n"
-    )
-    contents_class = (
-        "class CompressionModel(nn.Module):  # type: ignore\n"
-        '    """CompressedModel for AIGC2021."""\n\n'
-        "    def __init__(self) -> None:  # type: ignore\n"
-        '        """Initialize model."""\n'
-        "        super().__init__()\n"
-    )
-    contents_forward = (
-        "    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type: ignore\n"
-        '        """Run the model.\n\n'
-        "        Caution: This method will not work since its purpose\n"
-        "        is to compute number of parameters of the model.\n"
-        '        """\n'
-    )
-
-    model_str = str(model)
-    for i, line in enumerate(model_str.split("\n")):
-        line_split = line.split(":")
-        if len(line_split) > 1:
-            module_name = line_split[1][: line_split[1].find("(")].replace(" ", "")
-            if module_name not in ("Sequential", "ModuleList") and hasattr(
-                nn, module_name
-            ):
-                module_str = (
-                    line_split[1].replace(" ", "").replace("nearest", "'nearest'")
-                )
-                contents_class += (
-                    f"        self.module_{i:03d} = nn.{module_str}  # type: ignore\n"
-                )
-                contents_forward += (
-                    f"        x = self.module_{i:03d}(x)  # type: ignore\n"
-                )
-                LOGGER.info(line_split[1])
-
-    root = Path(path)
-    py_path = root / "answer_model" / "model.py"
-    weight_path = root / "weights" / "model.pt"
-
-    with open(py_path, "w") as f:
-        f.write(contents_header)
-        f.write(contents_class)
-        f.write("\n\n")
-        f.write(contents_forward)
-
-    model_to_save = deepcopy(model)
-    torch.save(model_to_save.cpu().half(), weight_path)
-
-
 class ModelLoader(threading.Thread):
     """Parallel model loader with threading."""
 
@@ -285,11 +224,11 @@ def get_parser() -> argparse.Namespace:
         help="Export all inference results if path is given.",
     )
     parser.add_argument(
-        "-emp",
-        "--export-model-py",
+        "-em",
+        "--export-model",
         action="store_true",
         default=False,
-        help="Export model.py for to follow AIGC standard.",
+        help="Export model weight file for to follow AIGC standard.",
     )
 
     return parser.parse_args()
@@ -334,8 +273,11 @@ if __name__ == "__main__":
         iterator is not None and model is not None
     ), "Either dataloader or model has not been initialized!"
 
-    if args.export_model_py:
-        export_model_to_handwritten_model(model)
+    if args.export_model:
+        path = Path("aigc") / "weights" / "model.pt"
+        model_to_save = deepcopy(model)
+        torch.save(model_to_save.cpu().half(), path)
+        exit(0)
 
     result_writer = ResultWriterTorch("answersheet_4_04_000000.json")
     result_writer.start()

@@ -34,6 +34,9 @@ RUN git clone -b Release_1_9_2 https://github.com/doxygen/doxygen.git \
     && make -j `cat /proc/cpuinfo | grep cores | wc -l` \
     && sudo make install
 
+# Install libturbojpeg
+RUN sudo apt-get update && sudo apt-get install libturbojpeg && pip install -U git+git://github.com/lilohuang/PyTurboJPEG.git
+
 # Install PyTorch CUDA 11.1
 RUN python3 -m pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 -f https://download.pytorch.org/whl/torch_stable.html
 

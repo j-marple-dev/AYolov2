@@ -30,6 +30,45 @@ torch.set_grad_enabled(False)
 LOGGER = get_logger(__name__)
 
 
+def export_model_to_handwritten_model(model: nn.Module, path: str = "model.py") -> None:
+    """Export model class file for submitting AIGC.
+
+    Args:
+        model: target model to export to .py file.
+        path: model file path to export.
+    """
+    contents_header = (
+        "import torch\n" "from torch import nn\n\n" "framework = 'torch'\n\n\n"
+    )
+    contents_class = (
+        "class CompressionModel(nn.Module):\n"
+        "    def __init__(self):\n"
+        "        super().__init__()\n"
+    )
+    contents_forward = "    def forward(x):\n"
+
+    model_str = str(model)
+    for i, line in enumerate(model_str.split("\n")):
+        line_split = line.split(":")
+        if len(line_split) > 1:
+            module_name = line_split[1][: line_split[1].find("(")].replace(" ", "")
+            if module_name not in ("Sequential", "ModuleList") and hasattr(
+                nn, module_name
+            ):
+                module_str = (
+                    line_split[1].replace(" ", "").replace("nearest", "'nearest'")
+                )
+                contents_class += f"        self.module_{i:03d} = nn.{module_str}\n"
+                contents_forward += f"        x = self.module_{i:03d}(x)\n"
+                print(line_split[1])
+
+    with open(path, "w") as f:
+        f.write(contents_header)
+        f.write(contents_class)
+        f.write("\n\n")
+        f.write(contents_forward)
+
+
 class ModelLoader(threading.Thread):
     """Parallel model loader with threading."""
 
@@ -62,7 +101,7 @@ class ModelLoader(threading.Thread):
             self.model = load_model_from_wandb(self.args.weights)
 
         if self.model is not None:
-            self.model.to(self.device).fuse().eval()  # type: ignore
+            self.model.to(self.device).eval()  # type: ignore
             if self.args.half:
                 self.model.half()
 
@@ -221,6 +260,13 @@ def get_parser() -> argparse.Namespace:
         default="",
         help="Export all inference results if path is given.",
     )
+    parser.add_argument(
+        "-emp",
+        "--export-model-py",
+        action="store_true",
+        default=False,
+        help="Export model.py for to follow AIGC standard.",
+    )
 
     return parser.parse_args()
 
@@ -263,6 +309,9 @@ if __name__ == "__main__":
     assert (
         iterator is not None and model is not None
     ), "Either dataloader or model has not been initialized!"
+
+    if args.export_model_py:
+        export_model_to_handwritten_model(model)
 
     result_writer = ResultWriterTorch("answersheet_4_04_000000.json")
     result_writer.start()

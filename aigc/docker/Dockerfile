@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN rm -rf /var/lib/apt/lists/* && sed -i 's/kr.archive.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list && sed -i 's/archive.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list && sed -i 's/security.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list && sed -i 's/extras.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list && sed -i 's/mirror.kakao.com/ftp.daum.net/g' /etc/apt/sources.list
 
-RUN apt-get update && apt-get install -y --no-install-recommends apt-utils locales tzdata make build-essential wget curl tar unzip gcc g++ git zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev python3 python3-dev openjdk-8-jdk libssl-dev && locale-gen ko_KR.UTF-8
+RUN apt-get update && apt-get install -y --no-install-recommends apt-utils locales tzdata make build-essential wget curl tar unzip gcc g++ git liblzma-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev python3 python3-dev openjdk-8-jdk libssl-dev && locale-gen ko_KR.UTF-8
 ENV LC_ALL=ko_KR.UTF-8
 ENV TZ=Asia/Seoul
 
@@ -28,6 +28,8 @@ RUN chown -R ${USER}:${USER} ${PYENV_ROOT}/ && chown -R ${USER}:${USER} ${HOME}/
 RUN mkdir -p /home/agc2021/
 RUN chown -R ${USER}:${USER} /home/agc2021/
 
+RUN apt-get update && apt-get install -y libturbojpeg
+
 COPY --chown=${USER}:${USER} . ${HOME}/
 USER ${USER}
 WORKDIR ${HOME}
@@ -35,6 +37,4 @@ WORKDIR ${HOME}
 RUN python3 -m pip install --no-cache-dir --upgrade pip setuptools wheel --user
 RUN python3 -m pip install kubernetes==17.17.0 grpcio==1.37.0 grpcio-tools==1.37.0 pika==1.2.0 --user
 RUN python3 -m pip install -r requirements.txt --user
-
-RUN apt-get install libturbojpeg && python3 -m python3 -m pip install -U git+git://github.com/lilohuang/PyTurboJPEG.git
 

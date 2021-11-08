@@ -126,8 +126,8 @@ def get_parser() -> argparse.Namespace:
     )
     parser.add_argument(
         "--no_coco",
-        action="store_false",
-        default=True,
+        action="store_true",
+        default=False,
         help="Validate with pycocotools.",
     )
 
@@ -252,7 +252,7 @@ if __name__ == "__main__":
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
 
-    if args.no_coco:
+    if not args.no_coco:
         anno = COCO(gt_path)
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")

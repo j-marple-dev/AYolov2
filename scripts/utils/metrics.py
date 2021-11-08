@@ -414,19 +414,27 @@ def non_max_suppression(
             scores *= decay
             i = torch.full((boxes.shape[0],), fill_value=1).bool()
             output[xi] = x[i][:max_det]
+        elif nms_type == "merge_nms":  # Merge NMS (boxes merged using weighted mean)
+            c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+            boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+            i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+            if i.shape[0] > max_det:  # limit detections
+                i = i[:max_det]
+
+            if 1 < n < 3e3:
+                # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
+                iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
+                weights = iou * scores[None]  # box weights
+                x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(
+                    1, keepdim=True
+                )  # merged boxes
+                if redundant:
+                    i = i[iou.sum(1) > 1]  # require redundancy
+
+            output[xi] = x[i]
         else:
             assert "Wrong NMS type!!"
         
-        if merge and (1 < n < 3e3):  # Merge NMS (boxes merged using weighted mean)
-            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
-            weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(
-                1, keepdim=True
-            )  # merged boxes
-            if redundant:
-                i = i[iou.sum(1) > 1]  # require redundancy
-
         if (time.time() - t) > time_limit:
             LOGGER.warn(f"WARNING: NMS time limit {time_limit}s exceeded")
             break  # time limit exceeded

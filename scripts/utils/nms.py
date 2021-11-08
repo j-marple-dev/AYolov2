@@ -86,6 +86,17 @@ def batched_nms(
             decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[0]  # gauss with sigma=0.5
             scores *= decay
             nms_idx = torch.full((bboxes.shape[0],), fill_value=1).bool()
+        # 5. merge nms
+        elif nms_type == "merge_nms":
+            nms_idx = torchvision.ops.nms(bboxes, outputs[i][:, 4], iou_thres)
+            iou = box_iou(bboxes[nms_idx], bboxes) > iou_thres  # iou matrix
+            weights = iou * outputs[i][:, 4][None]  # box weights
+            outputs[i][nms_idx, :4] = torch.mm(weights, outputs[i][:, :4]).float() / weights.sum(
+                1, keepdim=True
+            )  # merged boxes
+            nms_idx = nms_idx[iou.sum(1) > 1]  # require redundancy
+        else:
+            assert "Wrong NMS type!!"
         
         outputs[i] = outputs[i][nms_idx]
 

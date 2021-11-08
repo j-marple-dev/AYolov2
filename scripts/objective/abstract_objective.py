@@ -8,9 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict
 
 import optuna
-import torch
 import yaml
-from torch import nn
 
 
 class AbstractObjective(ABC):
@@ -18,8 +16,6 @@ class AbstractObjective(ABC):
 
     def __init__(
         self,
-        model: nn.Module,
-        device: torch.device,
         cfg: Dict[str, Any],
         optim_cfg: str,
         data_cfg: Dict[str, Any],
@@ -39,8 +35,6 @@ class AbstractObjective(ABC):
             self.optim_cfg = yaml.safe_load(f)
         self.data_cfg = data_cfg
         self.cfg = cfg
-        self.model = model
-        self.device = device
         self.args = args
 
     @abstractmethod

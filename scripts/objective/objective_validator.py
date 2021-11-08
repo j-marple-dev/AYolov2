@@ -10,7 +10,8 @@ from typing import Any, Dict
 
 import optuna
 import torch
-import yaml
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 from torch import nn
 
 from scripts.data_loader.data_loader import LoadImagesAndLabels
@@ -32,6 +33,8 @@ class ObjectiveValidator(AbstractObjective):
     trial objective score becomes zero.
     """
     BASE_mAP50: float = 0.688
+    gt_path = os.path.join("tests", "res", "instances_val2017.json")
+    json_path = "answersheet_4_04_000000.json"
 
     def __init__(
         self,
@@ -52,14 +55,10 @@ class ObjectiveValidator(AbstractObjective):
             data_cfg: dataset config.
             args: system arguments.
         """
-        with open(optim_cfg, "rb") as f:
-            self.optim_cfg = yaml.safe_load(f)
-        self.data_cfg = data_cfg
-        self.cfg = cfg
+        super().__init__(cfg, optim_cfg, data_cfg, args)
         self.model = model
-        self.model_params = count_param(self.model)
         self.device = device
-        self.args = args
+        self.model_params = count_param(self.model)
 
         # original yolov5x model
         self.baseline_model: nn.Module = load_model_from_wandb(
@@ -73,6 +72,21 @@ class ObjectiveValidator(AbstractObjective):
 
         self.baesline_map50: float
         self.baseline_t: float
+
+        # for optimization with json
+        self.command = f"python3 val2.py --weights {self.args.weights} --data {self.args.data_cfg} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco"
+
+        if args.model_cfg:
+            self.command += " --model-cfg {self.args.model_cfg}"
+
+        if not args.rect:
+            self.command += " --no-rect"
+
+        if args.single_cls:
+            self.command += " --single-cls"
+
+        if args.half:
+            self.command += " --half"
 
     def get_param(self, trial: optuna.trial.Trial) -> None:
         """Get hyper params."""
@@ -149,7 +163,7 @@ class ObjectiveValidator(AbstractObjective):
         map50_score = self.gamma * (map50 / self.baseline_map50)
         return param_score + time_score + map50_score
 
-    def __call__(self, trial: optuna.trial.Trial) -> float:
+    def _run_with_model(self, trial: optuna.trial.Trial) -> float:
         """Run model and compare with baseline model.
 
         Calculate the AIGC metirc, and optimize image size, IoU(intersection of union) threshold, confidence threshold.
@@ -160,20 +174,6 @@ class ObjectiveValidator(AbstractObjective):
         Returns:
             a result of AIGC metric.
         """
-        assert hasattr(self, "baseline_t") and hasattr(
-            self, "baseline_map50"
-        ), "Baseline information is missing. Required action: either baseline_t and baseline_map50 are set or self.test_baseline() has been called."
-
-        LOGGER.info(f"Starting {trial.number}th trial.")
-        if len(trial.study.best_trials):
-            LOGGER.info("Showing previous best trials ...")
-
-            for i, best_trial in enumerate(trial.study.best_trials):
-                LOGGER.info(
-                    f"[{(i+1):02d}:Best] {best_trial.number}th trial, Params: {best_trial.params}, Score: {best_trial.values}, Attr: {best_trial.user_attrs}"
-                )
-
-        self.get_param(trial)
         if self.args.weights.endswith(".pt"):
             log_dir = os.path.join(self.args.weights[:-3])
         else:
@@ -239,3 +239,71 @@ class ObjectiveValidator(AbstractObjective):
             return map50_result * 0.1  # Punish lower mAP50 result than base mAP50.
         else:
             return objective_score
+
+    def _run_with_json(self, trial: optuna.trial.Trial) -> float:
+        """Calculate results for optimize with json.
+
+        Args:
+            trial: an optuna trial.
+
+        Returns:
+            a result of AIGC metric.
+        """
+        command = f" -iw {self.cfg['train']['img_size']} -ct {self.cfg['hyper_params']['conf_t']} -it {self.cfg['hyper_params']['conf_t']}"
+        command = self.command + command
+
+        print(f"Run: {command}")
+        t0 = time.monotonic()
+        os.system(command)
+        time_took = time.monotonic() - t0
+
+        anno = COCO(ObjectiveValidator.gt_path)
+        pred = anno.loadRes(ObjectiveValidator.json_path)
+        cocoeval = COCOeval(anno, pred, "bbox")
+
+        cocoeval.evaluate()
+        cocoeval.accumulate()
+        cocoeval.summarize()
+
+        map50_result = cocoeval.stats[1]
+
+        trial.set_user_attr("map50", map50_result)
+        trial.set_user_attr("time_took", time_took)
+
+        objective_score = self.calc_objective_fn(time_took, map50_result)
+
+        if map50_result < ObjectiveValidator.BASE_mAP50:
+            return map50_result * 0.1
+        else:
+            return objective_score
+
+    def __call__(self, trial: optuna.trial.Trial) -> float:
+        """Run model and compare with baseline model.
+
+        Calculate the AIGC metirc, and optimize image size, IoU(intersection of union) threshold, confidence threshold.
+
+        Args:
+            trial: an optuna trial.
+
+        Returns:
+            a result of AIGC metric.
+        """
+        assert hasattr(self, "baseline_t") and hasattr(
+            self, "baseline_map50"
+        ), "Baseline information is missing. Required action: either baseline_t and baseline_map50 are set or self.test_baseline() has been called."
+
+        LOGGER.info(f"Starting {trial.number}th trial.")
+        if len(trial.study.best_trials):
+            LOGGER.info("Showing previous best trials ...")
+
+            for i, best_trial in enumerate(trial.study.best_trials):
+                LOGGER.info(
+                    f"[{(i+1):02d}:Best] {best_trial.number}th trial, Params: {best_trial.params}, Score: {best_trial.values}, Attr: {best_trial.user_attrs}"
+                )
+
+        self.get_param(trial)
+        if not self.args.run_json:
+            return self._run_with_model(trial)
+
+        else:
+            return self._run_with_json(trial)

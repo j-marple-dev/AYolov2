@@ -123,6 +123,12 @@ def get_parser() -> argparse.Namespace:
         default=0.6,
         help="Score weight for mAP50. Optuna study score will be computed by (alpha * param_score + beta * time_score + gamma * map50_score)",
     )
+    parser.add_argument(
+        "--run-json",
+        action="store_true",
+        default=False,
+        help="Optimize parameters with json or not.",
+    )
 
     return parser.parse_args()
 

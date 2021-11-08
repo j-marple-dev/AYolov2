@@ -187,7 +187,7 @@ def get_parser() -> argparse.Namespace:
         "--nms_type",
         type=str,
         default="nms",
-        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)"
+        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms, merge_nms)",
     )
 
     return parser.parse_args()

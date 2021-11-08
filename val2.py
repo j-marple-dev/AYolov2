@@ -10,8 +10,8 @@ from typing import Optional, Union
 
 import numpy as np
 import torch
-from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 from torch import nn
 from tqdm import tqdm
 

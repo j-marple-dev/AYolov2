@@ -328,7 +328,6 @@ def non_max_suppression(
     time_limit = 10.0  # seconds to quit after
     redundant = True  # require redundant detections
     multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
-    merge = False  # use merge-NMS
 
     t = time.time()
     output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
@@ -392,7 +391,7 @@ def non_max_suppression(
         elif nms_type == "batched_nms":
             c = x[:, 5] * 0 if agnostic else x[:, 5]  # class-agnostic NMS
             boxes, scores = x[:, :4].clone(), x[:, 4]
-            i = torchvision.ops.boxes.batched_nms(boxes, scores, c, iou_thres) # YOLOv5
+            i = torchvision.ops.boxes.batched_nms(boxes, scores, c, iou_thres)  # YOLOv5
             if i.shape[0] > max_det:  # limit detections
                 i = i[:max_det]
             output[xi] = x[i]
@@ -410,7 +409,9 @@ def non_max_suppression(
             boxes, scores = x[:, :4].clone(), x[:, 4]
             iou = box_iou(boxes, boxes).triu_(diagonal=1)  # upper triangular iou matrix
             m = iou.max(0)[0].view(-1, 1)  # max values
-            decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[0]  # gauss with sigma=0.5
+            decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[
+                0
+            ]  # gauss with sigma=0.5
             scores *= decay
             i = torch.full((boxes.shape[0],), fill_value=1).bool()
             output[xi] = x[i][:max_det]
@@ -434,7 +435,7 @@ def non_max_suppression(
             output[xi] = x[i]
         else:
             assert "Wrong NMS type!!"
-        
+
         if (time.time() - t) > time_limit:
             LOGGER.warn(f"WARNING: NMS time limit {time_limit}s exceeded")
             break  # time limit exceeded

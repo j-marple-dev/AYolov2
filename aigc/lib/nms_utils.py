@@ -10,6 +10,7 @@ import torch
 import torchvision
 
 
+@torch.no_grad()
 def batched_nms(
     prediction: torch.Tensor,
     conf_thres: float = 0.001,

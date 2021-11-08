@@ -181,6 +181,11 @@ if __name__ == "__main__":
         cfg = yaml.safe_load(f)
 
     device = torch.device("cuda:0")
+
+    # 8 GiB GPU memory limit.
+    # memory_fraction = ((8 * 1024 ** 3) / torch.cuda.get_device_properties(device).total_memory)
+    # torch.cuda.set_per_process_memory_fraction(memory_fraction, device)
+
     time_checker.add("init")
 
     # Parallel load model and dataloader

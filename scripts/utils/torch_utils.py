@@ -42,10 +42,10 @@ def torch_distributed_zero_first(local_rank: int) -> Generator:
     to do something.
     """
     if local_rank not in [-1, 0]:
-        dist.barrier(device_ids=[local_rank])
+        dist.barrier(device_ids=[local_rank])  # type: ignore
     yield
     if local_rank == 0:
-        dist.barrier(device_ids=[0])
+        dist.barrier(device_ids=[0])  # type: ignore
 
 
 def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.device:

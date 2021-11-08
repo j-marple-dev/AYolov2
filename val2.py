@@ -10,8 +10,8 @@ from typing import Optional, Union
 
 import numpy as np
 import torch
-from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 from torch import nn
 from tqdm import tqdm
 
@@ -123,6 +123,12 @@ def get_parser() -> argparse.Namespace:
         type=str,
         default="",
         help="Export all inference results if path is given.",
+    )
+    parser.add_argument(
+        "--no_coco",
+        action="store_true",
+        default=False,
+        help="Validate with pycocotools.",
     )
 
     return parser.parse_args()
@@ -246,6 +252,7 @@ if __name__ == "__main__":
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
 
+    if not args.no_coco:
         anno = COCO(gt_path)
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")

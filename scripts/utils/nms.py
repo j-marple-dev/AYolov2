@@ -67,7 +67,7 @@ def batched_nms(
         # 2. torchvision batched_nms
         # https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
         elif nms_type == "batched_nms":
-            bboxes, scores = outputs[i][:, :4].clone(), outputs[i][:, 4]
+            bboxes = outputs[i][:, :4].clone()
             nms_idx = torchvision.ops.boxes.batched_nms(bboxes, outputs[i][:, 4], outputs[i][:, 5], iou_thres)
         # 3. fast nms (yolact)
         # https://github.com/ultralytics/yolov3/blob/77e6bdd3c1ea410b25c407fef1df1dab98f9c27b/utils/utils.py#L557-L559

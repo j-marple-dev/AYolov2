@@ -156,7 +156,7 @@ def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
             "agnostic": args.agnostic,
         },
         "data": {
-            "path": "/home/agc/2021/dataset",
+            "path": "/home/agc2021/dataset",
             "img_size": args.img_width,
             "rect": args.rect,
             "use_mp": False,

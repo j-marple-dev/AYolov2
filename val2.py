@@ -128,7 +128,13 @@ def get_parser() -> argparse.Namespace:
         "--nms_type",
         type=str,
         default="nms",
-        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)",
+        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms, merge_nms)",
+    )
+    parser.add_argument(
+        "--no_coco",
+        action="store_true",
+        default=False,
+        help="Validate with pycocotools.",
     )
 
     return parser.parse_args()
@@ -253,6 +259,7 @@ if __name__ == "__main__":
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
 
+    if not args.no_coco:
         anno = COCO(gt_path)
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")

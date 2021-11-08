@@ -74,7 +74,7 @@ class ObjectiveValidator(AbstractObjective):
         self.baseline_t: float
 
         # for optimization with json
-        self.command = f"python3 val2.py --weights {self.args.weights} --data {self.args.data_cfg} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco"
+        self.command = f"python3 val2.py --weights {self.args.weights} --data {data_cfg['val_path']} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco"
 
         if args.model_cfg:
             self.command += " --model-cfg {self.args.model_cfg}"
@@ -249,7 +249,7 @@ class ObjectiveValidator(AbstractObjective):
         Returns:
             a result of AIGC metric.
         """
-        command = f" -iw {self.cfg['train']['img_size']} -ct {self.cfg['hyper_params']['conf_t']} -it {self.cfg['hyper_params']['conf_t']}"
+        command = f" -iw {self.cfg['train']['img_size']} -ct {self.cfg['hyper_params']['conf_t']} -it {self.cfg['hyper_params']['iou_t']}"
         command = self.command + command
 
         print(f"Run: {command}")
@@ -258,7 +258,11 @@ class ObjectiveValidator(AbstractObjective):
         time_took = time.monotonic() - t0
 
         anno = COCO(ObjectiveValidator.gt_path)
-        pred = anno.loadRes(ObjectiveValidator.json_path)
+        try:
+            pred = anno.loadRes(ObjectiveValidator.json_path)
+        except IndexError:
+            # Because of an empty json when no objects are detected.
+            return 0
         cocoeval = COCOeval(anno, pred, "bbox")
 
         cocoeval.evaluate()

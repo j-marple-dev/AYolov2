@@ -57,6 +57,7 @@ class YoloTrainer(AbstractTrainer):
         log_dir: str = "exp",
         incremental_log_dir: bool = False,
         wandb_run: Optional["wandb.sdk.wandb_run.Run"] = None,
+        use_swa: bool = False,
     ) -> None:
         """Initialize YoloTrainer class.
 
@@ -65,6 +66,7 @@ class YoloTrainer(AbstractTrainer):
             cfg: config.
             train_dataloader: dataloader for training.
             val_dataloader: dataloader for validation.
+            use_swa: apply SWA (Stochastic Weight Averaging) or not
         """
         super().__init__(
             model,
@@ -75,6 +77,7 @@ class YoloTrainer(AbstractTrainer):
             log_dir=log_dir,
             incremental_log_dir=incremental_log_dir,
             wandb_run=wandb_run,
+            use_swa=use_swa,
         )
 
         self.cfg_hyp["label_smoothing"] = self.cfg_train["label_smoothing"]
@@ -120,7 +123,8 @@ class YoloTrainer(AbstractTrainer):
                 cfg,
                 log_dir=self.log_dir,
             )
-        self.stopper = EarlyStopping(self.cfg_train["patience"])
+        patience = self.cfg_train["patience"] if not self.use_swa else self.epochs
+        self.stopper = EarlyStopping(patience)
 
     def _lr_function(self, x: float) -> float:
         if "linear_lr" in self.cfg_train.keys() and self.cfg_train["linear_lr"]:
@@ -375,6 +379,8 @@ class YoloTrainer(AbstractTrainer):
                 "model": deepcopy(de_parallel(self.model)).half(),
                 "optimizer": [optimizer.state_dict() for optimizer in self.optimizer],
             }
+            if self.use_swa:
+                ckpt["mAP50"] = self.state["val_log"]["mAP50"]
             if self.ema is not None:
                 ckpt.update(
                     {"ema": deepcopy(self.ema.ema).half(), "updates": self.ema.updates}
@@ -409,6 +415,8 @@ class YoloTrainer(AbstractTrainer):
                 self.best_score = val_result[0][2]
 
             self._save_weights(self.current_epoch, "last.pt")
+            if self.use_swa:
+                self._save_weights(self.current_epoch, f"epoch_{self.current_epoch}.pt")
 
             # TODO(jeikeilim): Better metric to measure the best score so far.
             if val_result[0][2] == self.best_score:

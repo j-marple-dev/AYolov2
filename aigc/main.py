@@ -238,16 +238,20 @@ if __name__ == "__main__":
 
         if importlib.util.find_spec("pycocotools") is None:
             print("pycocotools can not be found. Exit.")
-            exit(1)
+            exit(0)
+
+        gt_path = os.path.join("res", "instances_val2017.json")
+        if not os.path.isfile(gt_path):
+            print(f"Ground truth file does not exist on {gt_path}. Exit.")
+            exit(0)
+
+        import json
 
         from pycocotools.coco import COCO
         from pycocotools.cocoeval import COCOeval
-        import json
 
         with open(ANSWER_PATH, "r") as f:
             pred = json.load(f)
-
-        gt_path = os.path.join("instances_val2017.json")
 
         gt_anno = COCO(gt_path)
         pred_anno = gt_anno.loadRes(pred[2:])

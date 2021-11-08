@@ -13,6 +13,7 @@ from typing import Iterator, Optional
 
 import numpy as np
 import torch
+import yaml
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from torch import nn
@@ -50,6 +51,7 @@ class ModelLoader(threading.Thread):
         self.model: Optional[nn.Module] = None
         """Default stride_size is 32 but this might change by the model."""
         self.stride_size = 32
+        self.n_param = 0
 
     def run(self) -> None:
         """Run model load thread.
@@ -69,8 +71,9 @@ class ModelLoader(threading.Thread):
                 self.model.half()
 
             self.stride_size = int(max(self.model.stride))  # type: ignore
+            self.n_param = count_param(self.model)
 
-            LOGGER.info(f"# of parameters: {count_param(self.model):,d}")
+            LOGGER.info(f"# of parameters: {self.n_param:,d}")
 
 
 class DataLoaderGenerator(threading.Thread):
@@ -123,6 +126,47 @@ class DataLoaderGenerator(threading.Thread):
         self.iterator = tqdm(
             enumerate(self.dataloader), "Inference ...", total=len(self.dataloader)
         )
+
+
+def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
+    """Export AIGC model.
+
+    Args:
+        model_loader: ModelLoader instance to export model.
+        args: arguments from CLI.
+    """
+    path = Path("aigc") / "weights" / "model.pt"
+    model_to_save = deepcopy(model_loader.model)
+    torch.save(model_to_save.cpu().half(), path)  # type: ignore
+    LOGGER.info(f"Model weight has been saved to {path}")
+    cfg_to_save = {
+        "model": {
+            "name": "yolov5_name",
+            "weights": "weights/model.pt",
+            "stride_size": model_loader.stride_size,
+            "n_param": model_loader.n_param,
+            "wandb": args.weights,
+            "half": args.half,
+        },
+        "inference": {
+            "batch_size": args.batch_size,
+            "conf_t": args.conf_t,
+            "iou_t": args.iou_t,
+            "nms_box": args.nms_box,
+            "agnostic": args.agnostic,
+        },
+        "data": {
+            "path": "/home/agc/2021/dataset",
+            "img_size": args.img_width,
+            "rect": args.rect,
+            "use_mp": False,
+            "pad": 0.5,
+        },
+    }
+    path = Path("aigc") / "configs" / "submit_config.yaml"
+    with open(path, "w") as f:
+        yaml.dump(cfg_to_save, f)
+    LOGGER.info(f"Model config has been saved to {path}")
 
 
 def get_parser() -> argparse.Namespace:
@@ -274,9 +318,7 @@ if __name__ == "__main__":
     ), "Either dataloader or model has not been initialized!"
 
     if args.export_model:
-        path = Path("aigc") / "weights" / "model.pt"
-        model_to_save = deepcopy(model)
-        torch.save(model_to_save.cpu().half(), path)
+        export_model(model_loader, args)
         exit(0)
 
     result_writer = ResultWriterTorch("answersheet_4_04_000000.json")

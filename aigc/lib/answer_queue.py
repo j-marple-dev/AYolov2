@@ -166,7 +166,7 @@ class ResultWriterBase(MultiProcessQueue, abc.ABC):
         """
         super().__init__()
 
-        self.total_container: List[Dict] = [{"framework": "torch"}, {"Parameters": n_param}]
+        self.total_container: List[Dict] = [{"framework": "torch"}, {"parameters": n_param}]
         self.seen_paths: Set[str] = set()
         self.file_name = file_name
 

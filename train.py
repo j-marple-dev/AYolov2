@@ -18,6 +18,7 @@ from scripts.train.train_model_builder import TrainModelBuilder
 from scripts.train.yolo_trainer import YoloTrainer
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.model_manager import YOLOModelManager
+from scripts.utils.wandb_utils import load_model_from_wandb
 
 LOCAL_RANK = int(
     os.getenv("LOCAL_RANK", -1)
@@ -38,12 +39,14 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default=os.path.join("res", "configs", "model", "yolov5s.yaml"),
+        # default=os.path.join("res", "configs", "model", "yolov5s.yaml"),
         help="Model "
-        + colorstr("config")
+        + colorstr("config file")
         + " or "
-        + colorstr("weight")
-        + "  file path",
+        + colorstr("weight file")
+        + " or "
+        + colorstr("wandb")
+        + "  path",
     )
     parser.add_argument(
         "--data",
@@ -91,9 +94,20 @@ if __name__ == "__main__":
 
     if args.model.endswith(".pt"):
         model_cfg = args.model
-    else:
+        ckpt = torch.load(model_cfg)
+        if isinstance(ckpt, nn.Module):
+            model = ckpt.float()
+        elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
+            model = ckpt["ema"].float()
+        else:
+            model = ckpt["model"].float()
+    elif args.model.endswith(".yaml"):
         with open(args.model, "r") as f:
             model_cfg = yaml.safe_load(f)
+            model = YOLOModel(model_cfg, verbose=True)
+    else:
+        model = load_model_from_wandb(wandb_path=args.model)
+        model_cfg = model.yaml
 
     if args.log_dir:
         train_cfg["train"]["log_dir"] = args.log_dir
@@ -132,17 +146,6 @@ if __name__ == "__main__":
             wandb_run.save(
                 config_fp, base_path=os.path.dirname(config_fp), policy="now"
             )
-
-    if isinstance(model_cfg, dict):
-        model = YOLOModel(model_cfg, verbose=True)
-    else:
-        ckpt = torch.load(model_cfg)
-        if isinstance(ckpt, nn.Module):
-            model = ckpt.float()
-        elif "ema" in ckpt.keys() and ckpt["ema"] is not None:
-            model = ckpt["ema"].float()
-        else:
-            model = ckpt["model"].float()
 
     train_builder = TrainModelBuilder(model, train_cfg, "exp", full_cfg=cfg_all)
     train_builder.ddp_init()

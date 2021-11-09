@@ -214,13 +214,13 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--nms-box",
         type=int,
-        default=500,
+        default=1000,
         help="Number of boxes to use before check confidecne threshold.",
     )
     parser.add_argument(
         "--agnostic",
         action="store_true",
-        default=False,
+        default=True,
         help="Separate bboxes by classes for NMS with class separation.",
     )
     parser.add_argument(

@@ -42,6 +42,7 @@ class AbstractValidator(ABC):
         incremental_log_dir: bool = False,
         half: bool = False,
         export: bool = False,
+        nms_type: str = "nms",
     ) -> None:
         """Initialize Validator class.
 
@@ -71,6 +72,7 @@ class AbstractValidator(ABC):
                             ...
             half: use half precision input.
             export: export validation results to file.
+            nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
         """
         super().__init__()
         self.n_class = len(dataloader.dataset.names)  # type: ignore
@@ -81,6 +83,7 @@ class AbstractValidator(ABC):
         self.cfg_hyp = cfg["hyper_params"]
         self.half = half
         self.export = export
+        self.nms_type = nms_type
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -138,6 +141,7 @@ class YoloValidator(AbstractValidator):
         half: bool = False,
         export: bool = False,
         hybrid_label: bool = False,
+        nms_type: str = "nms",
     ) -> None:
         """Initialize YoloValidator class.
 
@@ -169,6 +173,7 @@ class YoloValidator(AbstractValidator):
             export: export validation results to file.
             hybrid_label: Run NMS with hybrid information (ground truth label + predicted result.)
                     (PyTorch only) This is for auto-labeling purpose.
+            nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
         """
         super().__init__(
             model,
@@ -179,6 +184,7 @@ class YoloValidator(AbstractValidator):
             incremental_log_dir=incremental_log_dir,
             half=half,
             export=export,
+            nms_type=nms_type,
         )
         self.class_map = list(range(self.n_class))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
@@ -435,6 +441,7 @@ class YoloValidator(AbstractValidator):
                 multi_label=True,
                 labels=labels_for_hybrid,
                 agnostic=self.cfg_train["single_cls"],
+                nms_type=self.nms_type,
             )
         self.statistics["dt"][2] += time.time() - t3
 

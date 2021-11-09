@@ -291,6 +291,7 @@ def non_max_suppression(
     multi_label: bool = False,
     labels: Union[tuple, list] = (),
     max_det: int = 300,
+    nms_type: str = "nms",
 ) -> list:
     """Run Non-Maximum Suppression (NMS) on inference results.
 
@@ -303,6 +304,7 @@ def non_max_suppression(
         multi_label: multiple labels per box.
         labels: labels.
         max_det: maximum number of detected objects by model.
+        nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
 
     Returns:
          list of detections, on (n,6) tensor per image [xyxy, conf, cls]
@@ -326,7 +328,6 @@ def non_max_suppression(
     time_limit = 10.0  # seconds to quit after
     redundant = True  # require redundant detections
     multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
-    merge = False  # use merge-NMS
 
     t = time.time()
     output = [torch.zeros((0, 6), device=prediction.device)] * prediction.shape[0]
@@ -377,23 +378,64 @@ def non_max_suppression(
         elif n > max_nms:  # excess boxes
             x = x[x[:, 4].argsort(descending=True)[:max_nms]]  # sort by confidence
 
-        # Batched NMS
-        c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
-        boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
-        i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
-        if i.shape[0] > max_det:  # limit detections
-            i = i[:max_det]
-        if merge and (1 < n < 3e3):  # Merge NMS (boxes merged using weighted mean)
-            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
-            weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(
-                1, keepdim=True
-            )  # merged boxes
-            if redundant:
-                i = i[iou.sum(1) > 1]  # require redundancy
+        # 1. torchvision nms (original)
+        if nms_type == "nms":
+            c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+            boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+            i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+            if i.shape[0] > max_det:  # limit detections
+                i = i[:max_det]
+            output[xi] = x[i]
+        # 2. torchvision batched_nms
+        # https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
+        elif nms_type == "batched_nms":
+            c = x[:, 5] * 0 if agnostic else x[:, 5]  # class-agnostic NMS
+            boxes, scores = x[:, :4].clone(), x[:, 4]
+            i = torchvision.ops.boxes.batched_nms(boxes, scores, c, iou_thres)  # YOLOv5
+            if i.shape[0] > max_det:  # limit detections
+                i = i[:max_det]
+            output[xi] = x[i]
+        # 3. fast nms (yolact)
+        # https://github.com/ultralytics/yolov3/blob/77e6bdd3c1ea410b25c407fef1df1dab98f9c27b/utils/utils.py#L557-L559
+        elif nms_type == "fast_nms":
+            c = x[:, 5] * 0 if agnostic else x[:, 5]  # classes
+            boxes = x[:, :4].clone() + c.view(-1, 1) * max_wh
+            iou = box_iou(boxes, boxes).triu_(diagonal=1)  # upper triangular iou matrix
+            i = iou.max(0)[0] < iou_thres
+            output[xi] = x[i][:max_det]
+        # 4. matrix nms
+        # https://github.com/ultralytics/yolov3/issues/679#issuecomment-604164825
+        elif nms_type == "matrix_nms":
+            boxes, scores = x[:, :4].clone(), x[:, 4]
+            iou = box_iou(boxes, boxes).triu_(diagonal=1)  # upper triangular iou matrix
+            m = iou.max(0)[0].view(-1, 1)  # max values
+            decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[
+                0
+            ]  # gauss with sigma=0.5
+            scores *= decay
+            i = torch.full((boxes.shape[0],), fill_value=1).bool()
+            output[xi] = x[i][:max_det]
+        elif nms_type == "merge_nms":  # Merge NMS (boxes merged using weighted mean)
+            c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+            boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+            i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+            if i.shape[0] > max_det:  # limit detections
+                i = i[:max_det]
 
-        output[xi] = x[i]
+            if 1 < n < 3e3:
+                # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
+                iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
+                weights = iou * scores[None]  # box weights
+                x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(
+                    1, keepdim=True
+                )  # merged boxes
+                if redundant:
+                    i = i[iou.sum(1) > 1]  # require redundancy
+
+            output[xi] = x[i]
+        else:
+            assert "Wrong NMS type!!"
+
         if (time.time() - t) > time_limit:
             LOGGER.warn(f"WARNING: NMS time limit {time_limit}s exceeded")
             break  # time limit exceeded

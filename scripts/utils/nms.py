@@ -84,7 +84,8 @@ def batched_nms(
         # 4. matrix nms
         # https://github.com/ultralytics/yolov3/issues/679#issuecomment-604164825
         elif nms_type == "matrix_nms":
-            bboxes, scores = outputs[i][:, :4].clone(), outputs[i][:, 4]
+            bboxes = outputs[i][:, :4].clone() + outputs[i][:, 5].view(-1, 1) * 4096
+            scores = outputs[i][:, 4]
             iou = box_iou(bboxes, bboxes).triu_(
                 diagonal=1
             )  # upper triangular iou matrix

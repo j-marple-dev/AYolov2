@@ -22,6 +22,7 @@ from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
+from scripts.utils.test_utils import inference_with_tta
 
 if importlib.util.find_spec("tensorrt") is not None:
     from scripts.utils.tensorrt_runner import TrtWrapper  # noqa: F401
@@ -43,6 +44,7 @@ class AbstractValidator(ABC):
         half: bool = False,
         export: bool = False,
         nms_type: str = "nms",
+        tta: bool = False,
     ) -> None:
         """Initialize Validator class.
 
@@ -84,6 +86,7 @@ class AbstractValidator(ABC):
         self.half = half
         self.export = export
         self.nms_type = nms_type
+        self.tta = tta
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -142,6 +145,7 @@ class YoloValidator(AbstractValidator):
         export: bool = False,
         hybrid_label: bool = False,
         nms_type: str = "nms",
+        tta: bool = False,
     ) -> None:
         """Initialize YoloValidator class.
 
@@ -174,6 +178,7 @@ class YoloValidator(AbstractValidator):
             hybrid_label: Run NMS with hybrid information (ground truth label + predicted result.)
                     (PyTorch only) This is for auto-labeling purpose.
             nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
+            tta: Apply TTA or not
         """
         super().__init__(
             model,
@@ -185,6 +190,7 @@ class YoloValidator(AbstractValidator):
             half=half,
             export=export,
             nms_type=nms_type,
+            tta=tta,
         )
         self.class_map = list(range(self.n_class))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
@@ -409,9 +415,13 @@ class YoloValidator(AbstractValidator):
         self.statistics["dt"][0] += t2 - t1
 
         # Run model
-        outs = self.model(
-            imgs.half() if self.half else imgs
-        )  # inference and training outputs
+        if self.tta:
+            outs = inference_with_tta(self.model, imgs.half() if self.half else imgs)
+            self.loss_fn = None
+        else:
+            outs = self.model(
+                imgs.half() if self.half else imgs
+            )  # inference and training outputs
         self.statistics["dt"][1] += time.time() - t2
 
         if len(outs) == 2:

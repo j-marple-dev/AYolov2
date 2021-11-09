@@ -21,6 +21,7 @@ from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import COCOmAPEvaluator
 from scripts.utils.multi_queue import ResultWriterTorch
 from scripts.utils.nms import batched_nms
+from scripts.utils.test_utils import inference_with_tta
 from scripts.utils.torch_utils import (count_param, load_pytorch_model,
                                        select_device)
 from scripts.utils.wandb_utils import load_model_from_wandb
@@ -136,6 +137,12 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Validate with pycocotools.",
     )
+    parser.add_argument(
+        "--tta",
+        action="store_true",
+        default=False,
+        help="Apply TTA (Test Time Augmentation)",
+    )
 
     return parser.parse_args()
 
@@ -226,7 +233,11 @@ if __name__ == "__main__":
     for _, (img, path, shape) in tqdm(
         enumerate(val_loader), "Inference ...", total=len(val_loader)
     ):
-        out = model(img.to(device, non_blocking=True))[0]
+        if args.tta:
+            out = inference_with_tta(model, img.to(device, non_blocking=True))[0]
+        else:
+            out = model(img.to(device, non_blocking=True))[0]
+
         # TODO(jeikeilim): Find better and faster NMS method.
         outputs = batched_nms(
             out,

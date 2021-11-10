@@ -45,6 +45,8 @@ class AbstractValidator(ABC):
         export: bool = False,
         nms_type: str = "nms",
         tta: bool = False,
+        tta_scales: List = [1, 0.83, 0.67],
+        tta_flips: List = [None, 3, None],
     ) -> None:
         """Initialize Validator class.
 
@@ -87,6 +89,8 @@ class AbstractValidator(ABC):
         self.export = export
         self.nms_type = nms_type
         self.tta = tta
+        self.tta_scales = tta_scales
+        self.tta_flips = tta_flips
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -146,6 +150,8 @@ class YoloValidator(AbstractValidator):
         hybrid_label: bool = False,
         nms_type: str = "nms",
         tta: bool = False,
+        tta_scales: List = [1, 0.83, 0.67],
+        tta_flips: List = [None, 3, None],
     ) -> None:
         """Initialize YoloValidator class.
 
@@ -179,6 +185,8 @@ class YoloValidator(AbstractValidator):
                     (PyTorch only) This is for auto-labeling purpose.
             nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
             tta: Apply TTA or not
+            tta_scales: scale ratios of each augmentation for TTA
+            tta_flips: flip types of each augmentation for TTA
         """
         super().__init__(
             model,
@@ -191,6 +199,8 @@ class YoloValidator(AbstractValidator):
             export=export,
             nms_type=nms_type,
             tta=tta,
+            tta_scales=tta_scales,
+            tta_flips=tta_flips,
         )
         self.class_map = list(range(self.n_class))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
@@ -416,7 +426,12 @@ class YoloValidator(AbstractValidator):
 
         # Run model
         if self.tta:
-            outs = inference_with_tta(self.model, imgs.half() if self.half else imgs)
+            outs = inference_with_tta(
+                self.model,
+                imgs.half() if self.half else imgs,
+                self.tta_scales,
+                self.tta_flips,
+            )
             self.loss_fn = None
         else:
             outs = self.model(

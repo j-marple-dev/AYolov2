@@ -59,7 +59,9 @@ def clip_augmented(model: nn.Module, y: List) -> List:
     return y
 
 
-def inference_with_tta(model: nn.Module, x: torch.Tensor) -> Tuple[torch.Tensor, None]:
+def inference_with_tta(
+    model: nn.Module, x: torch.Tensor, s: List, f: List
+) -> Tuple[torch.Tensor, None]:
     """Inference with TTA.
 
        Reference: https://github.com/ultralytics/yolov5/blob/master/models/yolo.py#L129-L141
@@ -67,14 +69,13 @@ def inference_with_tta(model: nn.Module, x: torch.Tensor) -> Tuple[torch.Tensor,
     Args:
         model: YOLOModel or nn.Module which last layer is YOLOHead.
         x: input image tensors for model
+        s: scale ratios of each augmentation for TTA
+        f: flip types of each augmentation for TTA
 
     Returns:
         agumented inferences, train outputs
     """
     img_size = x.shape[-2:]  # height, width
-    s = [1, 0.83, 0.67]  # scales
-    f = [None, 3, None]  # flips (2-ud, 3-lr)
-
     y = []  # outputs
     for si, fi in zip(s, f):
         xi = scale_img(x.flip(fi) if fi else x, si, gs=int(model.stride.max()))  # type: ignore

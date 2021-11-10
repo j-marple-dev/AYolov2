@@ -407,9 +407,10 @@ if __name__ == "__main__":
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")
 
-        cocotools_eval.params.imgIds = [
-            int(Path(path).stem) for path in dataloader_generator.dataset.img_files
-        ]
+        if dataloader_generator.dataset is not None:
+            cocotools_eval.params.imgIds = [
+                int(Path(path).stem) for path in dataloader_generator.dataset.img_files
+            ]
 
         cocotools_eval.evaluate()
         cocotools_eval.accumulate()

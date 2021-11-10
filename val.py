@@ -201,6 +201,9 @@ def get_parser() -> argparse.Namespace:
         default="res/configs/cfg/tta.yaml",
         help="TTA config file path",
     )
+    parser.add_argument(
+        "--n-skip", type=int, default=0, help="n skip option for dataloader."
+    )
 
     return parser.parse_args()
 
@@ -307,7 +310,7 @@ if __name__ == "__main__":
         single_cls=False,
         stride=stride_size,
         pad=0.5,
-        n_skip=0,
+        n_skip=args.n_skip,
         prefix="[val]",
         yolo_augmentation=None,
         augmentation=None,

@@ -96,13 +96,13 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--base-map50",
         type=float,
-        default=0,
+        default=0.681,
         help="Baseline mAP50 metric value. If base-map50 and base-time are given, baseline model validation will be skipped and use these values instead.",
     )
     parser.add_argument(
         "--base-time",
         type=float,
-        default=0,
+        default=331.63,
         help="Baseline validation time value. If base-map50 and base-time are given, baseline model validation will be skipped and use these values instead.",
     )
     parser.add_argument(
@@ -128,6 +128,9 @@ def get_parser() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Optimize parameters with json or not.",
+    )
+    parser.add_argument(
+        "--n-skip", type=int, default=0, help="n skip option for dataloader."
     )
 
     return parser.parse_args()

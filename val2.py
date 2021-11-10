@@ -301,6 +301,9 @@ def get_parser() -> argparse.Namespace:
         default="res/configs/cfg/tta.yaml",
         help="TTA config file path",
     )
+    parser.add_argument(
+        "--n-skip", type=int, default=0, help="n skip option for dataloader."
+    )
 
     return parser.parse_args()
 
@@ -403,6 +406,10 @@ if __name__ == "__main__":
         anno = COCO(gt_path)
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")
+
+        cocotools_eval.params.imgIds = [
+            int(Path(path).stem) for path in val_dataset.img_files
+        ]
 
         cocotools_eval.evaluate()
         cocotools_eval.accumulate()

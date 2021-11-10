@@ -408,7 +408,7 @@ if __name__ == "__main__":
         cocotools_eval = COCOeval(anno, pred, "bbox")
 
         cocotools_eval.params.imgIds = [
-            int(Path(path).stem) for path in val_dataset.img_files
+            int(Path(path).stem) for path in dataloader_generator.dataset.img_files
         ]
 
         cocotools_eval.evaluate()

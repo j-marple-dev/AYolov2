@@ -211,7 +211,7 @@ class YoloValidator(AbstractValidator):
             self.device, non_blocking=True
         )  # IoU vecot
         self.niou = self.iouv.numel()
-        if compute_loss:
+        if compute_loss and not self.tta:
             self.loss_fn = ComputeLoss(self.model)
         else:
             self.loss_fn = None
@@ -432,7 +432,6 @@ class YoloValidator(AbstractValidator):
                 self.tta_scales,
                 self.tta_flips,
             )
-            self.loss_fn = None
         else:
             outs = self.model(
                 imgs.half() if self.half else imgs

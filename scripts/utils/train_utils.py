@@ -45,8 +45,8 @@ class AbstractValidator(ABC):
         export: bool = False,
         nms_type: str = "nms",
         tta: bool = False,
-        tta_scales: List = [1, 0.83, 0.67],
-        tta_flips: List = [None, 3, None],
+        tta_scales: List = None,
+        tta_flips: List = None,
     ) -> None:
         """Initialize Validator class.
 
@@ -89,8 +89,8 @@ class AbstractValidator(ABC):
         self.export = export
         self.nms_type = nms_type
         self.tta = tta
-        self.tta_scales = tta_scales
-        self.tta_flips = tta_flips
+        self.tta_scales = tta_scales if tta_scales else [1, 0.83, 0.67]
+        self.tta_flips = tta_flips if tta_flips else [None, 3, None]
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -150,8 +150,8 @@ class YoloValidator(AbstractValidator):
         hybrid_label: bool = False,
         nms_type: str = "nms",
         tta: bool = False,
-        tta_scales: List = [1, 0.83, 0.67],
-        tta_flips: List = [None, 3, None],
+        tta_scales: List = None,
+        tta_flips: List = None,
     ) -> None:
         """Initialize YoloValidator class.
 

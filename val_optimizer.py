@@ -129,6 +129,9 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Optimize parameters with json or not.",
     )
+    parser.add_argument(
+        "--n-skip", type=int, default=0, help="n skip option for dataloader."
+    )
 
     return parser.parse_args()
 

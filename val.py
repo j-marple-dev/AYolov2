@@ -189,6 +189,18 @@ def get_parser() -> argparse.Namespace:
         default="nms",
         help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms, merge_nms)",
     )
+    parser.add_argument(
+        "--tta",
+        action="store_true",
+        default=False,
+        help="Apply TTA (Test Time Augmentation)",
+    )
+    parser.add_argument(
+        "--tta-cfg",
+        type=str,
+        default="res/configs/cfg/tta.yaml",
+        help="TTA config file path",
+    )
 
     return parser.parse_args()
 
@@ -271,6 +283,9 @@ if __name__ == "__main__":
     with open(args.data_cfg, "r") as f:
         data_cfg = yaml.safe_load(f)
 
+    with open(args.tta_cfg, "r") as f:
+        tta_cfg = yaml.safe_load(f)
+
     # TODO(jeikeilim): config structure should be changed.
     cfg = {
         "train": {
@@ -335,6 +350,9 @@ if __name__ == "__main__":
         incremental_log_dir=True,
         export=True,
         nms_type=args.nms_type,
+        tta=args.tta,
+        tta_scales=tta_cfg["scales"],
+        tta_flips=tta_cfg["flips"],
     )
     t0 = time.monotonic()
     val_result = validator.validation()

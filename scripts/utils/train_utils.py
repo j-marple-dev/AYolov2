@@ -22,6 +22,7 @@ from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
 from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
                                    non_max_suppression)
+from scripts.utils.tta_utils import inference_with_tta
 
 if importlib.util.find_spec("tensorrt") is not None:
     from scripts.utils.tensorrt_runner import TrtWrapper  # noqa: F401
@@ -43,6 +44,9 @@ class AbstractValidator(ABC):
         half: bool = False,
         export: bool = False,
         nms_type: str = "nms",
+        tta: bool = False,
+        tta_scales: List = None,
+        tta_flips: List = None,
     ) -> None:
         """Initialize Validator class.
 
@@ -84,6 +88,9 @@ class AbstractValidator(ABC):
         self.half = half
         self.export = export
         self.nms_type = nms_type
+        self.tta = tta
+        self.tta_scales = tta_scales if tta_scales else [1, 0.83, 0.67]
+        self.tta_flips = tta_flips if tta_flips else [None, 3, None]
 
         if incremental_log_dir:
             self.log_dir = increment_path(
@@ -142,6 +149,9 @@ class YoloValidator(AbstractValidator):
         export: bool = False,
         hybrid_label: bool = False,
         nms_type: str = "nms",
+        tta: bool = False,
+        tta_scales: List = None,
+        tta_flips: List = None,
     ) -> None:
         """Initialize YoloValidator class.
 
@@ -174,6 +184,9 @@ class YoloValidator(AbstractValidator):
             hybrid_label: Run NMS with hybrid information (ground truth label + predicted result.)
                     (PyTorch only) This is for auto-labeling purpose.
             nms_type: NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms)
+            tta: Apply TTA or not
+            tta_scales: scale ratios of each augmentation for TTA
+            tta_flips: flip types of each augmentation for TTA
         """
         super().__init__(
             model,
@@ -185,6 +198,9 @@ class YoloValidator(AbstractValidator):
             half=half,
             export=export,
             nms_type=nms_type,
+            tta=tta,
+            tta_scales=tta_scales,
+            tta_flips=tta_flips,
         )
         self.class_map = list(range(self.n_class))  # type: ignore
         self.names = {k: v for k, v in enumerate(self.dataloader.dataset.names)}  # type: ignore
@@ -195,7 +211,7 @@ class YoloValidator(AbstractValidator):
             self.device, non_blocking=True
         )  # IoU vecot
         self.niou = self.iouv.numel()
-        if compute_loss:
+        if compute_loss and not self.tta:
             self.loss_fn = ComputeLoss(self.model)
         else:
             self.loss_fn = None
@@ -409,9 +425,17 @@ class YoloValidator(AbstractValidator):
         self.statistics["dt"][0] += t2 - t1
 
         # Run model
-        outs = self.model(
-            imgs.half() if self.half else imgs
-        )  # inference and training outputs
+        if self.tta:
+            outs = inference_with_tta(
+                self.model,
+                imgs.half() if self.half else imgs,
+                self.tta_scales,
+                self.tta_flips,
+            )
+        else:
+            outs = self.model(
+                imgs.half() if self.half else imgs
+            )  # inference and training outputs
         self.statistics["dt"][1] += time.time() - t2
 
         if len(outs) == 2:

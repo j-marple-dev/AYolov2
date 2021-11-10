@@ -81,6 +81,8 @@ def write_result(
                     p = p[3:]  # AIGC "t4_"
                 orig_shapes[int(p)] = sh[0]
 
+    result_writer.close()
+
     # Write original shapes
     if write_orig_shape:
         with open("original_shapes.json", "w") as f:

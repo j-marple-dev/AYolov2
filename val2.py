@@ -27,6 +27,7 @@ from scripts.utils.multi_queue import ResultWriterTorch
 from scripts.utils.nms import batched_nms
 from scripts.utils.torch_utils import (count_param, load_pytorch_model,
                                        select_device)
+from scripts.utils.tta_utils import inference_with_tta
 from scripts.utils.wandb_utils import load_model_from_wandb
 
 torch.set_grad_enabled(False)
@@ -274,6 +275,30 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Export model weight file for to follow AIGC standard.",
     )
+    parser.add_argument(
+        "--nms_type",
+        type=str,
+        default="nms",
+        help="NMS type (e.g. nms, batched_nms, fast_nms, matrix_nms, merge_nms)",
+    )
+    parser.add_argument(
+        "--no_coco",
+        action="store_true",
+        default=False,
+        help="Validate with pycocotools.",
+    )
+    parser.add_argument(
+        "--tta",
+        action="store_true",
+        default=False,
+        help="Apply TTA (Test Time Augmentation)",
+    )
+    parser.add_argument(
+        "--tta-cfg",
+        type=str,
+        default="res/configs/cfg/tta.yaml",
+        help="TTA config file path",
+    )
 
     return parser.parse_args()
 
@@ -307,6 +332,9 @@ if __name__ == "__main__":
     model_loader.start()
     dataloader_generator.start()
 
+    with open(args.tta_cfg, "r") as f:
+        tta_cfg = yaml.safe_load(f)
+
     model_loader.join()
     dataloader_generator.join()
 
@@ -326,7 +354,16 @@ if __name__ == "__main__":
 
     time_checker.add("Prepare model")
     for _, (img, path, shape) in iterator:
-        out = model(img.to(device, non_blocking=True))[0]
+        if args.tta:
+            out = inference_with_tta(
+                model,
+                img.to(device, non_blocking=True),
+                tta_cfg["scales"],
+                tta_cfg["flips"],
+            )[0]
+        else:
+            out = model(img.to(device, non_blocking=True))[0]
+
         # TODO(jeikeilim): Find better and faster NMS method.
         outputs = batched_nms(
             out,
@@ -334,6 +371,7 @@ if __name__ == "__main__":
             iou_thres=args.iou_t,
             nms_box=args.nms_box,
             agnostic=args.agnostic,
+            nms_type=args.nms_type,
         )
         result_writer.add_outputs(path, outputs, img.shape[2:4], shapes=shape)
     time_checker.add("Inference")
@@ -358,6 +396,7 @@ if __name__ == "__main__":
         result = coco_eval.evaluate(json_path, debug=is_export)
         LOGGER.info(f"mAP50: {result['map50']}, mAP50:95: {result['map50_95']}")
 
+    if not args.no_coco:
         anno = COCO(gt_path)
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")

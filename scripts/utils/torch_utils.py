@@ -14,6 +14,7 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import torch.distributed as dist
+import torch.nn.functional as F
 from kindle import YOLOModel
 from torch import nn
 
@@ -42,10 +43,10 @@ def torch_distributed_zero_first(local_rank: int) -> Generator:
     to do something.
     """
     if local_rank not in [-1, 0]:
-        dist.barrier(device_ids=[local_rank])
+        dist.barrier(device_ids=[local_rank])  # type: ignore
     yield
     if local_rank == 0:
-        dist.barrier(device_ids=[0])
+        dist.barrier(device_ids=[0])  # type: ignore
 
 
 def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.device:
@@ -299,6 +300,35 @@ def prune(model: nn.Module, amount: float = 0.3) -> None:
             prune.l1_unstructured(m, name="weight", amount=amount)  # prune
             prune.remove(m, "weight")  # make permanent
     LOGGER.info(" |---  %.3g global sparsity" % sparsity(model))
+
+
+def scale_img(
+    img: torch.Tensor, ratio: float = 1.0, same_shape: bool = False, gs: int = 32
+) -> torch.Tensor:
+    """Scales img(bs,3,y,x) by ratio constrained to gs-multiple.
+
+       Reference: https://github.com/ultralytics/yolov5/blob/master/utils/torch_utils.py#L257-L267
+
+    Args:
+        img: image tensor
+        ratio: scale ratio for image tensor
+        same_shape: whether to make same shape or not
+        gs: stride
+
+    Returns:
+        scaled image tensor
+    """
+    if ratio == 1.0:
+        return img
+    else:
+        h, w = img.shape[2:]
+        s = (int(h * ratio), int(w * ratio))  # new size
+        img = F.interpolate(img, size=s, mode="bilinear", align_corners=False)  # resize
+        if not same_shape:  # pad/crop img
+            h, w = (math.ceil(x * ratio / gs) * gs for x in (h, w))
+        return F.pad(
+            img, [0, w - s[1], 0, h - s[0]], value=0.447
+        )  # value = imagenet mean
 
 
 class EarlyStopping:

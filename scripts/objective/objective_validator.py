@@ -6,6 +6,7 @@
 import argparse
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 import optuna
@@ -74,7 +75,7 @@ class ObjectiveValidator(AbstractObjective):
         self.baseline_t: float
 
         # for optimization with json
-        self.command = f"python3 val2.py --weights {self.args.weights} --data {data_cfg['val_path']} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco"
+        self.command = f"python3 val2.py --weights {self.args.weights} --data {data_cfg['val_path']} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco --n-skip {self.args.n_skip}"
 
         if args.model_cfg:
             self.command += " --model-cfg {self.args.model_cfg}"
@@ -112,7 +113,7 @@ class ObjectiveValidator(AbstractObjective):
             single_cls=False,
             stride=int(max(self.baseline_model.stride)),  # type: ignore
             pad=0.5,
-            n_skip=0,
+            n_skip=self.args.n_skip,
             prefix="[val]",
             yolo_augmentation=None,
             augmentation=None,
@@ -189,7 +190,7 @@ class ObjectiveValidator(AbstractObjective):
             single_cls=False,
             stride=int(max(self.model.stride)),  # type: ignore
             pad=0.5,
-            n_skip=0,
+            n_skip=self.args.n_skip,
             prefix="[val]",
             yolo_augmentation=None,
             augmentation=None,
@@ -252,7 +253,7 @@ class ObjectiveValidator(AbstractObjective):
         command = f" -iw {self.cfg['train']['img_size']} -ct {self.cfg['hyper_params']['conf_t']} -it {self.cfg['hyper_params']['iou_t']}"
         command = self.command + command
 
-        print(f"Run: {command}")
+        LOGGER.info(f"Run: {command}")
         t0 = time.monotonic()
         os.system(command)
         time_took = time.monotonic() - t0
@@ -264,6 +265,27 @@ class ObjectiveValidator(AbstractObjective):
             # Because of an empty json when no objects are detected.
             return 0
         cocoeval = COCOeval(anno, pred, "bbox")
+
+        # Finding which images has been used.
+        val_dataset = LoadImagesAndLabels(
+            self.data_cfg["val_path"],
+            img_size=self.cfg["train"]["img_size"],
+            batch_size=self.cfg["train"]["batch_size"],
+            rect=self.cfg["train"]["rect"],
+            label_type="labels",
+            cache_images=None,
+            single_cls=False,
+            stride=int(max(self.model.stride)),  # type: ignore
+            pad=0.5,
+            n_skip=self.args.n_skip,
+            prefix="[val]",
+            yolo_augmentation=None,
+            augmentation=None,
+            preprocess=None,
+        )
+        cocoeval.params.imgIds = [
+            int(Path(path).stem) for path in val_dataset.img_files
+        ]
 
         cocoeval.evaluate()
         cocoeval.accumulate()

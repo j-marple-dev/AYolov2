@@ -1,4 +1,4 @@
-"""Test utilities.
+"""TTA utilities.
 
 - Author: Hyunwook Kim
 - Contact: hwkim@jmarple.ai

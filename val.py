@@ -310,7 +310,7 @@ if __name__ == "__main__":
         single_cls=False,
         stride=stride_size,
         pad=0.5,
-        n_skip=0,
+        n_skip=args.n_skip,
         prefix="[val]",
         yolo_augmentation=None,
         augmentation=None,

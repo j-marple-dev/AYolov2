@@ -155,6 +155,7 @@ def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
             "iou_t": args.iou_t,
             "nms_box": args.nms_box,
             "agnostic": args.agnostic,
+            "tta": args.tta,
         },
         "data": {
             "path": "/home/agc2021/dataset",
@@ -163,6 +164,7 @@ def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
             "use_mp": False,
             "pad": 0.5,
         },
+        "tta": args.tta_cfg,
     }
     path = Path("aigc") / "configs" / "submit_config.yaml"
     with open(path, "w") as f:
@@ -335,6 +337,7 @@ if __name__ == "__main__":
     with open(args.tta_cfg, "r") as f:
         tta_cfg = yaml.safe_load(f)
 
+    args.tta_cfg = tta_cfg
     model_loader.join()
     dataloader_generator.join()
 

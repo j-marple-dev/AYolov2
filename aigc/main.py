@@ -29,6 +29,7 @@ if True:  # noqa: E402
     from lib.answer_queue import ResultWriterTorch
     from lib.general_utils import TimeChecker, count_param
     from lib.nms_utils import batched_nms
+    from lib.tta import inference_with_tta
     from torch import nn
     from tqdm import tqdm
 
@@ -212,10 +213,18 @@ if __name__ == "__main__":
     iou_thres = cfg["inference"].get("iou_t", 0.65)
     nms_box = cfg["inference"].get("nms_box", 500)
     agnostic = cfg["inference"].get("agnostic", False)
+    tta_cfg = cfg["tta"]
 
     time_checker.add("Prepare model")
 
     for img, path, shape in iterator:
+        if cfg["inference"].get("tta", False):
+            out = inference_with_tta(
+                model,
+                img.to(device, non_blocking=True),
+                tta_cfg["scales"],
+                tta_cfg["flips"],
+            )
         out = model(img.to(device, non_blocking=True))[0]
 
         # TODO(jeikeilim): Find better and faster NMS method.

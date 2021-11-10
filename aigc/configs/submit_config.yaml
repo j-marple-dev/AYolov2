@@ -1,23 +1,30 @@
-model:
-  name: yolov5l_decomposed
-  weights: weights/model.pt
-  stride_size: 32
-  n_param: 27450291
-  wandb: j-marple/AYolov2/xz6qgknu
-  half: False
-
+data:
+  img_size: 640
+  pad: 0.5
+    # path: /home/agc2021/dataset
+  path: /home/user/coco/images/val2017
+  rect: true
+  use_mp: false
 inference:
+  agnostic: true
   batch_size: 8
   conf_t: 0.001
   iou_t: 0.65
-  nms_box: 500
-  agnostic: False 
-
-data:
-  path: /home/agc2021/dataset
-  # path: /home/user/coco/images/val2017
-  img_size: 640
-  rect: True
-  use_mp: False
-  pad: 0.5
-  
+  nms_box: 1000
+  tta: true
+model:
+  half: false
+  n_param: 86705005
+  name: yolov5_name
+  stride_size: 32
+  wandb: j-marple/AYolov2/1gxaqgk4
+  weights: weights/model.pt
+tta:
+  flips:
+  - null
+  - 3
+  - null
+  scales:
+  - 1
+  - 0.83
+  - 0.67

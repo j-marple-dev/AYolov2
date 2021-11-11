@@ -20,6 +20,7 @@ threading.Thread(
 if True:  # noqa: E402
     import argparse
     import os
+    from functools import partial
     from typing import Any, Dict, Iterator, Optional
 
     import cv2
@@ -163,6 +164,13 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Check mAP after inference.",
     )
+    parser.add_argument(
+        "-gm",
+        "--gpu-mem",
+        default=6.0,
+        type=float,
+        help="GPU Memory restriction in GiB.",
+    )
 
     return parser.parse_args()
 
@@ -183,9 +191,11 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0")
 
-    # 8 GiB GPU memory limit.
-    # memory_fraction = ((8 * 1024 ** 3) / torch.cuda.get_device_properties(device).total_memory)
-    # torch.cuda.set_per_process_memory_fraction(memory_fraction, device)
+    # 6 GiB GPU memory limit.
+    memory_fraction = (args.gpu_mem * 1024 ** 3) / torch.cuda.get_device_properties(
+        device
+    ).total_memory
+    torch.cuda.set_per_process_memory_fraction(memory_fraction, device)
 
     time_checker.add("init")
 
@@ -211,21 +221,22 @@ if __name__ == "__main__":
 
     conf_thres = cfg["inference"].get("conf_t", 0.001)
     iou_thres = cfg["inference"].get("iou_t", 0.65)
-    nms_box = cfg["inference"].get("nms_box", 500)
-    agnostic = cfg["inference"].get("agnostic", False)
+    nms_box = cfg["inference"].get("nms_box", 1000)
+    agnostic = cfg["inference"].get("agnostic", True)
     tta_cfg = cfg["tta"]
 
     time_checker.add("Prepare model")
 
+    # Choose normal inference or TTA inference
+    if cfg["inference"].get("tta", False):
+        run_model = partial(
+            inference_with_tta, model, s=tta_cfg["scales"], f=tta_cfg["flips"]
+        )
+    else:
+        run_model = model
+
     for img, path, shape in iterator:
-        if cfg["inference"].get("tta", False):
-            out = inference_with_tta(
-                model,
-                img.to(device, non_blocking=True),
-                tta_cfg["scales"],
-                tta_cfg["flips"],
-            )
-        out = model(img.to(device, non_blocking=True))[0]
+        out = run_model(img.to(device, non_blocking=True))[0]
 
         # TODO(jeikeilim): Find better and faster NMS method.
         outputs = batched_nms(

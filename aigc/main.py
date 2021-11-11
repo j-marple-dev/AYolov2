@@ -21,7 +21,7 @@ if True:  # noqa: E402
     import argparse
     import os
     from functools import partial
-    from typing import Any, Dict, Iterator, Optional
+    from typing import Any, Dict, Iterator, Optional, Union
 
     import cv2
     import numpy as np
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     # Choose normal inference or TTA inference
     if cfg["inference"].get("tta", False):
-        run_model = partial(
+        run_model: Union[partial, nn.Module] = partial(
             inference_with_tta, model, s=tta_cfg["scales"], f=tta_cfg["flips"]
         )
     else:

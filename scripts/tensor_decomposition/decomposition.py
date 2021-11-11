@@ -206,6 +206,7 @@ def EVBMF(
     return U[:, :pos], np.diag(d), V[:, :pos], post
 
 
+@torch.no_grad()
 def decompose_layer_evaluation(
     layer: nn.Conv2d, test_input: torch.Tensor, origin_out: torch.Tensor
 ) -> Tuple[Optional[nn.Sequential], Union[torch.Tensor, float]]:
@@ -229,11 +230,17 @@ def decompose_layer_evaluation(
         return None, float("inf")
 
     decomposed_out = decomposed_layer(test_input)
-    loss = torch.abs(origin_out - decomposed_out).sum() / origin_out.numel()
+    # loss = torch.abs(origin_out - decomposed_out).sum() / origin_out.numel()
+    flatten_out = origin_out.flatten()
+    flatten_out = flatten_out.sort()[0]
+    loss = 1 - (
+        torch.isclose(origin_out, decomposed_out, rtol=1.0).sum() / origin_out.numel()
+    )
 
     return decomposed_layer, loss
 
 
+@torch.no_grad()
 def decompose_model(
     model: nn.Module, loss_thr: float = 0.1, prune_step: float = 0.01
 ) -> None:
@@ -271,7 +278,34 @@ def decompose_model(
             if conv.kernel_size == (1, 1):
                 continue
 
-            test_input = torch.rand((1, conv.weight.shape[1], 32, 32))
+            conv_shape = conv.weight.shape
+            test_input = (
+                torch.rand((8, conv_shape[1], conv_shape[2] * 3, conv_shape[3] * 3))
+                * 0.2
+            )
+            max_line = int(np.round(np.sqrt(test_input.shape[2] * test_input.shape[3])))
+
+            # Drawing random pattern.
+            for b in range(8):  # Batch
+                for c in range(conv_shape[1]):  # Channel
+                    for _ in range(np.random.randint(1, max_line)):  # Line
+                        # Starting from random location.
+                        x = np.random.randint(0, conv_shape[3])
+                        y = np.random.randint(0, conv_shape[2])
+
+                        n_step = 0
+                        while 0 <= x < conv_shape[3] and 0 <= y < conv_shape[2]:
+                            if n_step == 0:
+                                distance = np.random.randint(1, (max_line // 2) + 1)
+                                dx, dy = np.random.randint(-1, 2, 2)
+
+                            test_input[b, c, x, y] += np.random.uniform(0.7, 1.0)
+
+                            x, y = x + dx, y + dy
+                            n_step = (n_step + 1) % distance
+
+            test_input = test_input.clip(0.0, 1.0)
+            origin_n_param = conv.weight.numel()
             origin_out = conv(test_input)
             decomposed_conv = None
 
@@ -293,6 +327,13 @@ def decompose_model(
             min_prune_ratio = 0.0
             prune_ratio = (max_prune_ratio + min_prune_ratio) / 2
 
+            if decomposed_conv_candidate is not None:
+                min_n_param = sum(
+                    x.numel() for x in decomposed_conv_candidate.parameters()
+                )
+            else:
+                min_n_param = 1024 ** 3
+
             while run_b_search:  # Binary search for pruning ratio.
                 original_conv = deepcopy(conv)
                 if prune_ratio > 0.0:
@@ -307,9 +348,14 @@ def decompose_model(
 
                 LOGGER.info(f"{name} (Prune: {prune_ratio:.3f}): Loss(mean): {loss}, ")
 
-                if loss < loss_thr:
+                if loss < loss_thr and decomposed_conv_candidate is not None:
                     min_prune_ratio = prune_ratio
-                    decomposed_conv = decomposed_conv_candidate
+                    n_param = sum(
+                        x.numel() for x in decomposed_conv_candidate.parameters()
+                    )
+                    if min_n_param > n_param:
+                        decomposed_conv = decomposed_conv_candidate
+                        min_n_param = n_param
                 else:
                     max_prune_ratio = prune_ratio
 
@@ -325,16 +371,18 @@ def decompose_model(
             if decomposed_conv is not None:
                 for attr_name in ["in_channels", "out_channels", "kernel_size"]:
                     setattr(decomposed_conv, attr_name, getattr(conv, attr_name))
-                # decomposed_conv.in_channels = conv.in_channels
-                # decomposed_conv.out_channels = conv.out_channels
-                # decomposed_conv.kernel_size = conv.kernel_size
 
                 if isinstance(model, nn.ModuleList):
                     model[i] = decomposed_conv
                 else:
                     model.conv = decomposed_conv
 
-                LOGGER.info("    |---------- Switching conv to decomposed conv")
+                LOGGER.info(
+                    f"    |---------- Switching conv to decomposed conv : {decomposed_conv}"
+                )
+                LOGGER.info(
+                    f"    |---------- # Params (Original, Decomposed): ({origin_n_param:,d}, {min_n_param:,d}) (reduced to {(min_n_param/origin_n_param)*100:.3f}%)"
+                )
             else:
                 LOGGER.info("    |---------- Skip switching to decomposed conv.")
 

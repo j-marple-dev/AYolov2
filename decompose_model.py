@@ -100,6 +100,7 @@ def get_parser() -> argparse.Namespace:
         default=False,
         help="Save validation result plot.",
     )
+    parser.add_argument("--seed", type=int, default=0, help="Random seed.")
     return parser.parse_args()
 
 
@@ -153,6 +154,10 @@ def run_decompose(
 
 if __name__ == "__main__":
     args = get_parser()
+
+    # Fix random seed for reproducibility
+    torch.manual_seed(args.seed)
+    LOGGER.info(f"Random Seed: {args.seed}")
 
     if args.img_height < 0:
         args.img_height = args.img_width
@@ -285,7 +290,8 @@ if __name__ == "__main__":
         LOGGER.info("Decomposition config saved to " + colorstr("bold", cfg_path))
 
     weight_path = (
-        str(Path(validator.log_dir) / Path(args.weights).stem) + "_decomposed.pt"
+        str(Path(validator.log_dir) / Path(args.weights).stem)
+        + f"_decomposed_seed_{args.seed}.pt"
     )
     torch.save(
         {"model": decomposed_model.cpu().half(), "decomposed": True}, weight_path

@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import torch
 import yaml
 from ensemble_preds import apply_ensemble, load_preds
@@ -22,12 +23,11 @@ def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument("--configs", nargs="+", default=[])
     parser.add_argument(
-        "--nms_type",
+        "--ensemble-cfg",
         type=str,
-        default="nms",
-        help="NMS type for ensemble (e.g. nms, soft_nms, nmw, wbf)",
+        default="configs/ensemble_config.yaml",
+        help="config file for ensemble",
     )
     parser.add_argument(
         "--force", action="store_true", default=False, help="Apply ensemble by force"
@@ -104,8 +104,10 @@ def write_result(
 if __name__ == "__main__":
     ANSWER_PATH = "answersheet_4_04_jmarple.json"
     args = get_args()
+    with open(args.ensemble_cfg, "r") as f:
+        ensemble_cfg = yaml.safe_load(f)
 
-    for cfg in args.configs:
+    for cfg in ensemble_cfg["model"]["model_configs"]:
         assert os.path.exists(cfg), f"Config `{cfg}` does not exist"
 
     device = torch.device("cuda:0")
@@ -113,7 +115,7 @@ if __name__ == "__main__":
     print("Start predictions:")
     write_orig_shape = True
     filenames = []
-    for cfg in args.configs:
+    for cfg in ensemble_cfg["model"]["model_configs"]:
         # Load Dataloader
         with open(cfg, "r") as f:
             config = yaml.safe_load(f)
@@ -128,12 +130,22 @@ if __name__ == "__main__":
             )
 
     if args.force or not os.path.exists(ANSWER_PATH):
-        with open("original_shapes.json", "r") as f:
+        with open(ensemble_cfg["preds"]["img_shape_json"], "r") as f:
             img_shapes = json.load(f)
 
-        framework, n_params, preds_dict = load_preds(filenames, img_shapes)
+        framework, n_params, preds_dict = load_preds(
+            ensemble_cfg["preds"]["preds_paths"], img_shapes
+        )
         preds = apply_ensemble(
-            framework, n_params, preds_dict, img_shapes, args.nms_type
+            framework,
+            n_params,
+            preds_dict,
+            img_shapes,
+            ensemble_cfg["ensemble"]["nms_type"],
+            np.array(ensemble_cfg["ensemble"]["weights"]),
+            ensemble_cfg["ensemble"]["iou_thr"],
+            ensemble_cfg["ensemble"]["skip_box_thr"],
+            ensemble_cfg["ensemble"]["sigma"],
         )
         with open(ANSWER_PATH, "w") as f:
             json.dump(preds, f)

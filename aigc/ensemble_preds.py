@@ -9,6 +9,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import tqdm
+import yaml
 from lib.nms_utils import (nms, non_maximum_weighted, soft_nms,
                            weighted_boxes_fusion)
 
@@ -19,23 +20,10 @@ def get_parser() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
-        "--preds_paths",
+        "--ensemble-cfg",
         type=str,
-        nargs="+",
-        required=True,
-        help="answersheet paths for ensemble",
-    )
-    parser.add_argument(
-        "--img_shape_json",
-        type=str,
-        default="img_shapes.json",
-        help="json file for image shapes",
-    )
-    parser.add_argument(
-        "--nms_type",
-        type=str,
-        default="nms",
-        help="NMS type for ensemble (e.g. nms, soft_nms, nmw, wbf)",
+        default="configs/ensemble_config.yaml",
+        help="config file for ensemble",
     )
     return parser.parse_args()
 
@@ -85,7 +73,15 @@ def load_preds(preds_paths: List, img_shapes: Dict) -> Tuple[str, int, Dict]:
 
 
 def apply_ensemble(
-    framework: str, n_params: int, preds_dict: Dict, img_shapes: Dict, nms_type: str
+    framework: str,
+    n_params: int,
+    preds_dict: Dict,
+    img_shapes: Dict,
+    nms_type: str,
+    weights: np.ndarray,
+    iou_thr: float,
+    skip_box_thr: float,
+    sigma: float,
 ) -> List:
     """Apply ensemble with prediction results.
 
@@ -95,6 +91,10 @@ def apply_ensemble(
         preds_dict: prediction results of all models that wants to ensemble
         img_shapes: original image shapes
         nms_type: NMS types (e.g. nms, soft_nms, nmw, wbf)
+        weights: list of weights for each model. Default: None, which means weight == 1 for each model
+        iou_thr: IoU value for boxes to be a match
+        skip_box_thr: threshold for boxes to keep (important for SoftNMS)
+        sigma: Sigma value for SoftNMS
 
     Returns:
         preds_list: ensembled prediction results
@@ -105,10 +105,6 @@ def apply_ensemble(
     ]
     print(f"# of parameters: {n_params:,d}")
     for img_id, preds in tqdm.tqdm(preds_dict.items(), desc="Apply ensemble"):
-        weights = np.array([1, 1, 1])
-        iou_thr = 0.5
-        skip_box_thr = 0.0001
-        sigma = 0.1
         preds["bboxes_list"] = [np.concatenate(b) for b in preds["bboxes_list"]]
         if nms_type == "nms":
             boxes, scores, labels = nms(
@@ -167,10 +163,24 @@ def apply_ensemble(
 if __name__ == "__main__":
     ANSWER_PATH = "answersheet_4_04_jmarple.json"
     args = get_parser()
-    with open(args.img_shape_json, "r") as f:
+    with open(args.ensemble_cfg, "r") as f:
+        ensemble_cfg = yaml.safe_load(f)
+    with open(ensemble_cfg["preds"]["img_shape_json"], "r") as f:
         img_shapes = json.load(f)
 
-    framework, n_params, preds_dict = load_preds(args.preds_paths, img_shapes)
-    preds = apply_ensemble(framework, n_params, preds_dict, img_shapes, args.nms_type)
+    framework, n_params, preds_dict = load_preds(
+        ensemble_cfg["preds"]["preds_paths"], img_shapes
+    )
+    preds = apply_ensemble(
+        framework,
+        n_params,
+        preds_dict,
+        img_shapes,
+        ensemble_cfg["ensemble"]["nms_type"],
+        np.array(ensemble_cfg["ensemble"]["weights"]),
+        ensemble_cfg["ensemble"]["iou_thr"],
+        ensemble_cfg["ensemble"]["skip_box_thr"],
+        ensemble_cfg["ensemble"]["sigma"],
+    )
     with open(ANSWER_PATH, "w") as f:
         json.dump(preds, f)

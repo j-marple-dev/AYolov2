@@ -1,0 +1,19 @@
+model:
+  model_configs:
+    - "configs/yolov5x_config.yaml"
+    - "configs/yolov5xx_config.yaml"
+    - "configs/yolov5x_decompose_v2_config.yaml"
+
+preds:
+  preds_paths:  # answersheet paths for ensemble
+    - "yolov5x.json"
+    - "yolov5xx.json"
+    - "yolov5x_decompose_v2.json"
+  img_shape_json: "original_shapes.json"  # json file for image shapes
+
+ensemble:
+  nms_type: "nms"  # NMS type for ensemble (e.g. nms, soft_nms, nmw, wbf)
+  weights: [1, 1, 1]  # list of weights for each model
+  iou_thr: 0.5  # IoU value for boxes to be a match
+  skip_box_thr: 0.0001  # threshold for boxes to keep (important for SoftNMS)
+  sigma: 0.1  # Sigma value for SoftNMS

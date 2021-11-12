@@ -74,7 +74,14 @@ class ModelLoader(threading.Thread):
 
         Loaded model can be accessed after self.join()
         """
-        self.model = torch.load(self.cfg.get("weights", "weights/model.pt"))
+        ckpt = torch.load(self.cfg.get("weights", "weights/model.pt"))
+        if isinstance(ckpt, dict):
+            if "ema" in ckpt.keys() and ckpt["ema"] is not None:
+                self.model = ckpt["ema"]
+            else:
+                self.model = ckpt["model"]
+        else:
+            self.model = ckpt
 
         if self.model is not None:
             self.model.to(self.device).eval()  # type: ignore

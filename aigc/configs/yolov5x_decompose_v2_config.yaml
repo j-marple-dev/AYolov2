@@ -1,0 +1,23 @@
+model:
+  name: yolov5x_decompose_v2
+  weights: weights/yolov5x_decomposed_v2.pt
+  stride_size: 32
+  n_param: 49508630
+  wandb: j-marple/AYolov2/3q78rkqb
+  half: False
+
+inference:
+  batch_size: 8
+  conf_t: 0.00051
+  iou_t: 0.5357
+  nms_box: 3000
+  agnostic: True 
+
+data:
+  # path: /home/agc2021/dataset
+  path: /mnt/ssd/datasets/coco/images/val2017
+  img_size: 832
+  rect: True
+  use_mp: False
+  pad: 0.5
+  

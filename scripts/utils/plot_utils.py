@@ -242,6 +242,7 @@ def draw_labels(
     label_list: np.ndarray,
     label_info: Dict[int, str],
     norm_xywh: bool = True,
+    confs: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Draw label informations on the image.
 
@@ -256,16 +257,19 @@ def draw_labels(
     Returns:
         label drawn image.
     """
-    overlay_alpha = 0.3
+    overlay_alpha = 0.1
     label_list = np.copy(label_list)
     if norm_xywh:
         label_list[:, 1:] = xywh2xyxy(
             label_list[:, 1:], wh=(float(img.shape[1]), float(img.shape[0]))
         )
 
-    for label in label_list:
+    for idx, label in enumerate(label_list[::-1]):
         class_id = int(label[0])
         class_str = label_info[class_id]
+        if confs is not None:
+            conf = confs[len(confs) - 1 - idx]
+            class_str = f"{100 * conf:.1f}" + ":" + class_str
 
         xy1 = tuple(label[1:3].astype("int"))
         xy2 = tuple(label[3:5].astype("int"))

@@ -54,3 +54,5 @@ if __name__ == "__main__":
         cocotools_eval.evaluate()
         cocotools_eval.accumulate()
         cocotools_eval.summarize()
+
+    os.remove(json_path)

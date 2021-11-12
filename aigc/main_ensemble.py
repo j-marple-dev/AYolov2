@@ -6,10 +6,12 @@
 import argparse
 import json
 import os
+from pathlib import Path
 from typing import Any, Dict, List
 
 import torch
 import yaml
+from ensemble_preds import apply_ensemble, load_preds
 from lib.answer_queue import ResultWriterTorch
 from lib.nms_utils import batched_nms
 from main import DataLoaderGenerator, ModelLoader
@@ -21,6 +23,15 @@ def get_args() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument("--configs", nargs="+", default=[])
+    parser.add_argument(
+        "--nms_type",
+        type=str,
+        default="nms",
+        help="NMS type for ensemble (e.g. nms, soft_nms, nmw, wbf)",
+    )
+    parser.add_argument(
+        "--force", action="store_true", default=False, help="Apply ensemble by force"
+    )
     return parser.parse_args()
 
 
@@ -91,6 +102,7 @@ def write_result(
 
 
 if __name__ == "__main__":
+    ANSWER_PATH = "answersheet_4_04_jmarple.json"
     args = get_args()
 
     for cfg in args.configs:
@@ -98,10 +110,32 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0")
 
+    print("Start predictions:")
     write_orig_shape = True
-    for idx, cfg in enumerate(args.configs):
+    filenames = []
+    for cfg in args.configs:
         # Load Dataloader
         with open(cfg, "r") as f:
             config = yaml.safe_load(f)
-        write_result(config, f"{idx}.json", device, write_orig_shape)
-        write_orig_shape = False
+        filename = f"{config['model']['name']}.json"
+        filenames.append(filename)
+        if args.force or not os.path.exists(filename):
+            write_result(config, filename, device, write_orig_shape)
+            write_orig_shape = False
+        else:
+            print(
+                f"  Prediction results already exists (Model: {Path(filename).stem})."
+            )
+
+    if args.force or not os.path.exists(ANSWER_PATH):
+        with open("original_shapes.json", "r") as f:
+            img_shapes = json.load(f)
+
+        framework, n_params, preds_dict = load_preds(filenames, img_shapes)
+        preds = apply_ensemble(
+            framework, n_params, preds_dict, img_shapes, args.nms_type
+        )
+        with open(ANSWER_PATH, "w") as f:
+            json.dump(preds, f)
+    else:
+        print("Ensemble results already exists!!")

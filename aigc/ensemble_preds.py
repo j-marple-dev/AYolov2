@@ -40,7 +40,7 @@ def get_parser() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_preds(preds_paths: str, img_shapes: Dict) -> Tuple[str, int, Dict]:
+def load_preds(preds_paths: List, img_shapes: Dict) -> Tuple[str, int, Dict]:
     """Load prediction results.
 
     Args:
@@ -61,7 +61,7 @@ def load_preds(preds_paths: str, img_shapes: Dict) -> Tuple[str, int, Dict]:
             "image_shape": img_shape,
         }
 
-    print("Load prediction:")
+    print("Load predictions:")
     for model_id, pred_path in enumerate(preds_paths):
         with open(pred_path, "r") as f:
             pred = json.load(f)
@@ -103,7 +103,7 @@ def apply_ensemble(
         {"framework": framework},
         {"parameters": n_params},
     ]
-    print(f"# Parameters: {n_params}")
+    print(f"# of parameters: {n_params:,d}")
     for img_id, preds in tqdm.tqdm(preds_dict.items(), desc="Apply ensemble"):
         weights = np.array([1, 1, 1])
         iou_thr = 0.5

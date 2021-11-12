@@ -154,6 +154,12 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--n-skip", type=int, default=0, help="n skip option for dataloader."
     )
+    parser.add_argument(
+        "--json-path",
+        type=str,
+        default="answer_sheet_4_04_000000.json",
+        help="Prediction JSON file path.",
+    )
 
     return parser.parse_args()
 
@@ -240,7 +246,7 @@ if __name__ == "__main__":
 
     time_checker.add("Fuse model")
 
-    result_writer = ResultWriterTorch("answersheet_4_04_000000.json")
+    result_writer = ResultWriterTorch(args.json_path)
     result_writer.start()
 
     time_checker.add("Prepare run")
@@ -277,7 +283,8 @@ if __name__ == "__main__":
     # Check mAP
     if args.check_map:
         gt_path = os.path.join("tests", "res", "instances_val2017.json")
-        json_path = "answersheet_4_04_000000.json"
+        # json_path = "answersheet_4_04_000000.json"
+        json_path = args.json_path
 
         is_export = args.export != ""
 

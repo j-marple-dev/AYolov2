@@ -132,6 +132,12 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--n-skip", type=int, default=0, help="n skip option for dataloader."
     )
+    parser.add_argument(
+        "--json-path",
+        type=str,
+        default="val_optim_pred.json",
+        help="Prediction JSON file path to evaluate.",
+    )
 
     return parser.parse_args()
 

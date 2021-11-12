@@ -271,7 +271,6 @@ def decompose_model(
             if conv.kernel_size == (1, 1):
                 continue
 
-            # import pdb;pdb.set_trace()
             test_input = torch.rand((1028, *conv.weight.shape[1:]))
             origin_out = conv(test_input)
             decomposed_conv = None

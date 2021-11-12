@@ -734,7 +734,9 @@ class COCOmAPEvaluator:
                 confusion_matrix.process_batch(label_pred, label_gt)  # type: ignore
 
             if debug:
-                self._draw_result(img_id, label_pred, label_gt)
+                self._draw_result(
+                    img_id, label_pred, label_gt, n_boxes=20, show_conf=True
+                )
 
         if self.export_root is not None:
             confusion_matrix.plot(self.names, save_dir=self.export_root)
@@ -821,7 +823,12 @@ class COCOmAPEvaluator:
         )
 
     def _draw_result(
-        self, img_id: int, label_pred: torch.Tensor, label_gt: torch.Tensor
+        self,
+        img_id: int,
+        label_pred: torch.Tensor,
+        label_gt: torch.Tensor,
+        n_boxes: int = 0,
+        show_conf: bool = False,
     ) -> None:
         """Draw or save inference result.
 
@@ -830,6 +837,8 @@ class COCOmAPEvaluator:
             label_pred: prediction result (n, 6)
             label_gt: ground truth label (n, 5)
         """
+        if n_boxes > 0:
+            label_pred = label_pred[:n_boxes]
         if self.img_root is None:
             return
 
@@ -846,6 +855,7 @@ class COCOmAPEvaluator:
             np.concatenate((label_pred[:, 5:6], label_pred[:, :4]), 1),
             {i: self.names[i] for i in range(len(self.names))},
             norm_xywh=False,
+            confs=label_pred[:, 4] if show_conf else None,
         )
         img_gt = draw_labels(
             img.copy(),

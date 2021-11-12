@@ -67,8 +67,12 @@ def batched_nms(
     return outputs
 
 
-def prepare_boxes(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def prepare_boxes(
+    boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Prepare bounding boxes, scores, and labels.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -114,11 +118,15 @@ def prepare_boxes(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray) -> 
     return result_boxes, scores, labels
 
 
-def cpu_soft_nms_float(dets: np.ndarray, sc: np.ndarray, Nt: float, sigma: float, thresh: float, method: int) -> np.ndarray:
+def cpu_soft_nms_float(
+    dets: np.ndarray, sc: np.ndarray, Nt: float, sigma: float, thresh: float, method: int
+) -> np.ndarray:
     """Soft NMS with cpu.
 
-       Based on: https://github.com/DocF/Soft-NMS/blob/master/soft_nms.py.
-       It's different from original soft-NMS because we have float coordinates on range [0; 1]
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
+
+    Based on: https://github.com/DocF/Soft-NMS/blob/master/soft_nms.py.
+    It's different from original soft-NMS because we have float coordinates on range [0; 1].
 
     Args:
         dets:   boxes format [x1, y1, x2, y2]
@@ -131,7 +139,6 @@ def cpu_soft_nms_float(dets: np.ndarray, sc: np.ndarray, Nt: float, sigma: float
     Returns:
         keep: index of boxes to keep
     """
-
     # indexes concatenate boxes with the last column
     N = dets.shape[0]
     indexes = np.array([np.arange(N)])
@@ -202,10 +209,13 @@ def cpu_soft_nms_float(dets: np.ndarray, sc: np.ndarray, Nt: float, sigma: float
 
 
 @jit(nopython=True)
-def nms_float_fast(dets: np.ndarray, scores: np.ndarray, thresh: float) -> List:
+def nms_float_fast(
+    dets: np.ndarray, scores: np.ndarray, thresh: float
+) -> List:
     """Fast NMS function.
 
        It's different from original nms because we have float coordinates on range [0; 1].
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
 
     Args:
         dets: numpy array of boxes with shape: (N, 5). Order: x1, y1, x2, y2, score. All variables in range [0; 1]
@@ -249,9 +259,11 @@ def nms_method(
     iou_thr: float = 0.5,
     sigma: float = 0.5,
     thresh: float = 0.001,
-    weights: List = None
+    weights: np.ndarray = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """NMS method for hard NMS and soft NMS.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -266,11 +278,10 @@ def nms_method(
         weights: list of weights for each model. Default: None, which means weight == 1 for each model
 
     Returns:
-        boxes: boxes coordinates (Order of boxes: x1, y1, x2, y2).
-        scores: confidence scores
-        labels: boxes labels
+        final_boxes: boxes coordinates (Order of boxes: x1, y1, x2, y2).
+        final_scores: confidence scores
+        final_labels: boxes labels
     """
-
     # If weights are specified
     if weights is not None:
         if len(boxes) != len(weights):
@@ -290,14 +301,14 @@ def nms_method(
 
     # Run NMS independently for each label
     unique_labels = np.unique(labels)
-    final_boxes = []
-    final_scores = []
-    final_labels = []
-    for l in unique_labels:
-        condition = (labels == l)
+    final_boxes_list = []
+    final_scores_list = []
+    final_labels_list = []
+    for unique_label in unique_labels:
+        condition = (labels == unique_label)
         boxes_by_label = boxes[condition]
         scores_by_label = scores[condition]
-        labels_by_label = np.array([l] * len(boxes_by_label))
+        labels_by_label = np.array([unique_label] * len(boxes_by_label))
 
         if method != 3:
             keep = cpu_soft_nms_float(boxes_by_label.copy(), scores_by_label.copy(), Nt=iou_thr, sigma=sigma, thresh=thresh, method=method)
@@ -305,18 +316,27 @@ def nms_method(
             # Use faster function
             keep = nms_float_fast(boxes_by_label, scores_by_label, thresh=iou_thr)
 
-        final_boxes.append(boxes_by_label[keep])
-        final_scores.append(scores_by_label[keep])
-        final_labels.append(labels_by_label[keep])
-    final_boxes = np.concatenate(final_boxes)
-    final_scores = np.concatenate(final_scores)
-    final_labels = np.concatenate(final_labels)
+        final_boxes_list.append(boxes_by_label[keep])
+        final_scores_list.append(scores_by_label[keep])
+        final_labels_list.append(labels_by_label[keep])
+
+    final_boxes = np.concatenate(final_boxes_list)
+    final_scores = np.concatenate(final_scores_list)
+    final_labels = np.concatenate(final_labels_list)
 
     return final_boxes, final_scores, final_labels
 
 
-def nms(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, iou_thr: float = 0.5, weights: List = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def nms(
+    boxes: np.ndarray,
+    scores: np.ndarray,
+    labels: np.ndarray,
+    iou_thr: float = 0.5,
+    weights: np.ndarray = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Short call for standard NMS.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -335,8 +355,19 @@ def nms(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, iou_thr: floa
     return nms_method(boxes, scores, labels, method=3, iou_thr=iou_thr, weights=weights)
 
 
-def soft_nms(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, method: int = 2, iou_thr: float = 0.5, sigma: float = 0.5, thresh: float = 0.001, weights: List = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def soft_nms(
+    boxes: np.ndarray,
+    scores: np.ndarray,
+    labels: np.ndarray,
+    method: int = 2,
+    iou_thr: float = 0.5,
+    sigma: float = 0.5,
+    thresh: float = 0.001,
+    weights: np.ndarray = None
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Short call for Soft-NMS.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nms.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -361,6 +392,8 @@ def soft_nms(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, method: 
 @jit(nopython=True)
 def bb_intersection_over_union(A: List, B: List) -> float:
     """Calculate IoU.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
 
     Args:
         A: list of bounding boxes
@@ -388,8 +421,12 @@ def bb_intersection_over_union(A: List, B: List) -> float:
     return iou
 
 
-def prefilter_boxes(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, weights: List, thr: float) -> Dict:
+def prefilter_boxes(
+    boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, weights: np.ndarray, thr: float
+) -> Dict:
     """Filter bounding boxes, scores, and labels.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -404,7 +441,7 @@ def prefilter_boxes(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, w
         new_boxes: filtered bounding boxes
     """
     # Create dict with boxes stored by its label
-    new_boxes = dict()
+    new_boxes: Dict[int, List] = dict()
 
     for t in range(len(boxes)):
 
@@ -479,6 +516,8 @@ def prefilter_boxes(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, w
 def get_weighted_box(boxes: np.ndarray, conf_type: str = 'avg') -> np.ndarray:
     """Create weighted box for set of boxes.
 
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
+
     Args:
         boxes: set of boxes to fuse
         conf_type: type of confidence one of 'avg' or 'max'
@@ -508,8 +547,12 @@ def get_weighted_box(boxes: np.ndarray, conf_type: str = 'avg') -> np.ndarray:
     return box
 
 
-def find_matching_box(boxes_list: List, new_box: List, match_iou: float) -> Tuple[int, float]:
+def find_matching_box(
+    boxes_list: List, new_box: List, match_iou: float
+) -> Tuple[int, float]:
     """Find matching bounding boxes.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
 
     Args:
         boxes_list: list of bounding boxes
@@ -534,8 +577,19 @@ def find_matching_box(boxes_list: List, new_box: List, match_iou: float) -> Tupl
     return best_index, best_iou
 
 
-def weighted_boxes_fusion(boxes_list: np.ndarray, scores_list: np.ndarray, labels_list: np.ndarray, weights: List = None, iou_thr: float = 0.55, skip_box_thr: float = 0.0, conf_type: str = 'avg', allows_overflow: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def weighted_boxes_fusion(
+    boxes_list: np.ndarray,
+    scores_list: np.ndarray,
+    labels_list: np.ndarray,
+    weights: np.ndarray = None,
+    iou_thr: float = 0.55,
+    skip_box_thr: float = 0.0,
+    conf_type: str = 'avg',
+    allows_overflow: bool = False
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply weighted boxes fusion.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
 
     Args:
         boxes_list: list of boxes predictions from each model, each box is 4 numbers.
@@ -554,7 +608,6 @@ def weighted_boxes_fusion(boxes_list: np.ndarray, scores_list: np.ndarray, label
         scores: confidence scores
         labels: boxes labels
     """
-
     if weights is None:
         weights = np.ones(len(boxes_list))
     if len(weights) != len(boxes_list):
@@ -570,11 +623,11 @@ def weighted_boxes_fusion(boxes_list: np.ndarray, scores_list: np.ndarray, label
     if len(filtered_boxes) == 0:
         return np.zeros((0, 4)), np.zeros((0,)), np.zeros((0,))
 
-    overall_boxes = []
+    overall_boxes: List = []
     for label in filtered_boxes:
         boxes = filtered_boxes[label]
-        new_boxes = []
-        weighted_boxes = []
+        new_boxes: List = []
+        weighted_boxes: List = []
         # Clusterize boxes
         for j in range(0, len(boxes)):
             index, best_iou = find_matching_box(weighted_boxes, boxes[j], iou_thr)
@@ -609,16 +662,25 @@ def weighted_boxes_fusion(boxes_list: np.ndarray, scores_list: np.ndarray, label
             else:
                 weighted_boxes[i][1] = weighted_boxes[i][1] * len(clustered_boxes) / weights.sum()
         overall_boxes.append(np.array(weighted_boxes))
-    overall_boxes = np.concatenate(overall_boxes, axis=0)
-    overall_boxes = overall_boxes[overall_boxes[:, 1].argsort()[::-1]]
-    boxes = overall_boxes[:, 4:]
-    scores = overall_boxes[:, 1]
-    labels = overall_boxes[:, 0]
+
+    overall_boxes_np = np.concatenate(overall_boxes, axis=0)
+    overall_boxes_np = overall_boxes_np[overall_boxes_np[:, 1].argsort()[::-1]]
+    boxes = overall_boxes_np[:, 4:]
+    scores = overall_boxes_np[:, 1]
+    labels = overall_boxes_np[:, 0]
     return boxes, scores, labels
 
 
-def prefilter_boxes_for_nmw(boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, weights: List, thr: float) -> Dict:
+def prefilter_boxes_for_nmw(
+    boxes: np.ndarray,
+    scores: np.ndarray,
+    labels: np.ndarray,
+    weights: np.ndarray,
+    thr: float
+) -> Dict:
     """Filter bounding boxes, scores, and labels.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nmw.py
 
     Args:
         boxes: list of boxes predictions from each model, each box is 4 numbers.
@@ -633,7 +695,7 @@ def prefilter_boxes_for_nmw(boxes: np.ndarray, scores: np.ndarray, labels: np.nd
         new_boxes: filtered bounding boxes
     """
     # Create dict with boxes stored by its label
-    new_boxes = dict()
+    new_boxes: Dict[int, List] = dict()
     for t in range(len(boxes)):
 
         if len(boxes[t]) != len(scores[t]):
@@ -705,8 +767,10 @@ def prefilter_boxes_for_nmw(boxes: np.ndarray, scores: np.ndarray, labels: np.nd
     return new_boxes
 
 
-def get_weighted_box_for_nmw(boxes):
+def get_weighted_box_for_nmw(boxes: List) -> np.ndarray:
     """Create weighted box for set of boxes.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nmw.py
 
     Args:
         boxes: set of boxes to fuse
@@ -714,7 +778,6 @@ def get_weighted_box_for_nmw(boxes):
     Returns:
         box: weighted box
     """
-
     box = np.zeros(6, dtype=np.float32)
     best_box = boxes[0]
     conf = 0
@@ -729,7 +792,22 @@ def get_weighted_box_for_nmw(boxes):
     return box
 
 
-def find_matching_box_for_nmw(boxes_list: List, new_box: List, match_iou: float) -> Tuple[int, float]:
+def find_matching_box_for_nmw(
+    boxes_list: List, new_box: List, match_iou: float
+) -> Tuple[int, float]:
+    """Find matching bounding boxes.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nmw.py
+
+    Args:
+        boxes_list: list of bounding boxes
+        new_box: new bounding box
+        match_iou: IoU threshold
+
+    Returns:
+        best_index: index of best matched bounding box
+        best_iou: best IoU of best matched bounding box
+    """
     best_iou = match_iou
     best_index = -1
     for i in range(len(boxes_list)):
@@ -744,8 +822,17 @@ def find_matching_box_for_nmw(boxes_list: List, new_box: List, match_iou: float)
     return best_index, best_iou
 
 
-def non_maximum_weighted(boxes_list: List, scores_list: List, labels_list: List, weights: float = None, iou_thr: float = 0.55, skip_box_thr: float = 0.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def non_maximum_weighted(
+    boxes_list: np.ndarray,
+    scores_list: np.ndarray,
+    labels_list: np.ndarray,
+    weights: np.ndarray,
+    iou_thr: float = 0.55,
+    skip_box_thr: float = 0.0
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply non maximum weighted.
+
+       Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_nmw.py
 
     Args:
         boxes_list: list of boxes predictions from each model, each box is 4 numbers.
@@ -762,7 +849,6 @@ def non_maximum_weighted(boxes_list: List, scores_list: List, labels_list: List,
         scores: confidence scores
         labels: boxes labels
     """
-
     if weights is None:
         weights = np.ones(len(boxes_list))
     if len(weights) != len(boxes_list):
@@ -776,11 +862,11 @@ def non_maximum_weighted(boxes_list: List, scores_list: List, labels_list: List,
     if len(filtered_boxes) == 0:
         return np.zeros((0, 4)), np.zeros((0,)), np.zeros((0,))
 
-    overall_boxes = []
+    overall_boxes: List = []
     for label in filtered_boxes:
         boxes = filtered_boxes[label]
-        new_boxes = []
-        main_boxes = []
+        new_boxes: List = []
+        main_boxes: List = []
 
         # Clusterize boxes
         for j in range(0, len(boxes)):
@@ -798,9 +884,9 @@ def non_maximum_weighted(boxes_list: List, scores_list: List, labels_list: List,
 
         overall_boxes.append(np.array(weighted_boxes))
 
-    overall_boxes = np.concatenate(overall_boxes, axis=0)
-    overall_boxes = overall_boxes[overall_boxes[:, 1].argsort()[::-1]]
-    boxes = overall_boxes[:, 2:]
-    scores = overall_boxes[:, 1]
-    labels = overall_boxes[:, 0]
+    overall_boxes_np = np.concatenate(overall_boxes, axis=0)
+    overall_boxes_np = overall_boxes_np[overall_boxes_np[:, 1].argsort()[::-1]]
+    boxes = overall_boxes_np[:, 2:]
+    scores = overall_boxes_np[:, 1]
+    labels = overall_boxes_np[:, 0]
     return boxes, scores, labels

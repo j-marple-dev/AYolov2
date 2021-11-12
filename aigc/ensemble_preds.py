@@ -105,7 +105,7 @@ def apply_ensemble(
     ]
     print(f"# Parameters: {n_params}")
     for img_id, preds in tqdm.tqdm(preds_dict.items(), desc="Apply ensemble"):
-        weights = [1, 1, 1]
+        weights = np.array([1, 1, 1])
         iou_thr = 0.5
         skip_box_thr = 0.0001
         sigma = 0.1

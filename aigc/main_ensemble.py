@@ -16,6 +16,7 @@ from main import DataLoaderGenerator, ModelLoader
 
 
 def get_args() -> argparse.Namespace:
+    """Get argument parser."""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
@@ -59,7 +60,7 @@ def write_result(
     agnostic = cfg["inference"].get("agnostic", False)
 
     # time_checker.add("Prepare model")
-    orig_shapes: Dict[int, List[int, int]] = {}
+    orig_shapes: Dict[int, List[int]] = {}
     for img, path, shape in iterator:
         out = model(img.to(device, non_blocking=True))[0]
 

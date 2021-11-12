@@ -13,6 +13,7 @@ LOGGER = get_logger(__name__)
 
 
 def get_args() -> argparse.Namespace:
+    """Get argument parser."""
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )

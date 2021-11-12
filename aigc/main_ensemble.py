@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import yaml
 from ensemble_preds import apply_ensemble, load_preds
+from lib.aigc_tta_utils import inference_with_tta
 from lib.answer_queue import ResultWriterTorch
 from lib.nms_utils import batched_nms
 from main import DataLoaderGenerator, ModelLoader
@@ -30,6 +31,15 @@ def get_args() -> argparse.Namespace:
         help="config file for ensemble",
     )
     parser.add_argument(
+        "--tta",
+        action="store_true",
+        default=False,
+        help="Apply TTA (Test Time Augmentation)",
+    )
+    parser.add_argument(
+        "--tta-cfg", type=str, default="configs/tta.yaml", help="TTA config file path",
+    )
+    parser.add_argument(
         "--force", action="store_true", default=False, help="Apply ensemble by force"
     )
     return parser.parse_args()
@@ -40,6 +50,8 @@ def write_result(
     filename: str,
     device: torch.device,
     write_orig_shape: bool = False,
+    tta: bool = False,
+    tta_cfg: Dict[str, Any] = None,
 ) -> None:
     """Write result json file.
 
@@ -73,7 +85,15 @@ def write_result(
     # time_checker.add("Prepare model")
     orig_shapes: Dict[int, List[int]] = {}
     for img, path, shape in iterator:
-        out = model(img.to(device, non_blocking=True))[0]
+        if tta and tta_cfg:
+            out = inference_with_tta(
+                model,
+                img.to(device, non_blocking=True),
+                tta_cfg["scales"],
+                tta_cfg["flips"],
+            )[0]
+        else:
+            out = model(img.to(device, non_blocking=True))[0]
 
         # TODO(jeikeilim): Find better and faster NMS method.
         outputs = batched_nms(
@@ -116,13 +136,16 @@ if __name__ == "__main__":
     write_orig_shape = True
     filenames = []
     for cfg in ensemble_cfg["model"]["model_configs"]:
-        # Load Dataloader
         with open(cfg, "r") as f:
             config = yaml.safe_load(f)
+
+        with open(args.tta_cfg, "r") as f:
+            tta_cfg = yaml.safe_load(f)
+
         filename = f"{config['model']['name']}.json"
         filenames.append(filename)
         if args.force or not os.path.exists(filename):
-            write_result(config, filename, device, write_orig_shape)
+            write_result(config, filename, device, write_orig_shape, args.tta, tta_cfg)
             write_orig_shape = False
         else:
             print(

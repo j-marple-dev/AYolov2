@@ -88,16 +88,20 @@ def prepare_boxes(
     """
     result_boxes = boxes.copy()
 
-    cond = (result_boxes < 0)
+    cond = result_boxes < 0
     cond_sum = cond.astype(np.int32).sum()
     if cond_sum > 0:
-        print('Warning. Fixed {} boxes coordinates < 0'.format(cond_sum))
+        print("Warning. Fixed {} boxes coordinates < 0".format(cond_sum))
         result_boxes[cond] = 0
 
-    cond = (result_boxes > 1)
+    cond = result_boxes > 1
     cond_sum = cond.astype(np.int32).sum()
     if cond_sum > 0:
-        print('Warning. Fixed {} boxes coordinates > 1. Check that your boxes was normalized at [0, 1]'.format(cond_sum))
+        print(
+            "Warning. Fixed {} boxes coordinates > 1. Check that your boxes was normalized at [0, 1]".format(
+                cond_sum
+            )
+        )
         result_boxes[cond] = 1
 
     boxes1 = result_boxes.copy()
@@ -106,11 +110,13 @@ def prepare_boxes(
     result_boxes[:, 1] = np.min(boxes1[:, [1, 3]], axis=1)
     result_boxes[:, 3] = np.max(boxes1[:, [1, 3]], axis=1)
 
-    area = (result_boxes[:, 2] - result_boxes[:, 0]) * (result_boxes[:, 3] - result_boxes[:, 1])
-    cond = (area == 0)
+    area = (result_boxes[:, 2] - result_boxes[:, 0]) * (
+        result_boxes[:, 3] - result_boxes[:, 1]
+    )
+    cond = area == 0
     cond_sum = cond.astype(np.int32).sum()
     if cond_sum > 0:
-        print('Warning. Removed {} boxes with zero area!'.format(cond_sum))
+        print("Warning. Removed {} boxes with zero area!".format(cond_sum))
         result_boxes = result_boxes[area > 0]
         scores = scores[area > 0]
         labels = labels[area > 0]
@@ -119,7 +125,12 @@ def prepare_boxes(
 
 
 def cpu_soft_nms_float(
-    dets: np.ndarray, sc: np.ndarray, Nt: float, sigma: float, thresh: float, method: int
+    dets: np.ndarray,
+    sc: np.ndarray,
+    Nt: float,
+    sigma: float,
+    thresh: float,
+    method: int,
 ) -> np.ndarray:
     """Soft NMS with cpu.
 
@@ -209,9 +220,7 @@ def cpu_soft_nms_float(
 
 
 @jit(nopython=True)
-def nms_float_fast(
-    dets: np.ndarray, scores: np.ndarray, thresh: float
-) -> List:
+def nms_float_fast(dets: np.ndarray, scores: np.ndarray, thresh: float) -> List:
     """Fast NMS function.
 
        It's different from original nms because we have float coordinates on range [0; 1].
@@ -259,7 +268,7 @@ def nms_method(
     iou_thr: float = 0.5,
     sigma: float = 0.5,
     thresh: float = 0.001,
-    weights: np.ndarray = None
+    weights: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """NMS method for hard NMS and soft NMS.
 
@@ -285,7 +294,11 @@ def nms_method(
     # If weights are specified
     if weights is not None:
         if len(boxes) != len(weights):
-            print('Incorrect number of weights: {}. Must be: {}. Skip it'.format(len(weights), len(boxes)))
+            print(
+                "Incorrect number of weights: {}. Must be: {}. Skip it".format(
+                    len(weights), len(boxes)
+                )
+            )
         else:
             weights = np.array(weights)
             for i in range(len(weights)):
@@ -305,13 +318,20 @@ def nms_method(
     final_scores_list = []
     final_labels_list = []
     for unique_label in unique_labels:
-        condition = (labels == unique_label)
+        condition = labels == unique_label
         boxes_by_label = boxes[condition]
         scores_by_label = scores[condition]
         labels_by_label = np.array([unique_label] * len(boxes_by_label))
 
         if method != 3:
-            keep = cpu_soft_nms_float(boxes_by_label.copy(), scores_by_label.copy(), Nt=iou_thr, sigma=sigma, thresh=thresh, method=method)
+            keep = cpu_soft_nms_float(
+                boxes_by_label.copy(),
+                scores_by_label.copy(),
+                Nt=iou_thr,
+                sigma=sigma,
+                thresh=thresh,
+                method=method,
+            )
         else:
             # Use faster function
             keep = nms_float_fast(boxes_by_label, scores_by_label, thresh=iou_thr)
@@ -332,7 +352,7 @@ def nms(
     scores: np.ndarray,
     labels: np.ndarray,
     iou_thr: float = 0.5,
-    weights: np.ndarray = None
+    weights: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Short call for standard NMS.
 
@@ -363,7 +383,7 @@ def soft_nms(
     iou_thr: float = 0.5,
     sigma: float = 0.5,
     thresh: float = 0.001,
-    weights: np.ndarray = None
+    weights: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Short call for Soft-NMS.
 
@@ -386,7 +406,16 @@ def soft_nms(
         confidence scores
         boxes labels
     """
-    return nms_method(boxes, scores, labels, method=method, iou_thr=iou_thr, sigma=sigma, thresh=thresh, weights=weights)
+    return nms_method(
+        boxes,
+        scores,
+        labels,
+        method=method,
+        iou_thr=iou_thr,
+        sigma=sigma,
+        thresh=thresh,
+        weights=weights,
+    )
 
 
 @jit(nopython=True)
@@ -422,7 +451,11 @@ def bb_intersection_over_union(A: List, B: List) -> float:
 
 
 def prefilter_boxes(
-    boxes: np.ndarray, scores: np.ndarray, labels: np.ndarray, weights: np.ndarray, thr: float
+    boxes: np.ndarray,
+    scores: np.ndarray,
+    labels: np.ndarray,
+    weights: np.ndarray,
+    thr: float,
 ) -> Dict:
     """Filter bounding boxes, scores, and labels.
 
@@ -446,11 +479,19 @@ def prefilter_boxes(
     for t in range(len(boxes)):
 
         if len(boxes[t]) != len(scores[t]):
-            print('Error. Length of boxes arrays not equal to length of scores array: {} != {}'.format(len(boxes[t]), len(scores[t])))
+            print(
+                "Error. Length of boxes arrays not equal to length of scores array: {} != {}".format(
+                    len(boxes[t]), len(scores[t])
+                )
+            )
             exit()
 
         if len(boxes[t]) != len(labels[t]):
-            print('Error. Length of boxes arrays not equal to length of labels array: {} != {}'.format(len(boxes[t]), len(labels[t])))
+            print(
+                "Error. Length of boxes arrays not equal to length of labels array: {} != {}".format(
+                    len(boxes[t]), len(labels[t])
+                )
+            )
             exit()
 
         for j in range(len(boxes[t])):
@@ -466,34 +507,42 @@ def prefilter_boxes(
 
             # Box data checks
             if x2 < x1:
-                warnings.warn('X2 < X1 value in box. Swap them.')
+                warnings.warn("X2 < X1 value in box. Swap them.")
                 x1, x2 = x2, x1
             if y2 < y1:
-                warnings.warn('Y2 < Y1 value in box. Swap them.')
+                warnings.warn("Y2 < Y1 value in box. Swap them.")
                 y1, y2 = y2, y1
             if x1 < 0:
-                warnings.warn('X1 < 0 in box. Set it to 0.')
+                warnings.warn("X1 < 0 in box. Set it to 0.")
                 x1 = 0
             if x1 > 1:
-                warnings.warn('X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 x1 = 1
             if x2 < 0:
-                warnings.warn('X2 < 0 in box. Set it to 0.')
+                warnings.warn("X2 < 0 in box. Set it to 0.")
                 x2 = 0
             if x2 > 1:
-                warnings.warn('X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 x2 = 1
             if y1 < 0:
-                warnings.warn('Y1 < 0 in box. Set it to 0.')
+                warnings.warn("Y1 < 0 in box. Set it to 0.")
                 y1 = 0
             if y1 > 1:
-                warnings.warn('Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 y1 = 1
             if y2 < 0:
-                warnings.warn('Y2 < 0 in box. Set it to 0.')
+                warnings.warn("Y2 < 0 in box. Set it to 0.")
                 y2 = 0
             if y2 > 1:
-                warnings.warn('Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 y2 = 1
             if (x2 - x1) * (y2 - y1) == 0.0:
                 warnings.warn("Zero area box skipped: {}.".format(box_part))
@@ -513,7 +562,7 @@ def prefilter_boxes(
     return new_boxes
 
 
-def get_weighted_box(boxes: np.ndarray, conf_type: str = 'avg') -> np.ndarray:
+def get_weighted_box(boxes: np.ndarray, conf_type: str = "avg") -> np.ndarray:
     """Create weighted box for set of boxes.
 
        Reference: https://github.com/ZFTurbo/Weighted-Boxes-Fusion/blob/master/ensemble_boxes/ensemble_boxes_wbf.py
@@ -530,16 +579,16 @@ def get_weighted_box(boxes: np.ndarray, conf_type: str = 'avg') -> np.ndarray:
     conf_list = []
     w = 0
     for b in boxes:
-        box[4:] += (b[1] * b[4:])
+        box[4:] += b[1] * b[4:]
         conf += b[1]
         conf_list.append(b[1])
         w += b[2]
     box[0] = boxes[0][0]
-    if conf_type == 'avg':
+    if conf_type == "avg":
         box[1] = conf / len(boxes)
-    elif conf_type == 'max':
+    elif conf_type == "max":
         box[1] = np.array(conf_list).max()
-    elif conf_type in ['box_and_model_avg', 'absent_model_aware_avg']:
+    elif conf_type in ["box_and_model_avg", "absent_model_aware_avg"]:
         box[1] = conf / len(boxes)
     box[2] = w
     box[3] = -1  # model index field is retained for consistensy but is not used.
@@ -584,8 +633,8 @@ def weighted_boxes_fusion(
     weights: np.ndarray = None,
     iou_thr: float = 0.55,
     skip_box_thr: float = 0.0,
-    conf_type: str = 'avg',
-    allows_overflow: bool = False
+    conf_type: str = "avg",
+    allows_overflow: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply weighted boxes fusion.
 
@@ -611,15 +660,25 @@ def weighted_boxes_fusion(
     if weights is None:
         weights = np.ones(len(boxes_list))
     if len(weights) != len(boxes_list):
-        print('Warning: incorrect number of weights {}. Must be: {}. Set weights equal to 1.'.format(len(weights), len(boxes_list)))
+        print(
+            "Warning: incorrect number of weights {}. Must be: {}. Set weights equal to 1.".format(
+                len(weights), len(boxes_list)
+            )
+        )
         weights = np.ones(len(boxes_list))
     weights = np.array(weights)
 
-    if conf_type not in ['avg', 'max', 'box_and_model_avg', 'absent_model_aware_avg']:
-        print('Unknown conf_type: {}. Must be "avg", "max" or "box_and_model_avg", or "absent_model_aware_avg"'.format(conf_type))
+    if conf_type not in ["avg", "max", "box_and_model_avg", "absent_model_aware_avg"]:
+        print(
+            'Unknown conf_type: {}. Must be "avg", "max" or "box_and_model_avg", or "absent_model_aware_avg"'.format(
+                conf_type
+            )
+        )
         exit()
 
-    filtered_boxes = prefilter_boxes(boxes_list, scores_list, labels_list, weights, skip_box_thr)
+    filtered_boxes = prefilter_boxes(
+        boxes_list, scores_list, labels_list, weights, skip_box_thr
+    )
     if len(filtered_boxes) == 0:
         return np.zeros((0, 4)), np.zeros((0,)), np.zeros((0,))
 
@@ -640,27 +699,41 @@ def weighted_boxes_fusion(
         # Rescale confidence based on number of models and boxes
         for i in range(len(new_boxes)):
             clustered_boxes = np.array(new_boxes[i])
-            if conf_type == 'box_and_model_avg':
+            if conf_type == "box_and_model_avg":
                 # weighted average for boxes
-                weighted_boxes[i][1] = weighted_boxes[i][1] * len(clustered_boxes) / weighted_boxes[i][2]
+                weighted_boxes[i][1] = (
+                    weighted_boxes[i][1] * len(clustered_boxes) / weighted_boxes[i][2]
+                )
                 # identify unique model index by model index column
                 _, idx = np.unique(clustered_boxes[:, 3], return_index=True)
                 # rescale by unique model weights
-                weighted_boxes[i][1] = weighted_boxes[i][1] * clustered_boxes[idx, 2].sum() / weights.sum()
-            elif conf_type == 'absent_model_aware_avg':
+                weighted_boxes[i][1] = (
+                    weighted_boxes[i][1] * clustered_boxes[idx, 2].sum() / weights.sum()
+                )
+            elif conf_type == "absent_model_aware_avg":
                 # get unique model index in the cluster
                 models = np.unique(clustered_boxes[:, 3]).astype(int)
                 # create a mask to get unused model weights
                 mask = np.ones(len(weights), dtype=bool)
                 mask[models] = False
                 # absent model aware weighted average
-                weighted_boxes[i][1] = weighted_boxes[i][1] * len(clustered_boxes) / (weighted_boxes[i][2] + weights[mask].sum())
-            elif conf_type == 'max':
+                weighted_boxes[i][1] = (
+                    weighted_boxes[i][1]
+                    * len(clustered_boxes)
+                    / (weighted_boxes[i][2] + weights[mask].sum())
+                )
+            elif conf_type == "max":
                 weighted_boxes[i][1] = weighted_boxes[i][1] / weights.max()
             elif not allows_overflow:
-                weighted_boxes[i][1] = weighted_boxes[i][1] * min(len(weights), len(clustered_boxes)) / weights.sum()
+                weighted_boxes[i][1] = (
+                    weighted_boxes[i][1]
+                    * min(len(weights), len(clustered_boxes))
+                    / weights.sum()
+                )
             else:
-                weighted_boxes[i][1] = weighted_boxes[i][1] * len(clustered_boxes) / weights.sum()
+                weighted_boxes[i][1] = (
+                    weighted_boxes[i][1] * len(clustered_boxes) / weights.sum()
+                )
         overall_boxes.append(np.array(weighted_boxes))
 
     overall_boxes_np = np.concatenate(overall_boxes, axis=0)
@@ -676,7 +749,7 @@ def prefilter_boxes_for_nmw(
     scores: np.ndarray,
     labels: np.ndarray,
     weights: np.ndarray,
-    thr: float
+    thr: float,
 ) -> Dict:
     """Filter bounding boxes, scores, and labels.
 
@@ -699,13 +772,19 @@ def prefilter_boxes_for_nmw(
     for t in range(len(boxes)):
 
         if len(boxes[t]) != len(scores[t]):
-            print('Error. Length of boxes arrays not equal to length of scores array: {} != {}'.format(len(boxes[t]),
-                                                                                                       len(scores[t])))
+            print(
+                "Error. Length of boxes arrays not equal to length of scores array: {} != {}".format(
+                    len(boxes[t]), len(scores[t])
+                )
+            )
             exit()
 
         if len(boxes[t]) != len(labels[t]):
-            print('Error. Length of boxes arrays not equal to length of labels array: {} != {}'.format(len(boxes[t]),
-                                                                                                       len(labels[t])))
+            print(
+                "Error. Length of boxes arrays not equal to length of labels array: {} != {}".format(
+                    len(boxes[t]), len(labels[t])
+                )
+            )
             exit()
 
         for j in range(len(boxes[t])):
@@ -721,34 +800,42 @@ def prefilter_boxes_for_nmw(
 
             # Box data checks
             if x2 < x1:
-                warnings.warn('X2 < X1 value in box. Swap them.')
+                warnings.warn("X2 < X1 value in box. Swap them.")
                 x1, x2 = x2, x1
             if y2 < y1:
-                warnings.warn('Y2 < Y1 value in box. Swap them.')
+                warnings.warn("Y2 < Y1 value in box. Swap them.")
                 y1, y2 = y2, y1
             if x1 < 0:
-                warnings.warn('X1 < 0 in box. Set it to 0.')
+                warnings.warn("X1 < 0 in box. Set it to 0.")
                 x1 = 0
             if x1 > 1:
-                warnings.warn('X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "X1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 x1 = 1
             if x2 < 0:
-                warnings.warn('X2 < 0 in box. Set it to 0.')
+                warnings.warn("X2 < 0 in box. Set it to 0.")
                 x2 = 0
             if x2 > 1:
-                warnings.warn('X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "X2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 x2 = 1
             if y1 < 0:
-                warnings.warn('Y1 < 0 in box. Set it to 0.')
+                warnings.warn("Y1 < 0 in box. Set it to 0.")
                 y1 = 0
             if y1 > 1:
-                warnings.warn('Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "Y1 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 y1 = 1
             if y2 < 0:
-                warnings.warn('Y2 < 0 in box. Set it to 0.')
+                warnings.warn("Y2 < 0 in box. Set it to 0.")
                 y2 = 0
             if y2 > 1:
-                warnings.warn('Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range.')
+                warnings.warn(
+                    "Y2 > 1 in box. Set it to 1. Check that you normalize boxes in [0, 1] range."
+                )
                 y2 = 1
             if (x2 - x1) * (y2 - y1) == 0.0:
                 warnings.warn("Zero area box skipped: {}.".format(box_part))
@@ -784,7 +871,7 @@ def get_weighted_box_for_nmw(boxes: List) -> np.ndarray:
     for b in boxes:
         iou = bb_intersection_over_union(b[2:], best_box[2:])
         weight = b[1] * iou
-        box[2:] += (weight * b[2:])
+        box[2:] += weight * b[2:]
         conf += weight
     box[0] = best_box[0]
     box[1] = best_box[1]
@@ -828,7 +915,7 @@ def non_maximum_weighted(
     labels_list: np.ndarray,
     weights: np.ndarray,
     iou_thr: float = 0.55,
-    skip_box_thr: float = 0.0
+    skip_box_thr: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply non maximum weighted.
 
@@ -852,13 +939,19 @@ def non_maximum_weighted(
     if weights is None:
         weights = np.ones(len(boxes_list))
     if len(weights) != len(boxes_list):
-        print('Warning: incorrect number of weights {}. Must be: {}. Set weights equal to 1.'.format(len(weights), len(boxes_list)))
+        print(
+            "Warning: incorrect number of weights {}. Must be: {}. Set weights equal to 1.".format(
+                len(weights), len(boxes_list)
+            )
+        )
         weights = np.ones(len(boxes_list))
     weights = np.array(weights) / max(weights)
     # for i in range(len(weights)):
     #     scores_list[i] = (np.array(scores_list[i]) * weights[i])
 
-    filtered_boxes = prefilter_boxes_for_nmw(boxes_list, scores_list, labels_list, weights, skip_box_thr)
+    filtered_boxes = prefilter_boxes_for_nmw(
+        boxes_list, scores_list, labels_list, weights, skip_box_thr
+    )
     if len(filtered_boxes) == 0:
         return np.zeros((0, 4)), np.zeros((0,)), np.zeros((0,))
 

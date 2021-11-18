@@ -30,7 +30,7 @@ from scripts.utils.torch_utils import (count_param, load_pytorch_model,
 from scripts.utils.tta_utils import inference_with_tta
 from scripts.utils.wandb_utils import load_model_from_wandb
 
-torch.set_grad_enabled(False)
+#torch.set_grad_enabled(False)
 LOGGER = get_logger(__name__)
 
 
@@ -129,46 +129,50 @@ class DataLoaderGenerator(threading.Thread):
         )
 
 
-def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
+def export_model(model_loader: ModelLoader, args: argparse.Namespace, export_yaml: bool = True) -> None:
     """Export AIGC model.
 
     Args:
         model_loader: ModelLoader instance to export model.
         args: arguments from CLI.
     """
-    path = Path("aigc") / "weights" / "model.pt"
+    path = "model.pt"
+    #path = Path("aigc") / "weights" / "model.pt"
+    #os.makedirs(path.parent, exist_ok=True)
     model_to_save = deepcopy(model_loader.model)
     torch.save(model_to_save.cpu().half(), path)  # type: ignore
     LOGGER.info(f"Model weight has been saved to {path}")
-    cfg_to_save = {
-        "model": {
-            "name": "yolov5_name",
-            "weights": "weights/model.pt",
-            "stride_size": model_loader.stride_size,
-            "n_param": model_loader.n_param,
-            "wandb": args.weights,
-            "half": args.half,
-        },
-        "inference": {
-            "batch_size": args.batch_size,
-            "conf_t": args.conf_t,
-            "iou_t": args.iou_t,
-            "nms_box": args.nms_box,
-            "agnostic": args.agnostic,
-            "tta": args.tta,
-        },
-        "data": {
-            "path": "/home/agc2021/dataset",
-            "img_size": args.img_width,
-            "rect": args.rect,
-            "use_mp": False,
-            "pad": 0.5,
-        },
-        "tta": args.tta_cfg,
-    }
-    path = Path("aigc") / "configs" / "submit_config.yaml"
-    with open(path, "w") as f:
-        yaml.dump(cfg_to_save, f)
+    # cfg_to_save = {
+    #     "model": {
+    #         "name": "yolov5_name",
+    #         "weights": "weights/model.pt",
+    #         "stride_size": model_loader.stride_size,
+    #         "n_param": model_loader.n_param,
+    #         "wandb": args.weights,
+    #         "half": args.half,
+    #     },
+    #     "inference": {
+    #         "batch_size": args.batch_size,
+    #         "conf_t": args.conf_t,
+    #         "iou_t": args.iou_t,
+    #         "nms_box": args.nms_box,
+    #         "agnostic": args.agnostic,
+    #         "tta": args.tta,
+    #     },
+    #     "data": {
+    #         "path": "/home/agc2021/dataset",
+    #         "img_size": args.img_width,
+    #         "rect": args.rect,
+    #         "use_mp": False,
+    #         "pad": 0.5,
+    #     },
+    #     "tta": args.tta_cfg,
+    # }
+    # path = Path("aigc") / "configs" / "submit_config.yaml"
+    # os.makedirs(path.parent, exist_ok=True)
+    # if export_yaml:
+    #     with open(path, "w") as f:
+    #         yaml.dump(cfg_to_save, f)
     LOGGER.info(f"Model config has been saved to {path}")
 
 
@@ -184,7 +188,7 @@ def get_parser() -> argparse.Namespace:
     parser.add_argument(
         "--data",
         type=str,
-        default=os.path.join(os.path.expanduser("~"), "coco", "images", "val2017"),
+        default=os.path.join(os.path.expanduser("."), "coco", "images", "val2017"),
         help="Validation image root.",
     )
     parser.add_argument(
@@ -311,6 +315,12 @@ def get_parser() -> argparse.Namespace:
 if __name__ == "__main__":
     time_checker = TimeChecker("val2", ignore_thr=0.0)
     args = get_parser()
+    #######################################################
+    ## HYPERPARAMS FOR AIGC #1
+    #######################################################
+    args.iou_t = 0.561842277678083
+    args.conf_t = 0.000338306851470947
+    #######################################################
     time_checker.add("get_argparse")
 
     if args.img_height < 0:
@@ -355,7 +365,7 @@ if __name__ == "__main__":
         export_model(model_loader, args)
         exit(0)
 
-    result_writer = ResultWriterTorch("answersheet_4_04_000000.json")
+    result_writer = ResultWriterTorch("answersheet_4_04_jmarple.json")
     result_writer.start()
 
     time_checker.add("Prepare model")

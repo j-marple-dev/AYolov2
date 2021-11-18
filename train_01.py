@@ -86,6 +86,8 @@ if __name__ == "__main__":
 
     with open(args.data, "r") as f:
         data_cfg = yaml.safe_load(f)
+    data_cfg["train_path"] = os.path.abspath(data_cfg["train_path"])
+    data_cfg["val_path"] = os.path.abspath(data_cfg["val_path"])
 
     with open(args.cfg, "r") as f:
         train_cfg = yaml.safe_load(f)

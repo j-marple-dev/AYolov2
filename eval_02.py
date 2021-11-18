@@ -14,7 +14,7 @@ import threading  # noqa: E402
 
 # Pre-allocate CUDA memory.
 threading.Thread(
-    target=lambda _: torch.zeros((1,), device=torch.device("cuda:1")), args=(0,)
+    target=lambda _: torch.zeros((1,), device=torch.device("cuda:0")), args=(0,)
 ).start()
 
 if True:  # noqa: E402
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     with open(args.cfg, "r") as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:0")
 
     # 6 GiB GPU memory limit.
     memory_fraction = (args.gpu_mem * 1024 ** 3) / torch.cuda.get_device_properties(

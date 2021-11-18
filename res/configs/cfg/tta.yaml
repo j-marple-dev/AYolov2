@@ -1,13 +1,13 @@
-# TTA 1
-scales:
-  - 1
-  - 0.83
-  - 0.67
-
-flips:
-  - null
-  - 3  # flips (2-ud, 3-lr)
-  - null
+# # TTA 1
+# scales:
+#   - 1
+#   - 0.83
+#   - 0.67
+# 
+# flips:
+#   - null
+#   - 3  # flips (2-ud, 3-lr)
+#   - null
 
 # # TTA 2
 # scales:
@@ -60,3 +60,15 @@ flips:
 #   - 3
 #   - 3
 #   - 3
+flips:
+  - null
+  - 3
+  - null
+  - 3
+  - null
+scales:
+  - 1
+  - 0.83
+  - 0.67
+  - 0.49
+  - 0.34

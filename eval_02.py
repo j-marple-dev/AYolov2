@@ -14,7 +14,7 @@ import threading  # noqa: E402
 
 # Pre-allocate CUDA memory.
 threading.Thread(
-    target=lambda _: torch.zeros((1,), device=torch.device("cuda:0")), args=(0,)
+    target=lambda _: torch.zeros((1,), device=torch.device("cuda:1")), args=(0,)
 ).start()
 
 if True:  # noqa: E402
@@ -177,7 +177,7 @@ def get_parser() -> argparse.Namespace:
 
 if __name__ == "__main__":
     # TODO: change `CHECK` to False
-    CHECK = False
+    CHECK = True
 
     ANSWER_PATH = "answersheet_4_04_jmarple.json"
 
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     with open(args.cfg, "r") as f:
         cfg = yaml.safe_load(f)
 
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:1")
 
     # 6 GiB GPU memory limit.
     memory_fraction = (args.gpu_mem * 1024 ** 3) / torch.cuda.get_device_properties(
@@ -229,13 +229,13 @@ if __name__ == "__main__":
     tta_cfg = cfg.get("tta", {})
 
     #######################################################
-    ## HYPERPARAMS FOR AIGC #1
+    ## HYPERPARAMS FOR AIGC #2
     #######################################################
     if CHECK:
-        assert iou_thres == 0.561842277678083
-        assert conf_thres == 0.000338306851470947
-        assert nms_box == 1000
-        assert agnostic == True
+        assert iou_thres == 0.5645815772990773, f"{iou_thres}"
+        assert conf_thres == 0.0010318674882270075, f"{conf_thres}"
+        assert nms_box == 4000, f"{nms_box}"
+        assert agnostic == True, f"{agnostic}"
         print(tta_cfg)
     #######################################################
 

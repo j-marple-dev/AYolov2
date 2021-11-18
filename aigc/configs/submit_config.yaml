@@ -1,8 +1,7 @@
 data:
   img_size: 640
   pad: 0.5
-  #path: /home/agc2021/dataset
-  path: coco/images/val2017
+  path: /home/agc2021/dataset
   rect: true
   use_mp: false
 inference:

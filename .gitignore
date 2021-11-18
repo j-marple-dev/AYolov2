@@ -139,3 +139,6 @@ tests/.*
 exp/
 *.json
 .*.db
+
+# Datapath
+coco/

@@ -315,12 +315,6 @@ def get_parser() -> argparse.Namespace:
 if __name__ == "__main__":
     time_checker = TimeChecker("val2", ignore_thr=0.0)
     args = get_parser()
-    #######################################################
-    ## HYPERPARAMS FOR AIGC #1
-    #######################################################
-    args.iou_t = 0.561842277678083
-    args.conf_t = 0.000338306851470947
-    #######################################################
     time_checker.add("get_argparse")
 
     if args.img_height < 0:

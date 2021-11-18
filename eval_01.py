@@ -177,7 +177,7 @@ def get_parser() -> argparse.Namespace:
 
 if __name__ == "__main__":
     # TODO: change `CHECK` to False
-    CHECK = True
+    CHECK = False
 
     ANSWER_PATH = "answersheet_4_04_jmarple.json"
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
     iou_thres = cfg["inference"].get("iou_t", 0.65)
     nms_box = cfg["inference"].get("nms_box", 1000)
     agnostic = cfg["inference"].get("agnostic", True)
-    tta_cfg = cfg["tta"]
+    tta_cfg = cfg.get("tta", {})
 
     #######################################################
     ## HYPERPARAMS FOR AIGC #1

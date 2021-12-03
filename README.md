@@ -1,5 +1,16 @@
 # AYOLOv2
-This repository is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
+The main goal of this repository is to rewrite object detection pipeline with better code structure for better portability and adapability to apply new experiment methods.
+The object detection pipeline is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
+
+## What's inside
+1. YOLOv5 based portable model (model built with [kindle](https://github.com/JeiKeiLim/kindle))
+2. Model conversion (TorchScript, ONNX, TensorRT) support
+3. Tensor decomposition model with pruning optimization
+4. Stochastic Weight Averaging(SWA) support
+5. Auto search for NMS parameter optimization
+6. Representative Learning (Experimental)
+7. Distillation via soft teacher method (Experimental)
+8. C++ inference (WIP)
 
 # Environment setup
 ## Prerequisites

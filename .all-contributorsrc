@@ -1,0 +1,24 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "wooks527",
+      "name": "Hyunwook Kim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/32764235?v=4",
+      "profile": "https://wooks.page/docs",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "AYolov2",
+  "projectOwner": "j-marple-dev",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}

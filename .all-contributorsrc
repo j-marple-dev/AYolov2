@@ -6,6 +6,33 @@
   "commit": false,
   "contributors": [
     {
+      "login": "JeiKeiLim",
+      "name": "Jongkuk Lim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/10356193?v=4",
+      "profile": "https://limjk.ai",
+      "contributions": [
+        "code"
+      ]
+    }, 
+    {
+      "login": "ulken94",
+      "name": "Haneol Kim",
+      "avatar_url": "https://avatars.githubusercontent.com/u/58245037?v=4",
+      "profile": "https://github.com/ulken94",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "HSShin0",
+      "name": "Hyungseok Shin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44793742?v=4",
+      "profile": "https://github.com/HSShin0",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
       "login": "wooks527",
       "name": "Hyunwook Kim",
       "avatar_url": "https://avatars.githubusercontent.com/u/32764235?v=4",

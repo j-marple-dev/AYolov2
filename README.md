@@ -54,6 +54,16 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ```
 </details>
 
+## Pretrained models
+| Name  |img_size|mAP<sup>val<br>0.5:0.95</sup>|mAP<sup>val<br>0.5</sup>|params|
+|-------|--------|-----------|------|------|
+|YOLOv5s<br><sup>([j-marple/AYolov2/23137sqk](https://wandb.ai/j-marple/AYolov2/runs/23137sqk))</sup>|640|41.1|59.1|7,235,389|
+|YOLOv5m<br><sup>([j-marple/AYolov2/sybi3bnq](https://wandb.ai/j-marple/AYolov2/runs/sybi3bnq))</sup>|640|48.4|65.4|21,190,557|
+|YOLOv5l<br><sup>([j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd))</sup>|640|51.3|67.8|46,563,709|
+|YOLOv5x<br><sup>([j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4))</sup>|640|52.9|69.2|86,749,405|
+
+</details>
+
 # Applying SWA
 <details>
   <summary> Stochastic Weight Averaging</summary>

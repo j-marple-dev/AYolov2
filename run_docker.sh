@@ -10,7 +10,7 @@ xhost +
 ORG=jmarpledev
 
 PRJ_NAME=${PWD##*/}
-PRJ_NAME=${PRJ_NAME,,}
+PRJ_NAME="$(tr [A-Z] [a-z] <<< "$PRJ_NAME")"
 
 DOCKER_TAG=$ORG/$PRJ_NAME
 
@@ -24,7 +24,7 @@ fi
 
 if [ "$1" = "build" ]; then
     echo "Building a docker image with tagname $DOCKER_TAG and arguments $CMD_ARGS"
-    docker build . -t $DOCKER_TAG $CMD_ARGS
+    docker build . -t $DOCKER_TAG $CMD_ARGS --build-arg UID=`id -u` --build-arg GID=`id -g`
 elif [ "$1" = "run" ]; then
     echo "Run a docker image with tagname $DOCKER_TAG and arguments $CMD_ARGS"
 

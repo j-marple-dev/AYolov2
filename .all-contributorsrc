@@ -1,0 +1,24 @@
+{
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "HSShin0",
+      "name": "Hyungseok Shin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44793742?v=4",
+      "profile": "https://github.com/HSShin0",
+      "contributions": [
+        "code"
+      ]
+    }
+  ],
+  "contributorsPerLine": 7,
+  "projectName": "AYolov2",
+  "projectOwner": "j-marple-dev",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "skipCi": true
+}

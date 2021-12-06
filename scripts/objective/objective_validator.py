@@ -35,7 +35,7 @@ class ObjectiveValidator(AbstractObjective):
     """
     BASE_mAP50: float = 0.688
     gt_path = os.path.join("tests", "res", "instances_val2017.json")
-    json_path = "answersheet_4_04_000000.json"
+    # json_path = "answersheet_4_04_000000.json"
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class ObjectiveValidator(AbstractObjective):
         self.baseline_t: float
 
         # for optimization with json
-        self.command = f"python3 val2.py --weights {self.args.weights} --data {data_cfg['val_path']} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco --n-skip {self.args.n_skip}"
+        self.command = f"python3 val2.py --weights {self.args.weights} --data {data_cfg['val_path']} --device {self.args.device} --batch-size {self.args.batch_size} --no_coco --n-skip {self.args.n_skip} --json-path {self.args.json_path}"
 
         if args.model_cfg:
             self.command += " --model-cfg {self.args.model_cfg}"
@@ -260,7 +260,7 @@ class ObjectiveValidator(AbstractObjective):
 
         anno = COCO(ObjectiveValidator.gt_path)
         try:
-            pred = anno.loadRes(ObjectiveValidator.json_path)
+            pred = anno.loadRes(self.args.json_path)
         except IndexError:
             # Because of an empty json when no objects are detected.
             return 0

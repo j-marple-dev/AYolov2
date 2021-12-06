@@ -44,7 +44,7 @@ hput CMD_DESC init "Run init-conda and init-precommit"
 hput CMD_DESC all "Run formating, linting and unit test"
 
 # Define commands
-hput CMD_LIST format "black . && \ isort . && \ docformatter -i -r . --wrap-summaries 88 --wrap-descriptions 88"
+hput CMD_LIST format "black . && isort . && docformatter -i -r . --wrap-summaries 88 --wrap-descriptions 88"
 hput CMD_LIST lint "env PYTHONPATH=. pytest --pylint --mypy --flake8 --ignore tests --ignore cpp"
 hput CMD_LIST test "env PYTHONPATH=. pytest tests --cov=scripts --cov-report term-missing --cov-report html"
 hput CMD_LIST doc "env PYTHONPATH=. mkdocs build --no-directory-urls"

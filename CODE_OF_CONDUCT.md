@@ -34,5 +34,5 @@
 
 ## 4.2. Run local documentation web server
 ```shell
-./run_check doc-server
+./run_check doc_server
 ```

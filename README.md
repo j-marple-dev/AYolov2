@@ -53,14 +53,191 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ./run_docker.sh exec
   ```
 </details>
+<details open>
+  <summary>Train a model</summary>
+
+- Example
+
+  ```python
+  python3 train.py --model $MODEL_CONFIG_PATH --data $DATA_CONFIG_PATH --cfg $TRAIN_CONFIG_PATH
+  # i.e.
+  # python3 train.py --model res/configs/model/yolov5s.yaml --data res/configs/data/coco.yaml --cfg res/configs/cfg/train_config.yaml
+  # Logging and upload trained weights to W&B
+  # python3 train.py --model res/configs/model/yolov5s.yaml --wlog --wlog_name yolov5s
+  ```
+
+  <details>
+    <summary>Prepare dataset</summary>
+
+    - Dataset config file
+
+    ```yaml
+    train_path: "DATASET_ROOT/images/train"
+    val_path: "DATASET_ROOT/images/val"
+
+    # Classes
+    nc: 10  # number of classes
+    dataset: "DATASET_NAME"
+    names: ['person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat', 'traffic light']  # class names
+    ```
+
+    - Dataset directory structure
+      - One of `labels` or `segments` directory must exists.
+      - Training label type(`labels` or `segments`) will be specified in training config.
+      - images and labels or segments must have matching file name with .txt extension.
+
+    ```bash
+    DATASET_ROOT
+    │
+    ├── images
+    │   ├── train
+    │   └── val
+    ├── labels
+    │   ├── train
+    │   └── val
+    ├── segments
+    │   ├── train
+    │   └── val
+    ```
+
+  </details>
+
+  <details>
+    <summary>Training config</summary>
+
+    ```yaml
+  train:
+    weights: ''  # Model weight path
+    epochs: 300
+    batch_size: 64
+    image_size: 640   # Train, val image size
+    rect: false  # Use rectangular training
+    resume: false  # resume previous training
+    validate_period: 1  # Run validation on every x epoch
+    auto_anchor: true  # Check anchors and auto-fix anchors
+    cache_image: null  # Use caching images. This should be either 'mem', 'disk', 'dynamic_mem', 'dynamic_disk'
+    n_skip: 0  # skip image by n which reduces images to be used
+    image_weights: false  # Use weighted image selection for training
+    device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
+    multi_scale: false  # Use multi scaled training (+/- 50% image size)
+    single_cls: false  # Train multi-class data as single-class
+    sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
+    workers: 18  # Maximum number of dataloader workers
+    linear_lr: false  # Use linear learning rate
+    label_smoothing: 0.0  # Label smoothing epsilon
+    freeze: 0  # Number of layers to freeze.
+    save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
+    log_dir: "exp"  # Default log root directory
+    plot: true  # plot results or not.
+    label_type: "segments"  # Label type to use ("labels", "segments")
+    patience: 30  # for early stopping
+
+  hyper_params:
+    optimizer: 'SGD'
+    optimizer_params:
+      lr: 0.01  # lr0
+      momentum: 0.937
+      nesterov: true
+    # optimizer: 'Adam'
+    # optimizer_param:
+    #   betas: [0.937, 0.999]
+
+    lrf: 0.1  # final OneCycleLR learning rate (lr0 * lrf)
+    momentum: 0.937  # SGD momentum/Adam beta1
+    weight_decay: 0.0005  # optimizer weight decay 5e-4
+    warmup_epochs: 3.0  # warmup epochs (fractions ok)
+    warmup_momentum: 0.8  # warmup initial momentum
+    warmup_bias_lr: 0.1  # warmup initial bias lr
+    box: 0.05  # box loss gain
+    cls: 0.5  # cls loss gain
+    cls_pw: 1.0  # cls BCELoss positive_weight
+    obj: 1.0  # obj loss gain (scale with pixels)
+    obj_pw: 1.0  # obj BCELoss positive_weight
+    conf_t: 0.1  # confidence threshold
+    iou_t: 0.20  # IoU training threshold
+    anchor_t: 4.0  # anchor-multiple threshold
+    fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)
+
+  yolo_augmentation:
+    augment: true  # Use augmentation
+    hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
+    hsv_s: 0.7  # image HSV-Saturation augmentation (fraction)
+    hsv_v: 0.4  # image HSV-Value augmentation (fraction)
+    degrees: 0.0  # image rotation (+/- deg)
+    translate: 0.1  # image translation (+/- fraction)
+    scale: 0.5  # image scale (+/- gain)
+    shear: 0.0  # image shear (+/- deg)
+    perspective: 0.0  # image perspective (+/- fraction), range 0-0.001
+    mosaic: 1.0  # image mosaic (probability)
+    mixup: 0.0  # image mixup (probability)
+    copy_paste: 0.1  # segment copy-paste (probability)
+    copy_paste2:  # config for copy-paste2
+      p: 0.0  # copy-paste probability per object.
+      n_img: 3  # Number of images to be used for copy-paste2
+      area_thr: 200  # area threshold for copy paste (ex. 2 * 5 = 10)
+      ioa_thr: 0.3  # IoA threshold for existing object and pasted object.
+      scale_min: 0.35  # scale factor min value
+      scale_max: 1.0  # scale factor max value
+
+  augmentation:
+    - policy:
+        Blur: {p: 0.01}
+        MedianBlur: {p: 0.01}
+        ToGray: {p: 0.01}
+        CLAHE: {p: 0.01}
+        RandomBrightnessContrast: {p: 0.0}
+        RandomGamma: {p: 0.0}
+        ImageCompression: {quality_lower: 75, p: 0.0}
+      prob: 1.0
+    - policy:
+        HorizontalFlip: {p: 0.5}
+        VerticalFlip: {p: 0.0}
+      prob: 1.0
+    ```
+
+  </details>
+
+  <details>
+    <summary>Model config</summary>
+
+    - Model is defined by yaml file with [kindle](https://github.com/JeiKeiLim/kindle)
+    - Please refer to https://github.com/JeiKeiLim/kindle
+
+  </details>
+
+  <details>
+    <summary>Multi-GPU training</summary>
+
+    - Please use torch.distributed.run module for multi-GPU Training
+
+    ```bash
+    python3 -m torch.distributed.run --nproc_per_node $N_GPU train.py --model $MODEL_CONFIG_PATH --data $DATA_CONFIG_PATH --cfg $TRAIN_CONFIG_PATH
+    ```
+      - N_GPU: Number of GPU to use
+
+  </details>
+
+</details>
+
+
+<details open>
+  <summary>Run a model</summary>
+
+  - Validate from local weights
+  ```bash
+  python3 val.py --weights $WEIGHT_PATH --data-cfg $DATA_CONFIG_PATH
+  ```
+</details>
+
 
 ## Pretrained models
 | Name  | W&B URL | img_size |    mAP<sup>val<br>0.5:0.95</sup>    |         mAP<sup>val<br>0.5</sup>         |    params|
 |-------|---------------------------------------------------------------------------------------|---|----|----|----------|
-|YOLOv5s|<sub>[j-marple/AYolov2/23137sqk](https://wandb.ai/j-marple/AYolov2/runs/23137sqk)</sub>|640|41.1|59.1| 7,235,389|
-|YOLOv5m|<sub>[j-marple/AYolov2/sybi3bnq](https://wandb.ai/j-marple/AYolov2/runs/sybi3bnq)</sub>|640|48.4|65.4|21,190,557|
-|YOLOv5l|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|51.3|67.8|46,563,709|
-|YOLOv5x|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|52.9|69.2|86,749,405|
+|YOLOv5s|<sub>[j-marple/AYolov2/179awdd1](https://wandb.ai/j-marple/AYolov2/runs/179awdd1)</sub>|640|37.7|57.2| 7,235,389|
+|YOLOv5m(WIP)|<sub>[j-marple/AYolov2/sybi3bnq](https://wandb.ai/j-marple/AYolov2/runs/sybi3bnq)</sub>|640|48.4|65.4|21,190,557|
+|YOLOv5l(WIP)|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|51.3|67.8|46,563,709|
+|YOLOv5x(WIP)|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|52.9|69.2|86,749,405|
+
 </details>
 
 # Applying SWA

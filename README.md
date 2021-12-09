@@ -249,6 +249,32 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 <details open>
   <summary>Applying tensor decomposition</summary>
 
+  - A trained model can be compressed via tensor decomposition.
+  - Decomposed conv is composed of 3 convolutions from 1 large convolution.
+    - Example)
+      - Original conv: 64x128x3x3
+      - Decomposed conv: 64x32x1x1 -> 32x16x3x3 -> 16x128x1x1
+
+  - Usage
+  ```bash
+  python3 decompose_model.py --weights $WEIGHT_PATH --loss-thr $DECOMPOSE_LOSS_THRESHOLD --prune-step $PRUNING_STEP --data-cfg $DATA_CONFIG_PATH
+  ```
+  - Passing `prune-step` to 0 will skip pruning optimization.
+
+  #### Summary of tensor decomposition process
+
+    <p align="center">
+      <img src="./docs/imgs/tensor_decomposition.png" width="800" />
+    </p>
+
+    1. Pass random tensor **x** to original conv (**ŷ**) and decomposed conv (**ỹ**)
+    2. Compute **E** = Error(ŷ, ỹ)
+    3. If **E** < **loss-thr**, use decomposed conv
+    4. Apply pruning ratio with binary search
+    5. Jump to 1 until differential of pruning ratio is less than **prune-step**
+
+    **\*\* Note** - Decomposition process uses CPU only.
+
 </details>
 
 <details open>

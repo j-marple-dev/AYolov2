@@ -187,6 +187,12 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   python3 val.py --weights $WEIGHT_PATH --data-cfg $DATA_CONFIG_PATH --tta --tta-cfg $TTA_CFG_PATH
   ```
 
+  - Validate with pycocotools (Only for COCO val2017 images)
+  *Future work: The `val.py` and `val2.py` should be merged together.*
+  ```bash
+  python3 val2.py --weights $WEIGHT_PATH --data $VAL_IMAGE_PATH --json-path $JSON_FILE_PATH
+  ```
+
 
 </details>
 
@@ -266,7 +272,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 <p align="center">
   <img src="./docs/imgs/tensor_decomposition.png" width="800" />
 </p>
- 
+
    1. Pass random tensor **x** to original conv (**ŷ**) and decomposed conv (**ỹ**)
    2. Compute **E** = Error(ŷ, ỹ)
    3. If **E** < **loss-thr**, use decomposed conv

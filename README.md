@@ -263,17 +263,17 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
   #### Summary of tensor decomposition process
 
-    <p align="center">
-      <img src="./docs/imgs/tensor_decomposition.png" width="800" />
-    </p>
+<p align="center">
+  <img src="./docs/imgs/tensor_decomposition.png" width="800" />
+</p>
+ 
+   1. Pass random tensor **x** to original conv (**ŷ**) and decomposed conv (**ỹ**)
+   2. Compute **E** = Error(ŷ, ỹ)
+   3. If **E** < **loss-thr**, use decomposed conv
+   4. Apply pruning ratio with binary search
+   5. Jump to **1** until differential of pruning ratio is less than **prune-step**
 
-    1. Pass random tensor **x** to original conv (**ŷ**) and decomposed conv (**ỹ**)
-    2. Compute **E** = Error(ŷ, ỹ)
-    3. If **E** < **loss-thr**, use decomposed conv
-    4. Apply pruning ratio with binary search
-    5. Jump to 1 until differential of pruning ratio is less than **prune-step**
-
-    **\*\* Note** - Decomposition process uses CPU only.
+   **:: Note ::** Decomposition process uses CPU only.
 
 </details>
 

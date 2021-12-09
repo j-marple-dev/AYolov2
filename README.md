@@ -141,22 +141,48 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ```bash
   python3 val.py --weights $WEIGHT_PATH --data-cfg $DATA_CONFIG_PATH
   ```
+
+  - You can pass W&B path to the `weights` argument.
+  ```bash
+  python3 val.py --weights j-marple/AYolov2/179awdd1 --data-cfg $DATA_CONFIG_PATH
+  ```
+
 </details>
 
 
 ## Pretrained models
 | Name  | W&B URL | img_size |    mAP<sup>val<br>0.5:0.95</sup>    |         mAP<sup>val<br>0.5</sup>         |    params|
 |-------|---------------------------------------------------------------------------------------|---|----|----|----------|
-|YOLOv5s|<sub>[j-marple/AYolov2/179awdd1](https://wandb.ai/j-marple/AYolov2/runs/179awdd1)</sub>|640|37.7|57.2| 7,235,389|
+|YOLOv5s|<sub>[j-marple/AYolov2/179awd1](https://wandb.ai/j-marple/AYolov2/runs/179awdd1)</sub>|640|37.7|57.2| 7,235,389|
 |YOLOv5m(WIP)|<sub>[j-marple/AYolov2/sybi3bnq](https://wandb.ai/j-marple/AYolov2/runs/sybi3bnq)</sub>|640|48.4|65.4|21,190,557|
 |YOLOv5l(WIP)|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|51.3|67.8|46,563,709|
 |YOLOv5x(WIP)|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|52.9|69.2|86,749,405|
 
 </details>
 
-# Applying SWA
+# Advanced usages
+<details open>
+  <summary>Export model to TorchScript, ONNX, TensorRT</summary>
+
+</details>
+
+<details open>
+  <summary>Applying tensor decomposition</summary>
+
+</details>
+
+<details open>
+  <summary>Knowledge distillation</summary>
+
+</details>
+
+<details open>
+  <summary>Representation learning</summary>
+
+</details>
+
 <details>
-  <summary> Stochastic Weight Averaging</summary>
+  <summary> Applying SWA(Stochastic Weight Averaging)</summary>
 
   There are three steps to apply SWA (Stochastic Weight Averaging):
 
@@ -206,6 +232,10 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
                   --conf-t 0.1 --iou-t 0.2
   ```
 </details>
+
+<br />
+
+---
 
 ## Contributors ✨
 

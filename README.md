@@ -2,7 +2,7 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-The main goal of this repository is to rewrite object detection pipeline with better code structure for better portability and adapability to apply new experiment methods.
+The main goal of this repository is to rewrite the object detection pipeline with a better code structure for better portability and adaptability to apply new experimental methods.
 The object detection pipeline is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
 
 ## What's inside of this repository
@@ -114,9 +114,9 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
     ```
 
     - Dataset directory structure
-      - One of `labels` or `segments` directory must exists.
-      - Training label type(`labels` or `segments`) will be specified in training config.
-      - images and labels or segments must have matching file name with .txt extension.
+      - One of `labels` or `segments` directory must exist.
+      - Training label type(`labels` or `segments`) will be specified in the training config.
+      - images and labels or segments must have a matching filename with .txt extension.
 
     ```bash
     DATASET_ROOT
@@ -139,7 +139,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
     - Default training configurations are defined in [train_config.yaml](res/configs/cfg/train_config.yaml).
     - You may want to change `batch_size`, `epochs`, `device`, `workers`, `label_type` along with your model, dataset, and training hardware.
-    - Be cautious to change other parameters. It may affects training results.
+    - Be cautious to change other parameters. It may affect training results.
 
   </details>
 
@@ -358,4 +358,4 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind are welcome!

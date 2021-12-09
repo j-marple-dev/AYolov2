@@ -262,10 +262,18 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
       - Decomposed conv: 64x32x1x1 -> 32x16x3x3 -> 16x128x1x1
 
   - Usage
-  ```bash
-  python3 decompose_model.py --weights $WEIGHT_PATH --loss-thr $DECOMPOSE_LOSS_THRESHOLD --prune-step $PRUNING_STEP --data-cfg $DATA_CONFIG_PATH
-  ```
-  - Passing `prune-step` to 0 will skip pruning optimization.
+    ```bash
+    python3 decompose_model.py --weights $WEIGHT_PATH --loss-thr $DECOMPOSE_LOSS_THRESHOLD --prune-step $PRUNING_STEP --data-cfg $DATA_CONFIG_PATH
+    ```
+    ```bash
+    ...
+    [  Original] # param: 86,749,405, mAP0.5: 0.678784398716757, Speed(pre-process, inference, NMS): 0.030, 21.180, 4.223
+    [Decomposed] # param: 49,508,630, mAP0.5: 0.6707606125947304, Speed(pre-process, inference, NMS): 0.030, 20.274, 4.345
+    Decomposition config saved to exp/decompose/val/2021_0000_runs/args.yaml
+    Decomposed model saved to exp/decompose/val/2021_0000_runs/yolov5x_decomposed.pt
+    ```
+
+    - Passing `prune-step` to 0 will skip pruning optimization.
 
   #### Summary of tensor decomposition process
 

@@ -5,7 +5,7 @@
 The main goal of this repository is to rewrite object detection pipeline with better code structure for better portability and adapability to apply new experiment methods.
 The object detection pipeline is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
 
-## What's inside
+## What's inside of this repository
 1. YOLOv5 based portable model (model built with [kindle](https://github.com/JeiKeiLim/kindle))
 2. Model conversion (TorchScript, ONNX, TensorRT) support
 3. Tensor decomposition model with pruning optimization
@@ -16,6 +16,35 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 8. Distillation via soft teacher method (Experimental)
 9. C++ inference (WIP)
 10. AutoML - searching efficient architecture for the given dataset(incoming!)
+
+# Table of Contents
+
+* [How to start](#how-to-start)
+  * [Install](#how-to-start)
+  * [Train a model](#how-to-start)
+    * [Prepare dataset](#how-to-start)
+    * [Training config](#how-to-start)
+    * [Model config](#how-to-start)
+    * [Multi-GPU training](#how-to-start)
+  * [Run a model validation](#how-to-start)
+    * [Validate from local weights](#how-to-start)
+    * [Validate from W&B path](#how-to-start)
+    * [Validate with TTA](#how-to-start)
+* [Pretrained models](#pretrained-models)
+* [Advanced usages](#advanced-usages)
+  * [Export model to TorchScript, ONNX, TensorRT](#advanced-usages)
+  * [Applying tensor decomposition](#advanced-usages)
+  * [Knowledge distillation](#advanced-usages)
+  * [Representation learning](#advanced-usages)
+  * [Auto search for NMS parameters](#advanced-usages)
+  * [Applying SWA(Stochastic Weight Averaging)](#advanced-usages)
+* [References](#references)
+  * [Object Detection](#object-detection)
+  * [Stochastic Weight Averaging](#stochastic-weight-averaging)
+  * [Knowledge Distillation](#knowledge-distillation)
+  * [Tensor Decomposition and Pruning](#tensor-decomposition-and-pruning)
+  * [Non Maximum Supression (NMS)](#non-maximum-supression-(nms))
+* [Contributors](#contributors)
 
 # How to start
 <details open>
@@ -248,33 +277,55 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 # References
 ## Object Detection
-[1] Ultralytics YOLOv5 - [https://github.com/ultralytics/yolov5](https://github.com/ultralytics/yolov5)
+[1] Ultralytics YOLOv5 - https://github.com/ultralytics/yolov5
 
-[2] Mehta, Sachin, and Mohammad Rastegari. "MobileViT: Light-weight, General-purpose, and Mobile-friendly Vision Transformer." arXiv preprint arXiv:2110.02178 (2021).
+[2] YOLOR implementation - https://github.com/WongKinYiu/yolor.git
 
-[3] Ghiasi, Golnaz, et al. "Simple copy-paste is a strong data augmentation method for instance segmentation." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
+[3] MobileViT implementation - https://github.com/chinhsuanwu/mobilevit-pytorch
 
-## Stocastic Weight Averaging
+[4] Wang, Chien-Yao, I-Hau Yeh, and Hong-Yuan Mark Liao. "You Only Learn One Representation: Unified Network for Multiple Tasks." arXiv preprint arXiv:2105.04206 (2021).
 
-[4] Izmailov, Pavel, et al. "Averaging weights leads to wider optima and better generalization." arXiv preprint arXiv:1803.05407 (2018).
+[5] Mehta, Sachin, and Mohammad Rastegari. "MobileViT: Light-weight, General-purpose, and Mobile-friendly Vision Transformer." arXiv preprint arXiv:2110.02178 (2021).
 
-[5] Zhang, Haoyang, et al. "Swa object detection." arXiv preprint arXiv:2012.12645 (2020).
+[6] Ghiasi, Golnaz, et al. "Simple copy-paste is a strong data augmentation method for instance segmentation." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
+
+## Stochastic Weight Averaging
+
+[7] SWA Object Detection implementation - https://github.com/hyz-xmaster/swa_object_detection
+
+[8] Izmailov, Pavel, et al. "Averaging weights leads to wider optima and better generalization." arXiv preprint arXiv:1803.05407 (2018).
+
+[9] Zhang, Haoyang, et al. "Swa object detection." arXiv preprint arXiv:2012.12645 (2020).
 
 ## Knowledge Distillation
 
-[6] Xu, Mengde, et al. "End-to-End Semi-Supervised Object Detection with Soft Teacher." arXiv preprint arXiv:2106.09018 (2021).
+[10] Xu, Mengde, et al. "End-to-End Semi-Supervised Object Detection with Soft Teacher." arXiv preprint arXiv:2106.09018 (2021).
 
-[7] He, Kaiming, et al. "Momentum contrast for unsupervised visual representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2020.
+[11] He, Kaiming, et al. "Momentum contrast for unsupervised visual representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2020.
 
-[8] Chen, Ting, et al. "A simple framework for contrastive learning of visual representations." International conference on machine learning. PMLR, 2020.
+[12] Chen, Ting, et al. "A simple framework for contrastive learning of visual representations." International conference on machine learning. PMLR, 2020.
 
-[9] Grill, Jean-Bastien, et al. "Bootstrap your own latent: A new approach to self-supervised learning." arXiv preprint arXiv:2006.07733 (2020).
+[13] Grill, Jean-Bastien, et al. "Bootstrap your own latent: A new approach to self-supervised learning." arXiv preprint arXiv:2006.07733 (2020).
 
-[10] Roh, Byungseok, et al. "Spatially consistent representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
+[14] Roh, Byungseok, et al. "Spatially consistent representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
 
-## Tensor Decomposition
+## Tensor Decomposition and Pruning
 
-[11] PyTorch Tensor Decompositions - [https://github.com/jacobgil/pytorch-tensor-decompositions](https://github.com/jacobgil/pytorch-tensor-decompositions)
+[15] PyTorch tensor decompositions - https://github.com/jacobgil/pytorch-tensor-decompositions
+
+[16] PyTorch pruning tutorial - https://pytorch.org/tutorials/intermediate/pruning_tutorial.html
+
+## Non Maximum Suppression (NMS)
+
+[17] Batched NMS - https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
+
+[18] Fast NMS - https://github.com/ultralytics/yolov3/blob/77e6bdd3c1ea410b25c407fef1df1dab98f9c27b/utils/utils.py#L557-L559
+
+[19] Matrix NMS - https://github.com/ultralytics/yolov3/issues/679#issuecomment-594132977
+
+[20] Merge NMS - https://github.com/ultralytics/yolov5/blob/master/utils/general.py#L710-L722
+
+[21] Cluster NMS - https://github.com/Zzh-tju/yolov5/blob/master/utils/general.py#L689-L774
 
 
 <br />

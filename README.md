@@ -2,7 +2,6 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-This repository is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
 The main goal of this repository is to rewrite object detection pipeline with better code structure for better portability and adapability to apply new experiment methods.
 The object detection pipeline is based on [Ultralytics YOLOv5](https://github.com/ultralytics/yolov5).
 
@@ -135,7 +134,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 
 <details open>
-  <summary>Run a model</summary>
+  <summary>Run a model validation</summary>
 
   - Validate from local weights
   ```bash
@@ -146,6 +145,15 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ```bash
   python3 val.py --weights j-marple/AYolov2/179awdd1 --data-cfg $DATA_CONFIG_PATH
   ```
+
+  - **TTA** (Test Time Augmentation)
+    - Simply pass `--tta` argument with `--tta-cfg` path
+    - Default TTA configs are located in [`res/configs/cfg/tta.yaml`](res/configs/cfg/tta.yaml)
+
+  ```bash
+  python3 val.py --weights $WEIGHT_PATH --data-cfg $DATA_CONFIG_PATH --tta --tta-cfg $TTA_CFG_PATH
+  ```
+
 
 </details>
 
@@ -178,6 +186,11 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 <details open>
   <summary>Representation learning</summary>
+
+</details>
+
+<details open>
+  <summary>Auto search for NMS parameters</summary>
 
 </details>
 
@@ -232,6 +245,37 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
                   --conf-t 0.1 --iou-t 0.2
   ```
 </details>
+
+# References
+## Object Detection
+[1] Ultralytics YOLOv5 - [https://github.com/ultralytics/yolov5](https://github.com/ultralytics/yolov5)
+
+[2] Mehta, Sachin, and Mohammad Rastegari. "MobileViT: Light-weight, General-purpose, and Mobile-friendly Vision Transformer." arXiv preprint arXiv:2110.02178 (2021).
+
+[3] Ghiasi, Golnaz, et al. "Simple copy-paste is a strong data augmentation method for instance segmentation." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
+
+## Stocastic Weight Averaging
+
+[4] Izmailov, Pavel, et al. "Averaging weights leads to wider optima and better generalization." arXiv preprint arXiv:1803.05407 (2018).
+
+[5] Zhang, Haoyang, et al. "Swa object detection." arXiv preprint arXiv:2012.12645 (2020).
+
+## Knowledge Distillation
+
+[6] Xu, Mengde, et al. "End-to-End Semi-Supervised Object Detection with Soft Teacher." arXiv preprint arXiv:2106.09018 (2021).
+
+[7] He, Kaiming, et al. "Momentum contrast for unsupervised visual representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2020.
+
+[8] Chen, Ting, et al. "A simple framework for contrastive learning of visual representations." International conference on machine learning. PMLR, 2020.
+
+[9] Grill, Jean-Bastien, et al. "Bootstrap your own latent: A new approach to self-supervised learning." arXiv preprint arXiv:2006.07733 (2020).
+
+[10] Roh, Byungseok, et al. "Spatially consistent representation learning." Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition. 2021.
+
+## Tensor Decomposition
+
+[11] PyTorch Tensor Decompositions - [https://github.com/jacobgil/pytorch-tensor-decompositions](https://github.com/jacobgil/pytorch-tensor-decompositions)
+
 
 <br />
 

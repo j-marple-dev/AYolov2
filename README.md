@@ -43,7 +43,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   * [Stochastic Weight Averaging](#stochastic-weight-averaging)
   * [Knowledge Distillation](#knowledge-distillation)
   * [Tensor Decomposition and Pruning](#tensor-decomposition-and-pruning)
-  * [Non Maximum Supression (NMS)](#non-maximum-supression-(nms))
+  * [Non Maximum Supression (NMS)](#non-maximum-suppression-(nms))
 * [Contributors](#contributors)
 
 # How to start

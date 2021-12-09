@@ -21,15 +21,17 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 * [How to start](#how-to-start)
   * [Install](#how-to-start)
-  * [Train a model](#how-to-start)
-    * [Prepare dataset](#how-to-start)
-    * [Training config](#how-to-start)
-    * [Model config](#how-to-start)
-    * [Multi-GPU training](#how-to-start)
-  * [Run a model validation](#how-to-start)
-    * [Validate from local weights](#how-to-start)
-    * [Validate from W&B path](#how-to-start)
-    * [Validate with TTA](#how-to-start)
+    * [Using conda environment](#using-conda-environment)
+    * [Using docker](#using-docker)
+  * [Train a model](#using-docker)
+    * [Prepare dataset](#using-docker)
+    * [Training config](#using-docker)
+    * [Model config](#using-docker)
+    * [Multi-GPU training](#using-docker)
+  * [Run a model validation](#using-docker)
+    * [Validate from local weights](#using-docker)
+    * [Validate from W&B path](#using-docker)
+    * [Validate with TTA](#using-docker)
 * [Pretrained models](#pretrained-models)
 * [Advanced usages](#advanced-usages)
   * [Export model to TorchScript, ONNX, TensorRT](#advanced-usages)
@@ -43,7 +45,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   * [Stochastic Weight Averaging](#stochastic-weight-averaging)
   * [Knowledge Distillation](#knowledge-distillation)
   * [Tensor Decomposition and Pruning](#tensor-decomposition-and-pruning)
-  * [Non Maximum Supression (NMS)](#non-maximum-suppression-(nms))
+  * [Non Maximum Supression](#non-maximum-suppression)
 * [Contributors](#contributors)
 
 # How to start
@@ -51,6 +53,8 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   <summary>Install</summary>
 
   - [Conda virtual environment](https://docs.conda.io/en/latest/miniconda.html) or [docker](https://www.docker.com) is required to setup the environment
+
+  ### Using conda environment
   ```bash
   git clone https://github.com/j-marple-dev/AYolov2.git
   cd AYolov2
@@ -60,7 +64,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   # pre-commit install --hook-type pre-commit --hook-type pre-push
   ```
 
-  ### Using Docker
+  ### Using docker
   #### Building a docker image
   ```bash
   ./run_docker.sh build
@@ -315,7 +319,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 [16] PyTorch pruning tutorial - https://pytorch.org/tutorials/intermediate/pruning_tutorial.html
 
-## Non Maximum Suppression (NMS)
+## Non Maximum Suppression
 
 [17] Batched NMS - https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
 
@@ -330,7 +334,6 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 <br />
 
----
 
 ## Contributors ✨
 

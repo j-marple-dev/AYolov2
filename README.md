@@ -202,8 +202,47 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 </details>
 
 # Advanced usages
-<details open>
+<details>
   <summary>Export model to TorchScript, ONNX, TensorRT</summary>
+
+  - You can export a trained model to TorchScript, ONNX, or TensorRT
+  - INT8 is currently not supported.
+
+  - Usage
+  ```bash
+  python3 export.py --weights $WEIGHT_PATH --type [torchscript, ts, onnx, tensorrt, trt] --dtype [fp32, fp16, int8]
+  ```
+
+  - Above command will generate both model and model config file.
+    - Example) FP16, Batch size 8, Image size 640x640, TensorRT
+      - model_fp16_8_640_640.trt
+      - model_fp16_8_640_640_trt.yaml
+      ```yaml
+      batch_size: 8
+      conf_t: 0.001  # NMS confidence threshold
+      dst: exp/  # Model location
+      dtype: fp16  # Data type
+      gpu_mem: 6  # GPU memory restriction
+      img_height: 640
+      img_width: 640
+      iou_t: 0.65  # NMS IoU threshold
+      keep_top_k: 100  # NMS top k parameter
+      model_cfg: res/configs/model/yolov5x.yaml  # Base model config location
+      opset: 11  # ONNX opset version
+      rect: false  # Rectangular inference mode
+      stride_size: 32  # Model stride size
+      top_k: 512  # Pre-NMS top k parameter
+      type: trt  # Model type
+      verbose: 1  # Verbosity level
+      weights: ./exp/yolov5x.pt  # Base model weight file location
+      ```
+
+  - Once, model has been exported, you can run val.py with the exported model.
+    - `ONNX` inference is currently not supported.
+
+    ```bash
+    python3 val.py --weights model_fp16_8_640_640.trt --data-cfg $DATA_CONFIG_PATH
+    ```
 
 </details>
 

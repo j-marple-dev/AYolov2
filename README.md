@@ -304,6 +304,31 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 <details open>
   <summary>Auto search for NMS parameters</summary>
 
+  If want to optimize NMS parameters(IoU threshold and confidence threshold), there are two ways to optimize.
+
+  ### Why there are two ways?
+  - There is an [issue](https://github.com/ultralytics/yolov5/issues/2258) with YOLOv5 validation.
+  - It's ok with training or validating but the validation results are little different.
+
+  1. Optimize parameters with YOLOv5 validation.
+  2. Optimiza parameters with COCO validation (pycocotools).
+
+  ## 1. Optimize parameters with YOLOv5 validation.
+  ```bash
+  python3 val_optimizer.py --weights ${WEIGHT_PATH | WANDB_PATH} --data-cfg $DATA_CONFIG_PATH
+  ```
+
+  ## 2. Optimize parameters with COCO validation.
+  ```bash
+  python3 val_optimizer.py --weights ${WEIGHT_PATH | WANDB_PATH} --data-cfg $DATA_CONFIG_PATH --run-json --json-path $JSON_FILE_PATH
+  ```
+
+  The `--json-path` is optional.
+
+  ## Advanced usage
+  - If you have baseline network, give `--base-map50` and `--base-time` arguments which are used for objective function.
+  - To avoid the optimized parameters overfits, use `--n-skip` option to skip some images.
+
 </details>
 
 <details>

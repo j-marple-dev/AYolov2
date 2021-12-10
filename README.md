@@ -314,7 +314,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   - It's ok with training or validating but the validation results are little different.
 
   1. Optimize parameters with YOLOv5 validation.
-  2. Optimiza parameters with COCO validation (pycocotools).
+  2. Optimize parameters with COCO validation (pycocotools).
 
   ## 1. Optimize parameters with YOLOv5 validation.
   ```bash

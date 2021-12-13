@@ -52,7 +52,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 * [Contributors ✨](#contributors-✨)
 
 # How to start
-<details open>
+<details>
   <summary>Install</summary>
 
   - [Conda virtual environment](https://docs.conda.io/en/latest/miniconda.html) or [docker](https://www.docker.com) is required to setup the environment
@@ -204,7 +204,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 | Name  | W&B URL | img_size |    mAP<sup>val<br>0.5:0.95</sup>    |         mAP<sup>val<br>0.5</sup>         |    params|
 |-------|---------------------------------------------------------------------------------------|---|----|----|----------|
 |YOLOv5s|<sub>[j-marple/AYolov2/179awd1](https://wandb.ai/j-marple/AYolov2/runs/179awdd1)</sub>|640|37.7|57.2| 7,235,389|
-|YOLOv5m(WIP)|<sub>[j-marple/AYolov2/sybi3bnq](https://wandb.ai/j-marple/AYolov2/runs/sybi3bnq)</sub>|640|48.4|65.4|21,190,557|
+|YOLOv5m|<sub>[j-marple/AYolov2/2ktlek75](https://wandb.ai/j-marple/AYolov2/runs/2ktlek75)</sub>|640|45.0|63.9|21,190,557|
 |YOLOv5l(WIP)|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|51.3|67.8|46,563,709|
 |YOLOv5x(WIP)|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|52.9|69.2|86,749,405|
 
@@ -255,7 +255,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 </details>
 
-<details open>
+<details>
   <summary>Applying tensor decomposition</summary>
 
   - A trained model can be compressed via tensor decomposition.
@@ -299,14 +299,14 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 </details>
 
-<details open>
+<details>
   <summary>Representation learning</summary>
 
   - Representations of a model can be automatically discovered from raw data by representation learning.
   - You can apply SimpleRL or SimCLR to find better representations of the model with `--rl-type` option.
     - SimpleRL is a method to minimize a difference between last two representations of a model with L1 loss.
     - SimCLR is a simple framework for contrastive self-supervised learning of visual representations without requiring specialized architectures.
-      
+
   - Usage (default: base)
     - SimpleRL
       ```bash
@@ -325,7 +325,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 </details>
 
-<details open>
+<details>
   <summary>Auto search for NMS parameters</summary>
 
   If want to optimize NMS parameters(IoU threshold and confidence threshold), there are two ways to optimize.
@@ -356,7 +356,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 </details>
 
 <details>
-  <summary> Applying SWA(Stochastic Weight Averaging)</summary>
+  <summary>Applying SWA(Stochastic Weight Averaging)</summary>
 
   There are three steps to apply SWA (Stochastic Weight Averaging):
 

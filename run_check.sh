@@ -25,9 +25,9 @@ CMD_NAME=(
     "lint"
     "test"
     "doc"
-    "doc-server"
-    "init-conda"
-    "init-precommit"
+    "doc_server"
+    "init_conda"
+    "init_precommit"
     "init"
     "all"
     )

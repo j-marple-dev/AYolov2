@@ -302,6 +302,27 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 <details open>
   <summary>Representation learning</summary>
 
+  - Representations of a model can be automatically discovered from raw data by representation learning.
+  - You can apply SimpleRL or SimCLR to find better representations of the model with `--rl-type` option.
+    - SimpleRL is a method to minimize a difference between last two representations of a model with L1 loss.
+    - SimCLR is a simple framework for contrastive self-supervised learning of visual representations without requiring specialized architectures.
+      
+  - Usage (default: base)
+    - SimpleRL
+      ```bash
+      python train_repr.py --model res/configs/model/yolov5s_repr.yaml \
+                           --data res/configs/data/coco_repr.yaml \
+                           --cfg res/configs/cfg/train_config_repr.yaml \
+                           --rl-type base
+      ```
+    - SimCLR
+      ```bash
+      python train_repr.py --model res/configs/model/simclr.yaml \
+                           --data res/configs/data/coco_repr.yaml \
+                           --cfg res/configs/cfg/train_config_simclr.yaml \
+                           --rl-type simclr
+      ```
+
 </details>
 
 <details open>
@@ -428,18 +449,23 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 [17] PyTorch pruning tutorial - https://pytorch.org/tutorials/intermediate/pruning_tutorial.html
 
+## Representation Learning
+
+[18] Bengio, Yoshua et al. "Representation Learning: A Review and New Perspectives." IEEE Transactions on Pattern Analysis and Machine Intelligence. 2013.
+
+[19] Chen, Ting et al. "A Simple Framework for Contrastive Learning of Visual Representations." Proceedings of the 37th International Conference on Machine Learning. 2020
+
 ## Non Maximum Suppression
 
-[18] Batched NMS - https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
+[20] Batched NMS - https://github.com/ultralytics/yolov3/blob/f915bf175c02911a1f40fbd2de8494963d4e7914/utils/utils.py#L562-L563
 
-[19] Fast NMS - https://github.com/ultralytics/yolov3/blob/77e6bdd3c1ea410b25c407fef1df1dab98f9c27b/utils/utils.py#L557-L559
+[21] Fast NMS - https://github.com/ultralytics/yolov3/blob/77e6bdd3c1ea410b25c407fef1df1dab98f9c27b/utils/utils.py#L557-L559
 
-[20] Matrix NMS - https://github.com/ultralytics/yolov3/issues/679#issuecomment-594132977
+[22] Matrix NMS - https://github.com/ultralytics/yolov3/issues/679#issuecomment-594132977
 
-[21] Merge NMS - https://github.com/ultralytics/yolov5/blob/master/utils/general.py#L710-L722
+[23] Merge NMS - https://github.com/ultralytics/yolov5/blob/master/utils/general.py#L710-L722
 
-[22] Cluster NMS - https://github.com/Zzh-tju/yolov5/blob/master/utils/general.py#L689-L774
-
+[24] Cluster NMS - https://github.com/Zzh-tju/yolov5/blob/master/utils/general.py#L689-L774
 
 <br />
 

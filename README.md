@@ -299,10 +299,9 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
   - An ad-hoc implementation of the knowledge distillation motivated from the method in "End-to-end semi-supervised object dection with soft teacher".
   - Create pseudo-labels for "unlabeled dataset" using the inference of the "teacher" model.
-  **:: Note ::**
+  - **:: Note ::**
     - Implemented to use the same dataset for the "training dataset" and the "unlabeled dataset". To use different datasets, the creation of the dataloader instance `unlabeled_loader` in `distillation.py` should be modified.
     - Teacher model weights are fixed during training student model. (In the original paper, teacher model is updated using "exponential moving averaging" the student model.)
-
   - Usage
     ```bash
     python distillation.py --model res/configs/model/yolov5s.yaml \

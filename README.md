@@ -203,10 +203,12 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 ## Pretrained models
 | Name  | W&B URL | img_size |    mAP<sup>val<br>0.5:0.95</sup>    |         mAP<sup>val<br>0.5</sup>         |    params|
 |-------|---------------------------------------------------------------------------------------|---|----|----|----------|
-|YOLOv5s|<sub>[j-marple/AYolov2/179awd1](https://wandb.ai/j-marple/AYolov2/runs/179awdd1)</sub>|640|37.7|57.2| 7,235,389|
+|YOLOv5s|<sub>[j-marple/AYolov2/33cxs5tn](https://wandb.ai/j-marple/AYolov2/runs/33cxs5tn)</sub>|640|38.2|57.5| 7,235,389|
 |YOLOv5m|<sub>[j-marple/AYolov2/2ktlek75](https://wandb.ai/j-marple/AYolov2/runs/2ktlek75)</sub>|640|45.0|63.9|21,190,557|
-|YOLOv5l(WIP)|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|51.3|67.8|46,563,709|
-|YOLOv5x(WIP)|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|52.9|69.2|86,749,405|
+|YOLOv5l decomposed|<sub>[j-marple/AYolov2/30t7wh1x](https://wandb.ai/j-marple/AYolov2/runs/30t7wh1x)</sub>|640|46.9|65.6|26,855,105|
+|YOLOv5l|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|48.0|66.6|46,563,709|
+|YOLOv5x decomposed|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|49.2|67.6|51,512,570|
+|YOLOv5x|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|49.6|68.1|86,749,405|
 
 </details>
 
@@ -215,7 +217,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   <summary>Export model to TorchScript, ONNX, TensorRT</summary>
 
   - You can export a trained model to TorchScript, ONNX, or TensorRT
-  - INT8 is currently not supported.
+  - INT8 quantization is currently not supported (coming soon).
 
   - Usage
   ```bash
@@ -294,7 +296,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 </details>
 
-<details open>
+<details>
   <summary>Knowledge distillation</summary>
 
   - An ad-hoc implementation of the knowledge distillation motivated from the method in "End-to-end semi-supervised object dection with soft teacher".

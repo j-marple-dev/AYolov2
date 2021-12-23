@@ -96,7 +96,7 @@ class ModelConverter:
                 LOGGER.info(
                     f"Converting {attr_name} to {'half' if half else 'fp32'} precision ..."
                 )
-                attr.to(device)
+                attr = attr.to(device)
                 setattr(self.model.model[-1], attr_name, attr.half() if half else attr)  # type: ignore
             elif isinstance(attr, list) and isinstance(attr[0], torch.Tensor):
                 for i in range(len(attr)):

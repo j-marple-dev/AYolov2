@@ -18,8 +18,7 @@ from torch import nn
 
 from scripts.data_loader.data_loader import LoadImagesAndLabels
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.torch_utils import (count_param, load_pytorch_model,
-                                       select_device)
+from scripts.utils.torch_utils import count_param, load_pytorch_model, select_device
 from scripts.utils.train_utils import YoloValidator
 from scripts.utils.wandb_utils import load_model_from_wandb
 

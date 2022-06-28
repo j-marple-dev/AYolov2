@@ -11,11 +11,18 @@ ORG=jmarpledev
 
 PRJ_NAME=${PWD##*/}
 PRJ_NAME="$(tr [A-Z] [a-z] <<< "$PRJ_NAME")"
+ARCH=$(uname -m)
 
-DOCKER_TAG=$ORG/$PRJ_NAME
+DOCKER_TAG=$ORG/$PRJ_NAME:$ARCH
 
 CMD_ARGS=( ${@} )
 CMD_ARGS=${CMD_ARGS[*]:1}
+
+if [ "$ARCH" = "aarch64" ]; then
+    DOCKER_FILE=./docker/Dockerfile.aarch64
+else
+    DOCKER_FILE=./docker/Dockerfile
+fi
 
 if [[ $2 == :* ]]; then
     DOCKER_TAG=$DOCKER_TAG$2
@@ -24,19 +31,30 @@ fi
 
 if [ "$1" = "build" ]; then
     echo "Building a docker image with tagname $DOCKER_TAG and arguments $CMD_ARGS"
-    docker build . -t $DOCKER_TAG $CMD_ARGS --build-arg UID=`id -u` --build-arg GID=`id -g`
+    docker build . -t $DOCKER_TAG -f $DOCKER_FILE $CMD_ARGS --build-arg UID=`id -u` --build-arg GID=`id -g`
 elif [ "$1" = "run" ]; then
     echo "Run a docker image with tagname $DOCKER_TAG and arguments $CMD_ARGS"
-
-    docker run -tid --privileged --gpus all \
-        -e DISPLAY=${DISPLAY} \
-        -e TERM=xterm-256color \
-        -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
-        -v /dev:/dev \
-        -v $PWD:/home/user/$PRJ_NAME \
-        --network host \
-        $CMD_ARGS \
-        $DOCKER_TAG /bin/bash
+    if [ "$ARCH" = "aarch64" ]; then
+        docker run -tid --privileged \
+            -e DISPLAY=${DISPLAY} \
+            -e TERM=xterm-256color \
+            -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+            -v /dev:/dev \
+            -v $PWD:/home/user/$PRJ_NAME \
+            --network host \
+            $CMD_ARGS \
+            $DOCKER_TAG /bin/bash
+    else
+        docker run -tid --privileged --gpus all \
+            -e DISPLAY=${DISPLAY} \
+            -e TERM=xterm-256color \
+            -v /tmp/.X11-unix:/tmp/.X11-unix:ro \
+            -v /dev:/dev \
+            -v $PWD:/home/user/$PRJ_NAME \
+            --network host \
+            $CMD_ARGS \
+            $DOCKER_TAG /bin/bash
+    fi
 
     last_cont_id=$(docker ps -qn 1)
     echo $(docker ps -qn 1) > $PWD/.last_exec_cont_id.txt

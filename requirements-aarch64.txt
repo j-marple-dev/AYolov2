@@ -1,0 +1,9 @@
+opencv-python==4.5.3.56
+kindle>=0.4.3
+pycocotools==2.0.2
+albumentations==1.1.0
+p-tqdm==1.3.3
+wandb==0.12.3
+seaborn==0.11.2
+orjson==3.6.4
+optuna==2.10.0

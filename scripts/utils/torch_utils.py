@@ -214,7 +214,7 @@ def load_model_weights(
 
 
 def load_pytorch_model(
-    weight_path: str, model_cfg_path: str = "", load_ema: bool = True
+    weight_path: str, device: Union[torch.device, str], model_cfg_path: str = "", load_ema: bool = True
 ) -> Optional[nn.Module]:
     """Load PyTorch model.
 
@@ -238,7 +238,7 @@ def load_pytorch_model(
             + " will validate a randomly initialized model. Please use only for a experiment purpose."
         )
     else:
-        ckpt = torch.load(weight_path)
+        ckpt = torch.load(weight_path, map_location=device)
         if isinstance(ckpt, dict):
             model_key = (
                 "ema"

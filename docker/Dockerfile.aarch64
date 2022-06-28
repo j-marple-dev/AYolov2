@@ -1,0 +1,74 @@
+FROM ros:melodic
+
+LABEL maintainer="Jongkuk Lim <limjk@jmarple.ai>"
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Seoul
+
+RUN apt-get update --fix-missing
+RUN apt-get install -y tzdata wget iproute2
+
+ENV TERM xterm-256color
+
+ENV NVIDIA_VISIBLE_DEVICES ${NVIDIA_VISIBLE_DEVICES:-all}
+ENV NVIDIA_DRIVER_CAPABILITIES \
+    ${NVIDIA_DRIVER_CAPABILITIES:+$NVIDIA_DRIVER_CAPABILITIES,}graphics
+
+RUN sh -c 'echo "deb http://packages.ros.org/ros-shadow-fixed/ubuntu `lsb_release -sc` main" > /etc/apt/sources.list.d/ros-shadow.list' \
+	&& apt-get update \
+	&& apt-get -y --quiet --no-install-recommends install \
+	ros-melodic-desktop-full \
+	ros-melodic-tf2-geometry-msgs \
+	ros-melodic-navigation \
+	ros-melodic-robot-localization \
+	ros-melodic-robot-state-publisher \
+	ros-melodic-hector-gazebo-plugins
+
+ARG	UID=1000
+ARG	GID=1000
+RUN	groupadd -g $GID -o user && useradd -m -u $UID -g $GID -o -s /bin/bash user
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN apt-get update && apt-get install -y sudo dialog apt-utils curl 
+RUN	echo "%sudo	ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers && echo "user:user" | chpasswd && adduser user sudo
+
+WORKDIR	/home/user
+USER	user
+
+# RUN echo "export PATH=/home/user/.local/bin/:$PATH" >> ~/.bashrc
+
+# install python3.7
+# RUN sudo apt-get update
+# RUN sudo apt-get install -y software-properties-common && sudo apt-get install -y python3.7 curl
+# RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+# RUN sudo apt-get install -y python3-distutils && python3.7 get-pip.py --user
+
+# RUN sudo apt-get install -y python3-pip
+# RUN sudo apt-get install -y python3.7 \
+#     && python3.7 -m pip install pip \
+#     && python3.7 -m pip install torch==1.9.0 torchvision==0.10.0 -f https://download.pytorch.org/whl/torch_stable.html
+
+ENV PATH /opt/conda/bin:$PATH
+
+# Install Dependencies of Miniconda
+RUN sudo apt-get update --fix-missing \
+    && sudo apt-get install -y wget bzip2 curl git \
+    && sudo apt-get clean \
+    && sudo rm -rf /var/lib/apt/lists/*
+
+# Setup terminal environment
+RUN curl -s https://raw.githubusercontent.com/JeiKeiLim/my_term/main/run.sh | /bin/bash
+
+# Install FAST-LIO2 prerequisites
+RUN sudo apt-get update
+RUN sudo apt-get install -y libpcl-dev libeigen3-dev ros-melodic-pcl-ros ros-melodic-eigen-conversions git libyaml-cpp-dev vim tmux
+
+# Install minicondat3
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh -O ~/miniconda.sh \
+    && /bin/bash ~/miniconda.sh -b \
+    && rm ~/miniconda.sh
+
+ENV PATH /home/user/miniconda3/bin:$PATH
+RUN conda init
+
+RUN /home/user/miniconda3/bin/conda create -n ayolov2 python=3.7

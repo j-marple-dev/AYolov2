@@ -4,13 +4,17 @@
 - Contact: hwkim@jmarple.ai
 """
 import os
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 
+import torch
 from torch import nn
 
 import wandb
 from scripts.utils.logger import get_logger
 from scripts.utils.torch_utils import load_pytorch_model
+
+if TYPE_CHECKING:
+    import torch
 
 LOGGER = get_logger(__name__)
 
@@ -94,6 +98,7 @@ def get_ckpt_path(
 
 def load_model_from_wandb(
     wandb_path: str,
+    device: Union[str, torch.device],
     weight_path: str = "best.pt",
     download_root: str = "wandb/downloads",
     verbose: int = 1,
@@ -102,6 +107,7 @@ def load_model_from_wandb(
 
     Args:
         wandb_path: run path in wandb
+        device: torch device.
         weight_path: weight path in wandb
         download_root: root directory to download files from wandb
         verbose: level to print model information
@@ -113,7 +119,7 @@ def load_model_from_wandb(
     wandb_run = api.run(wandb_path)
     download_root = os.path.join(download_root, wandb_path)
     ckpt_path = download_from_wandb(wandb_run, weight_path, download_root)
-    model = load_pytorch_model(ckpt_path)
+    model = load_pytorch_model(ckpt_path, device=device)
 
     if verbose > 0:
         summary(wandb_run)

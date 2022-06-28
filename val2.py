@@ -197,7 +197,7 @@ if __name__ == "__main__":
         model = load_pytorch_model(args.weights, args.model_cfg, load_ema=True)
         stride_size = int(max(model.stride))  # type: ignore
     else:  # load model from wandb
-        model = load_model_from_wandb(args.weights)
+        model = load_model_from_wandb(args.weights, device)
         stride_size = int(max(model.stride))  # type: ignore
 
     if model is None:

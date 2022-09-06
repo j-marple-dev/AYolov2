@@ -23,7 +23,8 @@ from scripts.utils.logger import colorstr, get_logger
 from scripts.utils.metrics import COCOmAPEvaluator
 from scripts.utils.multi_queue import ResultWriterTorch
 from scripts.utils.nms import batched_nms
-from scripts.utils.torch_utils import count_param, load_pytorch_model, select_device
+from scripts.utils.torch_utils import (count_param, load_pytorch_model,
+                                       select_device)
 from scripts.utils.tta_utils import inference_with_tta
 from scripts.utils.wandb_utils import load_model_from_wandb
 

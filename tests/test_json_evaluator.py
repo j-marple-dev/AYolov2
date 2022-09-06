@@ -14,12 +14,8 @@ from tqdm import tqdm
 
 from scripts.utils.constants import probably_run
 from scripts.utils.general import xywh2xyxy
-from scripts.utils.metrics import (
-    COCOmAPEvaluator,
-    ap_per_class,
-    box_iou,
-    check_correct_prediction_by_iou,
-)
+from scripts.utils.metrics import (COCOmAPEvaluator, ap_per_class, box_iou,
+                                   check_correct_prediction_by_iou)
 
 
 @probably_run()

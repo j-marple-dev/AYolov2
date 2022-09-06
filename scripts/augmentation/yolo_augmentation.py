@@ -13,7 +13,8 @@ from typing import List, Tuple, Union
 import cv2
 import numpy as np
 
-from scripts.utils.general import box_candidates, resample_segments, segment2box
+from scripts.utils.general import (box_candidates, resample_segments,
+                                   segment2box)
 from scripts.utils.metrics import bbox_ioa
 
 

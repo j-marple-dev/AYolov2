@@ -148,9 +148,16 @@ if __name__ == "__main__":
     train_builder.ddp_init()
 
     stride_size = int(max(model.stride))  # type: ignore
+    dataset_names = data_cfg.get("names")
+    if dataset_names is None:
+        dataset_names = data_cfg.get("dataset")
 
     train_loader, train_dataset = create_dataloader(
-        data_cfg["train_path"], train_cfg, stride_size, prefix="[Train] "
+        data_cfg["train_path"],
+        train_cfg,
+        stride_size,
+        prefix="[Train] ",
+        names=dataset_names,
     )
 
     if RANK in [-1, 0]:
@@ -161,6 +168,7 @@ if __name__ == "__main__":
             prefix="[Val] ",
             validation=True,
             pad=0.5,
+            names=dataset_names,
         )
     else:
         val_loader, val_dataset = None, None

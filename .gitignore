@@ -139,3 +139,4 @@ tests/.*
 exp/
 *.json
 .*.db
+wandb/

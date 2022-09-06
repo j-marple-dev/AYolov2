@@ -1,4 +1,4 @@
-_size: [640, 640]
+input_size: [640, 640]
 input_channel: 3
 
 depth_multiple: 0.33

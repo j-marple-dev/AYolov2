@@ -8,7 +8,7 @@ channels:
 dependencies:
   - python=3.7.7  # Change python version if necessary
   - pip
-  - black=19.10b0
+  - black=22.3.0
   - coverage=5.3
   - flake8=3.8.3
   - flake8-bugbear=20.1.4

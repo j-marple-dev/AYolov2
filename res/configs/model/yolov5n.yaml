@@ -1,4 +1,4 @@
-input_size: [640, 640]
+_size: [640, 640]
 input_channel: 3
 
 depth_multiple: 0.33
@@ -10,7 +10,7 @@ anchors: &anchors
    - [116,90, 156,198, 373,326]  # P5/32
 
 n_classes: &n_classes
-  9
+  80
 
 activation: &activation
   SiLU

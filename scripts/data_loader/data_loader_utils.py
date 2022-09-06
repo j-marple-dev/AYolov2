@@ -5,7 +5,7 @@
 """
 
 import os
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import torch
 
@@ -32,6 +32,7 @@ def create_dataloader(
     validation: bool = False,
     preprocess: Optional[Callable] = None,
     prefix: str = "",
+    names: Optional[Union[str, List[str]]] = None,
 ) -> Tuple[torch.utils.data.DataLoader, torch.utils.data.Dataset]:
     """Create YOLO dataset loader.
 
@@ -88,6 +89,7 @@ def create_dataloader(
             if not validation
             else None,
             preprocess=preprocess,
+            dataset_name=names,
         )
     time_checker.add("dataset")
 

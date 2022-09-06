@@ -20,12 +20,8 @@ from tqdm import tqdm
 from scripts.loss.losses import ComputeLoss
 from scripts.utils.general import increment_path, scale_coords, xywh2xyxy
 from scripts.utils.logger import colorstr, get_logger
-from scripts.utils.metrics import (
-    ConfusionMatrix,
-    ap_per_class,
-    box_iou,
-    non_max_suppression,
-)
+from scripts.utils.metrics import (ConfusionMatrix, ap_per_class, box_iou,
+                                   non_max_suppression)
 from scripts.utils.tta_utils import inference_with_tta
 
 if importlib.util.find_spec("tensorrt") is not None:

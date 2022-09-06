@@ -54,7 +54,11 @@ def test_model_validator(p: float = 0.5) -> None:
     stride_size = int(max(model.stride))  # type: ignore
 
     train_loader, train_dataset = create_dataloader(
-        "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
+        "tests/res/datasets/coco/images/train2017",
+        cfg,
+        stride_size,
+        prefix="[Train] ",
+        names="COCO",
     )
 
     cfg["train"]["rect"] = True
@@ -65,6 +69,7 @@ def test_model_validator(p: float = 0.5) -> None:
         prefix="[Val] ",
         pad=0.5,
         validation=False,  # This is supposed to be True.
+        names="COCO",
     )
 
     model, ema, device = train_builder.prepare()

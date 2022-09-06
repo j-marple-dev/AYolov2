@@ -19,13 +19,9 @@ from PIL import ExifTags, Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from scripts.augmentation.yolo_augmentation import (
-    augment_hsv,
-    copy_paste,
-    copy_paste2,
-    mixup,
-    random_perspective,
-)
+from scripts.augmentation.yolo_augmentation import (augment_hsv, copy_paste,
+                                                    copy_paste2, mixup,
+                                                    random_perspective)
 from scripts.utils.constants import LABELS
 from scripts.utils.general import segments2boxes, xyn2xy, xywh2xyxy, xyxy2xywh
 from scripts.utils.logger import get_logger
@@ -499,7 +495,7 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         yolo_augmentation: Optional[Dict[str, Any]] = None,
         preprocess: Optional[Callable] = None,
         augmentation: Optional[Callable] = None,
-        dataset_name: str = "COCO",
+        dataset_name: Optional[Union[str, List[str]]] = "COCO",
     ) -> None:
         """Initialize LoadImageAndLabels.
 
@@ -548,7 +544,13 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         self.label_type = label_type
         # Define label paths
         substring_a = f"{os.sep}images{os.sep}"
-        self.names = LABELS[dataset_name]
+        if isinstance(dataset_name, list):
+            self.names = dataset_name
+        elif isinstance(dataset_name, str) and dataset_name in LABELS.keys():
+            self.names = LABELS[dataset_name]
+        else:
+            self.names = LABELS["COCO"]
+
         substring_b = f"{os.sep}{self.label_type}{os.sep}"
 
         self.label_files = [

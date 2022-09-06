@@ -546,8 +546,10 @@ class LoadImagesAndLabels(LoadImages):  # for training/testing
         substring_a = f"{os.sep}images{os.sep}"
         if isinstance(dataset_name, list):
             self.names = dataset_name
-        elif isinstance(dataset_name, str):
+        elif isinstance(dataset_name, str) and dataset_name in LABELS.keys():
             self.names = LABELS[dataset_name]
+        else:
+            self.names = LABELS["COCO"]
 
         substring_b = f"{os.sep}{self.label_type}{os.sep}"
 

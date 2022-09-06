@@ -40,7 +40,7 @@ def test_model_manager(p: float = 0.5) -> None:
     stride_size = int(max(model.stride))  # type: ignore
 
     train_loader, train_dataset = create_dataloader(
-        "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] "
+        "tests/res/datasets/coco/images/train2017", cfg, stride_size, prefix="[Train] ",
     )
 
     model_manager = YOLOModelManager(

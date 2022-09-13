@@ -207,7 +207,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 |YOLOv5m|<sub>[j-marple/AYolov2/2ktlek75](https://wandb.ai/j-marple/AYolov2/runs/2ktlek75)</sub>|640|45.0|63.9|21,190,557|
 |YOLOv5l decomposed|<sub>[j-marple/AYolov2/30t7wh1x](https://wandb.ai/j-marple/AYolov2/runs/30t7wh1x)</sub>|640|46.9|65.6|26,855,105|
 |YOLOv5l|<sub>[j-marple/AYolov2/1beuv3fd](https://wandb.ai/j-marple/AYolov2/runs/1beuv3fd)</sub>|640|48.0|66.6|46,563,709|
-|YOLOv5x decomposed|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|49.2|67.6|51,512,570|
+|YOLOv5x decomposed|<sub>[j-marple/AYolov2/2pcj9mfh](https://wandb.ai/j-marple/AYolov2/runs/2pcj9mfh)</sub>|640|49.2|67.6|51,512,570|
 |YOLOv5x|<sub>[j-marple/AYolov2/1gxaqgk4](https://wandb.ai/j-marple/AYolov2/runs/1gxaqgk4)</sub>|640|49.6|68.1|86,749,405|
 
 </details>

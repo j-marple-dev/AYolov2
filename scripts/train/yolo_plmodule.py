@@ -20,7 +20,11 @@ LOGGER = get_logger(__name__)
 class YoloPLModule(AbstractPLModule):
     """Yolo model trainer."""
 
-    def __init__(self, model: nn.Module, cfg: Dict[str, Any],) -> None:
+    def __init__(
+        self,
+        model: nn.Module,
+        cfg: Dict[str, Any],
+    ) -> None:
         """Initialize YoloTrainer class.
 
         Args:

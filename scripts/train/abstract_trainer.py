@@ -150,7 +150,7 @@ class AbstractTrainer(ABC):
             self.state["step"] = i
             self.validation_step(batch, i)
 
-    def validation_step(
+    def validation_step(  # noqa``
         self,
         batch: Union[List[torch.Tensor], torch.Tensor, Tuple[torch.Tensor, ...]],
         batch_idx: int,
@@ -207,7 +207,7 @@ class AbstractTrainer(ABC):
 
         self.on_train_end()
 
-    def log_wandb(self) -> None:
+    def log_wandb(self) -> None:  # noqa
         """Log metrics to WanDB."""
         pass
 
@@ -225,27 +225,27 @@ class AbstractTrainer(ABC):
         key = "train_log" if self.state["is_train"] else "val_log"
         self.state[key].update(data)
 
-    def on_epoch_start(self, epoch: int) -> None:
+    def on_epoch_start(self, epoch: int) -> None:  # noqa
         """Run on epoch starts."""
         pass
 
-    def on_epoch_end(self, epoch: int) -> None:
+    def on_epoch_end(self, epoch: int) -> None:  # noqa
         """Run on epoch ends."""
         pass
 
-    def on_train_start(self) -> None:
+    def on_train_start(self) -> None:  # noqa
         """Run on start training."""
         pass
 
-    def on_train_end(self) -> None:
+    def on_train_end(self) -> None:  # noqa
         """Run on the end of training."""
         pass
 
-    def on_validation_start(self) -> None:
+    def on_validation_start(self) -> None:  # noqa
         """Run on validation start."""
         pass
 
-    def on_validation_end(self) -> None:
+    def on_validation_end(self) -> None:  # noqa
         """Run on validation end."""
         pass
 

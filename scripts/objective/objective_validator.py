@@ -62,9 +62,9 @@ class ObjectiveValidator(AbstractObjective):
         self.model_params = count_param(self.model)
 
         # original yolov5x model
-        self.baseline_model: nn.Module = load_model_from_wandb(
-            "j-marple/AYolov2/1gxaqgk4"
-        ).to(device).eval()
+        self.baseline_model: nn.Module = (
+            load_model_from_wandb("j-marple/AYolov2/1gxaqgk4").to(device).eval()
+        )
         self.baseline_n_params = count_param(self.baseline_model)
 
         self.alpha = args.alpha

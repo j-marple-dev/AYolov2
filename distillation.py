@@ -43,7 +43,9 @@ def get_parser() -> argparse.Namespace:
         help="Model weight filepath or wandb runpath to resume the train.",
     )
     parser.add_argument(
-        "--teacher", type=str, help="Teacher model checkpoint file path",
+        "--teacher",
+        type=str,
+        help="Teacher model checkpoint file path",
     )
     parser.add_argument(
         "--teacher_cfg",

@@ -27,7 +27,7 @@ def test_pycuda_install() -> None:
         print("\t Compute Capability: {}".format(compute_capability))
         print(
             "\t Total Memory: {} megabytes".format(
-                gpu_device.total_memory() // (1024 ** 2)
+                gpu_device.total_memory() // (1024**2)
             )
         )
 
@@ -99,7 +99,9 @@ def torch_dtype_from_trt(dtype: trt.DataType) -> torch.dtype:
         raise TypeError("%s is not supported by torch" % dtype)
 
 
-def torch_device_to_trt(device: torch.device,) -> Union[trt.TensorLocation, TypeError]:
+def torch_device_to_trt(
+    device: torch.device,
+) -> Union[trt.TensorLocation, TypeError]:
     """Convert torch device to trt device."""
     if device.type == torch.device("cuda").type:
         return trt.TensorLocation.DEVICE

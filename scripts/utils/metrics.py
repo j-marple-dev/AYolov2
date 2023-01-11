@@ -112,7 +112,7 @@ def bbox_iou(
         if (
             c_iou or d_iou
         ):  # Distance or Complete IoU https://arxiv.org/abs/1911.08287v1
-            c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
+            c2 = cw**2 + ch**2 + eps  # convex diagonal squared
             rho2 = (
                 (b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2
                 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2
@@ -122,7 +122,7 @@ def bbox_iou(
             elif (
                 c_iou
             ):  # https://github.com/Zzh-tju/d_iou-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
-                v = (4 / math.pi ** 2) * torch.pow(
+                v = (4 / math.pi**2) * torch.pow(
                     torch.atan(w2 / h2) - torch.atan(w1 / h1), 2
                 )
                 with torch.no_grad():
@@ -234,7 +234,12 @@ class ConfusionMatrix:
         """Return matrix."""
         return self.matrix
 
-    def plot(self, names: list, normalize: bool = True, save_dir: str = "",) -> None:
+    def plot(
+        self,
+        names: list,
+        normalize: bool = True,
+        save_dir: str = "",
+    ) -> None:
         """Plot confusion matrix.
 
         Args:
@@ -409,7 +414,7 @@ def non_max_suppression(
             boxes, scores = x[:, :4].clone(), x[:, 4]
             iou = box_iou(boxes, boxes).triu_(diagonal=1)  # upper triangular iou matrix
             m = iou.max(0)[0].view(-1, 1)  # max values
-            decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[
+            decay = torch.exp(-(iou**2 - m**2) / 0.5).min(0)[
                 0
             ]  # gauss with sigma=0.5
             scores *= decay

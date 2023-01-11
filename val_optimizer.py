@@ -63,7 +63,10 @@ def get_parser() -> argparse.Namespace:
         help="Use rectangular image",
     )
     parser.add_argument(
-        "--no-rect", action="store_false", dest="rect", help="Use squared image.",
+        "--no-rect",
+        action="store_false",
+        dest="rect",
+        help="Use squared image.",
     )
     parser.add_argument(
         "--single-cls",

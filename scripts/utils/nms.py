@@ -92,7 +92,7 @@ def batched_nms(
             if len(iou) == 0:
                 continue
             m = iou.max(0)[0].view(-1, 1)  # max values
-            decay = torch.exp(-(iou ** 2 - m ** 2) / 0.5).min(0)[
+            decay = torch.exp(-(iou**2 - m**2) / 0.5).min(0)[
                 0
             ]  # gauss with sigma=0.5
             scores *= decay

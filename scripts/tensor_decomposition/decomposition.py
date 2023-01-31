@@ -54,7 +54,7 @@ def EVBsigma2(
     H = len(s)
 
     alpha = L / M
-    x = s ** 2 / (M * sigma2)
+    x = s**2 / (M * sigma2)
 
     z1 = x[x > xubar]
     z2 = x[x <= xubar]
@@ -142,13 +142,13 @@ def EVBMF(
     # Calculate residual
     residual = 0.0
     if H < L:
-        residual = np.sum(np.sum(Y ** 2) - np.sum(s ** 2))
+        residual = np.sum(np.sum(Y**2) - np.sum(s**2))
 
     # Estimation of the variance when sigma2 is unspecified
     if sigma2 is None:
         xubar = (1 + tauubar) * (1 + alpha / tauubar)
         eH_ub = int(np.min([np.ceil(L / (1 + alpha)) - 1, H]))
-        upper_bound = (np.sum(s ** 2) + residual) / (L * M)
+        upper_bound = (np.sum(s**2) + residual) / (L * M)
         lower_bound = np.max([s[eH_ub] ** 2 / (M * xubar), np.mean(s[eH_ub:] ** 2) / M])
 
         scale = 1.0  # /lower_bound
@@ -176,7 +176,7 @@ def EVBMF(
         - np.divide((L + M) * sigma2, s[:pos] ** 2)
         + np.sqrt(
             (1 - np.divide((L + M) * sigma2, s[:pos] ** 2)) ** 2
-            - 4 * L * M * sigma2 ** 2 / s[:pos] ** 4
+            - 4 * L * M * sigma2**2 / s[:pos] ** 4
         ),
     )
 
@@ -199,7 +199,7 @@ def EVBMF(
     post["sigma2"] = sigma2  # type: ignore
     post["F"] = 0.5 * (
         L * M * np.log(2 * np.pi * sigma2)
-        + (residual + np.sum(s ** 2)) / sigma2
+        + (residual + np.sum(s**2)) / sigma2
         + np.sum(M * np.log(tau + 1) + L * np.log(tau / alpha + 1) - M * tau)
     )
 

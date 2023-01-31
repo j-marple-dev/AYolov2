@@ -68,7 +68,7 @@ def select_device(device: str = "", batch_size: Optional[int] = None) -> torch.d
 
     cuda = False if cpu_request else torch.cuda.is_available()
     if cuda:
-        c = 1024 ** 2
+        c = 1024**2
         ng = torch.cuda.device_count()
         if ng > 1 and batch_size:
             assert (
@@ -180,7 +180,9 @@ def copy_attr(
 
 
 def load_model_weights(
-    model: nn.Module, weights: Union[Dict, str], exclude: Optional[list] = None,
+    model: nn.Module,
+    weights: Union[Dict, str],
+    exclude: Optional[list] = None,
 ) -> nn.Module:
     """Load model's pretrained weights.
 

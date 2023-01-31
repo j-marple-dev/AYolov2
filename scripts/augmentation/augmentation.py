@@ -20,7 +20,10 @@ class BoxJitter(DualTransform):
     """Apply bbox jittering."""
 
     def __init__(
-        self, always_apply: bool = False, p: float = 1, jitter: float = 0.01,
+        self,
+        always_apply: bool = False,
+        p: float = 1,
+        jitter: float = 0.01,
     ) -> None:
         """Initialize BoxJitter augmentation.
 

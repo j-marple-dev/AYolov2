@@ -214,7 +214,8 @@ def test_train_simclr(force: bool = False) -> None:
     )
 
     model = Model(
-        os.path.join("tests", "res", "configs", "model_simclr.yaml"), verbose=True,
+        os.path.join("tests", "res", "configs", "model_simclr.yaml"),
+        verbose=True,
     )
 
     temperature = cfg["train"].get("temperature", 0.0)

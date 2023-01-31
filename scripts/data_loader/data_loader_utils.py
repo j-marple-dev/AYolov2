@@ -94,7 +94,7 @@ def create_dataloader(
     time_checker.add("dataset")
 
     batch_size = min(batch_size, len(dataset))
-    n_workers = min(
+    n_workers = min(  # type: ignore
         [os.cpu_count(), batch_size if batch_size > 1 else 0, workers]
     )  # number of workers
     LOGGER.info(f"{prefix}batch_size: {batch_size}, n_workers: {n_workers}")

@@ -35,6 +35,7 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
     * [Validate from local weights](#using-docker)
     * [Validate from W&B path](#using-docker)
     * [Validate with TTA](#using-docker)
+  * [Inference with a trained model](#how-to-start)
 * [Pretrained models](#pretrained-models)
 * [Advanced usages](#advanced-usages)
   * [Export model to TorchScript, ONNX, TensorRT](#advanced-usages)
@@ -73,6 +74,10 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ./run_docker.sh build
   # You can add build options
   # ./run_docker.sh build --no-cache
+
+  # You can use our "ducker" the docker helper
+  # check and install in https://github.com/JeiKeiLim/ducker
+  ducker build  
   ```
 
   #### Running the container
@@ -81,6 +86,11 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
   ./run_docker.sh run
   # You can add running options
   # ./run_docker.sh run -v $DATASET_PATH:/home/user/dataset
+
+  # if you use ducker
+  ducker run -s bash
+  # with dataset path
+  ducker run -s bash -a -v $DATASET_PATH:/home/user/dataset
   ```
 
   #### Executing the last running container
@@ -199,6 +209,13 @@ The object detection pipeline is based on [Ultralytics YOLOv5](https://github.co
 
 </details>
 
+<details>
+  <summary>Inference with trained model</summary>
+
+  ```bash
+  python inference.py --weight $WEIGHT_PATH --data $VIDEO_PATH --device $DEVICE --dataset-type $DATASET_TYPE
+  ```
+</details>
 
 ## Pretrained models
 | Name  | W&B URL | img_size |    mAP<sup>val<br>0.5:0.95</sup>    |         mAP<sup>val<br>0.5</sup>         |    params|

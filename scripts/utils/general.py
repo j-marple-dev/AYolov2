@@ -29,7 +29,9 @@ np.set_printoptions(
 cv2.setNumThreads(
     0
 )  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
-os.environ["NUMEXPR_MAX_THREADS"] = str(min(os.cpu_count(), 8))  # NumExpr max threads
+os.environ["NUMEXPR_MAX_THREADS"] = str(
+    min(os.cpu_count(), 8)  # type: ignore
+)  # NumExpr max threads  # type: ignore
 # Settings END
 
 
@@ -106,7 +108,10 @@ def segment2box(segment: np.ndarray, width: int = 640, height: int = 640) -> np.
     """
     x, y = segment.T  # segment xy
     inside = (x >= 0) & (y >= 0) & (x <= width) & (y <= height)
-    x, y, = x[inside], y[inside]
+    x, y, = (
+        x[inside],
+        y[inside],
+    )
     return (
         np.array([x.min(), y.min(), x.max(), y.max()]) if any(x) else np.zeros((1, 4))
     )  # xyxy

@@ -57,10 +57,10 @@ def summary(
         api = wandb.Api()
         wandb_run = api.run(wandb_run)
 
-    wandb_map50 = wandb_run.summary.get("mAP50", 0.0)
-    print(f"Model from wandb (wandb url: {wandb_run.url})")
-    print(f":: {wandb_run.project}/{wandb_run.name} - #{', #'.join(wandb_run.tags)}")
-    print(f":: mAP@0.5: {wandb_map50:.4f}")
+    wandb_map50 = wandb_run.summary.get("mAP50", 0.0)  # type: ignore
+    print(f"Model from wandb (wandb url: {wandb_run.url})")  # type: ignore
+    print(f":: {wandb_run.project}/{wandb_run.name} - #{', #'.join(wandb_run.tags)}")  # type: ignore
+    print(f":: mAP@0.5: {wandb_map50:.4f}")  # type: ignore
     if model and isinstance(model.model, nn.Module):
         n_param = sum([p.numel() for p in model.model.parameters()])
         print(f":: # parameters: {n_param:,d}")

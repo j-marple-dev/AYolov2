@@ -136,9 +136,11 @@ class YOLOModelManager(AbstractModelManager):
             self.model = load_model_weights(self.model, weights=ckpt, exclude=exclude)
             start_epoch = ckpt["epoch"] + 1
             if self.cfg["train"]["resume"]:
-                assert start_epoch > 0, (
-                    "%s training to %g epochs is finished, nothing to resume."
-                    % (self.cfg["train"]["weights"], self.cfg["train"]["epochs"],)
+                assert (
+                    start_epoch > 0
+                ), "%s training to %g epochs is finished, nothing to resume." % (
+                    self.cfg["train"]["weights"],
+                    self.cfg["train"]["epochs"],
                 )
                 if RANK in [-1, 0]:
                     LOGGER.info(

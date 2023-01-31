@@ -78,12 +78,7 @@ def kmean_anchors(
         x, best = metric(k, wh0)  # type: ignore
         bpr, aat = (
             (best > thr).float().mean(),
-            (  # type: ignore
-                x > thr
-            )
-            .float()
-            .mean()
-            * n,
+            (x > thr).float().mean() * n,  # type: ignore
         )  # best possible recall, anch > thr
         LOGGER.info(
             "thr=%.2f: %.4f best possible recall, %.2f anchors past thr"

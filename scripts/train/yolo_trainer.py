@@ -32,6 +32,7 @@ from scripts.utils.train_utils import YoloValidator
 
 if TYPE_CHECKING:
     import wandb.sdk.wandb_run.Run
+
     from scripts.utils.torch_utils import ModelEMA
 
 LOCAL_RANK = int(
@@ -346,7 +347,8 @@ class YoloTrainer(AbstractTrainer):
             if num_integrated_batches < 3:
                 # plot images.
                 f_name = os.path.join(
-                    self.log_dir, f"train_batch{num_integrated_batches}.jpg",
+                    self.log_dir,
+                    f"train_batch{num_integrated_batches}.jpg",
                 )
                 # TODO(ulken94): Log images to wandb. And then, remove noqa.
                 result = plot_images(  # noqa
@@ -557,9 +559,13 @@ class YoloTrainer(AbstractTrainer):
         mlc = labels[:, 0].max()  # type: ignore
         nc = len(self.train_dataloader.dataset.names)
         # nb = len(self.train_dataloader)
-        assert mlc < nc, (
-            "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
-            % (mlc, nc, self.cfg["data"], nc - 1)
+        assert (
+            mlc < nc
+        ), "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g" % (
+            mlc,
+            nc,
+            self.cfg["data"],
+            nc - 1,
         )
 
         grid_size = int(max(self.model.stride))  # type: ignore

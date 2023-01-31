@@ -111,7 +111,11 @@ class SoftTeacherTrainer(AbstractTrainer):
 
         if self.val_dataloader is not None:
             self.validator = YoloValidator(
-                self.model, self.val_dataloader, self.device, cfg, log_dir=self.log_dir,
+                self.model,
+                self.val_dataloader,
+                self.device,
+                cfg,
+                log_dir=self.log_dir,
             )
 
     ####################################################
@@ -138,14 +142,18 @@ class SoftTeacherTrainer(AbstractTrainer):
             self.warmup(num_integrated_batches, epoch)
 
         # Parallel batch preparation for pseudo label and image.
-        thread1 = threading.Thread(target=self.get_pseudo_labeled_batch,)
+        thread1 = threading.Thread(
+            target=self.get_pseudo_labeled_batch,
+        )
 
         if len(self.pseudo_buffer) < 3:
             thread1.start()
 
         # unlabeled_imgs, pseudo_labels = self.get_pseudo_labeled_batch()
         if len(self.pseudo_buffer) == 0:
-            threading.Thread(target=self.get_pseudo_labeled_batch,).start()
+            threading.Thread(
+                target=self.get_pseudo_labeled_batch,
+            ).start()
             thread1.join()  # Wait until the buffer has at least one data.
 
         # Take pseudo image and label in pseudo_buffer.
@@ -258,9 +266,13 @@ class SoftTeacherTrainer(AbstractTrainer):
         mlc = labels[:, 0].max()  # type: ignore
         nc = len(self.train_dataloader.dataset.names)
         # nb = len(self.train_dataloader)
-        assert mlc < nc, (
-            "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g"
-            % (mlc, nc, self.cfg["data"], nc - 1)
+        assert (
+            mlc < nc
+        ), "Label class %g exceeds nc=%g in %s. Possible class labels are 0-%g" % (
+            mlc,
+            nc,
+            self.cfg["data"],
+            nc - 1,
         )
 
         grid_size = int(max(self.model.stride))  # type: ignore
@@ -419,7 +431,10 @@ class SoftTeacherTrainer(AbstractTrainer):
         labels = torch.Tensor(total_bat_ids_cls_ids_bboxes)
         if self.debug:
             # plot images.
-            f_name = os.path.join(self.log_dir, "strong_augmented_batch.jpg",)
+            f_name = os.path.join(
+                self.log_dir,
+                "strong_augmented_batch.jpg",
+            )
             plot_images(  # noqa
                 images=imgs.clone(),
                 targets=total_bat_ids_cls_ids_bboxes,
@@ -538,7 +553,16 @@ class SoftTeacherTrainer(AbstractTrainer):
         """Run on an epoch starts."""
         LOGGER.info(
             ("\n" + "%10s" * 8)
-            % ("Epoch", "gpu_mem", "box", "obj", "cls", "total", "targets", "img_size",)
+            % (
+                "Epoch",
+                "gpu_mem",
+                "box",
+                "obj",
+                "cls",
+                "total",
+                "targets",
+                "img_size",
+            )
         )
         self.pbar = tqdm(
             enumerate(self.train_dataloader), total=len(self.train_dataloader)

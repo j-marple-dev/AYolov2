@@ -1,17 +1,17 @@
 train:
-  weights: ''  # Model weight path
+  weights: 'j-marple/AYolov2/179awdd1'  # Model weight path
   data: ''  # data config path
-  epochs: 300
-  batch_size: 64
+  epochs: 500
+  batch_size: 32
   image_size: 640   # Train, val image size
   rect: false  # Use rectangular training
   resume: false  # resume previous training
-  validate_period: 1  # Run validation on every x epoch
+  validate_period: 10  # Run validation on every x epoch
   auto_anchor: true  # Check anchors and auto-fix anchors
   cache_image: null  # Use caching images. This should be either 'mem', 'disk', 'dynamic_mem', 'dynamic_disk'
   n_skip: 0  # skip image by n which reduces images to be used
   image_weights: false  # Use weighted image selection for training
-  device: ""  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
+  device: "0"  # CUDA device. "" will use all GPUs. EX) '0,2' or 'cpu'
   multi_scale: false  # Use multi scaled training (+/- 50% image size)
   single_cls: false  # Train multi-class data as single-class
   sync_bn: false  # Use SyncBatchNorm, only available in DDP mode
@@ -22,8 +22,8 @@ train:
   save_period: -1  # Save checkpoint on every x epochs (disabled if < 1)
   log_dir: "exp"  # Default log root directory
   plot: true  # plot results or not.
-  label_type: "segments"  # Label type to use ("labels", "segments")
-  patience: 30  # for early stopping
+  label_type: "labels"  # Label type to use ("labels", "segments")
+  patience: 0  # for early stopping
 
 
 hyper_params:
@@ -47,8 +47,8 @@ hyper_params:
   cls_pw: 1.0  # cls BCELoss positive_weight
   obj: 1.0  # obj loss gain (scale with pixels)
   obj_pw: 1.0  # obj BCELoss positive_weight
-  conf_t: 0.1  # confidence threshold
-  iou_t: 0.20  # IoU training threshold
+  conf_t: 0.001  # confidence threshold
+  iou_t: 0.65  # IoU training threshold
   anchor_t: 4.0  # anchor-multiple threshold
   # anchors: 3  # anchors per output layer (0 to ignore)
   fl_gamma: 0.0  # focal loss gamma (efficientDet default gamma=1.5)

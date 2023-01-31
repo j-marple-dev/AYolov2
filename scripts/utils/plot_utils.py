@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from scripts.utils.constants import PLOT_COLOR
+from scripts.utils.constants import LABELS, PLOT_COLOR
 from scripts.utils.general import xywh2xyxy
 
 
@@ -124,7 +124,7 @@ def plot_images(
     images: Union[torch.Tensor, np.ndarray],
     targets: Union[torch.Tensor, np.ndarray],
     paths: Optional[List[str]] = None,
-    fname: str = "images.jpg",
+    fname: Optional[str] = "images.jpg",
     names: Optional[Union[tuple, list]] = None,
     max_size: int = 640,
     max_subplots: int = 16,
@@ -296,6 +296,84 @@ def draw_labels(
             1,
             cv2.LINE_AA,
         )
+    return img
+
+
+def draw_result(
+    img: np.ndarray,
+    result: torch.Tensor,
+    ct: float,
+    dataset: str = "COCO",
+    x_border: int = 0,
+    y_border: int = 0,
+    orig_img: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Draw inference results.
+
+    Args:
+        img: input image
+        result: model result
+        ct: confidence threshold
+        dataset: Name of dataset.
+        x_border: x_border of input image.
+        y_border: y_border of input image.
+
+    Returns:
+        A image with bounding boxes.
+    """
+    overlay_alpha = 0.3
+    lw = max(round(sum(img.shape) / 2 * 0.003), 2)
+    tf = max(lw - 1, 1)
+    _ = ct
+    if orig_img is not None:
+        img_ratio = orig_img.shape[0] / (img.shape[0] - y_border * 2)
+        img = orig_img
+    for x1, y1, x2, y2, _, cls in result:
+        if orig_img is not None:
+            xy1 = (int((x1 - x_border) * img_ratio), int((y1 - y_border) * img_ratio))
+            xy2 = (int((x2 - x_border) * img_ratio), int((y2 - y_border) * img_ratio))
+
+        else:
+            xy1 = (int(x1), int(y1))
+            xy2 = (int(x2), int(y2))
+
+        plot_color = tuple(map(int, PLOT_COLOR[int(cls)]))
+        (text_width, text_height) = cv2.getTextSize(
+            LABELS[dataset][int(cls)], 0, fontScale=lw / 3, thickness=tf
+        )[0]
+        overlay = img.copy()
+        overlay = cv2.rectangle(overlay, xy1, xy2, plot_color, -1)
+        img = cv2.addWeighted(overlay, overlay_alpha, img, 1 - overlay_alpha, 0)
+
+        img = cv2.rectangle(
+            img,
+            xy1,
+            xy2,
+            plot_color,
+            1,
+            cv2.LINE_AA,
+        )
+        overlay = img.copy()
+        overlay = cv2.rectangle(
+            overlay,
+            (xy1[0], xy1[1] - text_height),
+            (xy1[0] + text_width, xy1[1]),
+            (plot_color[0] // 0.3, plot_color[1] // 0.3, plot_color[2] // 0.3),
+            -1,
+        )
+        img = cv2.addWeighted(overlay, overlay_alpha + 0.2, img, 0.8 - overlay_alpha, 0)
+        print(cls)
+        cv2.putText(
+            img,
+            f"{LABELS[dataset][int(cls)]}",
+            xy1,
+            3,
+            0.5,
+            (plot_color[0] // 3, plot_color[1] // 3, plot_color[2] // 3),
+            thickness=tf,
+            lineType=cv2.LINE_AA,
+        )
+
     return img
 
 

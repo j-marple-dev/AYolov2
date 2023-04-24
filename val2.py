@@ -6,8 +6,10 @@
 
 import argparse
 import os
+import threading
+from copy import deepcopy
 from pathlib import Path
-from typing import Optional, Union
+from typing import Iterator, Optional
 
 import numpy as np
 import torch
@@ -30,6 +32,144 @@ from scripts.utils.wandb_utils import load_model_from_wandb
 
 torch.set_grad_enabled(False)
 LOGGER = get_logger(__name__)
+
+
+class ModelLoader(threading.Thread):
+    """Parallel model loader with threading."""
+
+    def __init__(self, args: argparse.Namespace, device: torch.device) -> None:
+        """Initialize ModelLoader for parallel model load.
+
+        Args:
+            args: Namespace from __main__
+            device: torch device to run model.
+        """
+        super().__init__()
+        self.args = args
+        self.device = device
+
+        """self.model will be loaded once self.start() has been finished."""
+        self.model: Optional[nn.Module] = None
+        """Default stride_size is 32 but this might change by the model."""
+        self.stride_size = 32
+        self.n_param = 0
+
+    def run(self) -> None:
+        """Run model load thread.
+
+        Loaded model can be accessed after self.join()
+        """
+        if self.args.weights.endswith(".pt"):
+            self.model = load_pytorch_model(
+                self.args.weights, self.args.model_cfg, load_ema=True
+            )
+        else:
+            self.model = load_model_from_wandb(self.args.weights)
+
+        if self.model is not None:
+            self.model.to(self.device).fuse().eval().float()  # type: ignore
+            if self.args.half:
+                self.model.half()
+
+            self.stride_size = int(max(self.model.stride))  # type: ignore
+            self.n_param = count_param(self.model)
+
+            LOGGER.info(f"# of parameters: {self.n_param:,d}")
+
+
+class DataLoaderGenerator(threading.Thread):
+    """Parallel dataset and dataloader generator with threading.."""
+
+    def __init__(self, args: argparse.Namespace, stride_size: int = 32) -> None:
+        """Initialize DataLoaderGenerator for parallel dataloader initialization.
+
+        Args:
+            args: Namespace from __main__
+            stride_size: max stride size of the model to decide image sizes to load.
+        """
+        super().__init__()
+        self.args = args
+        self.stride_size = stride_size
+
+        """LoadImages dataset."""
+        self.dataset: Optional[LoadImages] = None
+        """PyTorch dataloader."""
+        self.dataloader: Optional[torch.utils.data.DataLoader] = None
+        """Dataloader iterator to prefetch before actually running the model."""
+        self.iterator: Optional[Iterator] = None
+
+    def run(self) -> None:
+        """Initialize dataset and dataloader with threading."""
+        self.dataset = LoadImages(
+            self.args.data,
+            img_size=self.args.img_width,
+            batch_size=self.args.batch_size,
+            rect=self.args.rect,
+            cache_images=None,
+            stride=self.stride_size,
+            pad=0.5,
+            n_skip=0,
+            prefix="[val]",
+            augmentation=None,
+            preprocess=lambda x: (x / 255.0).astype(
+                np.float16 if self.args.half else np.float32
+            ),
+            use_mp=False,
+        )
+        self.dataloader = torch.utils.data.DataLoader(
+            self.dataset,
+            batch_size=self.args.batch_size,
+            num_workers=min(os.cpu_count(), self.args.batch_size),  # type: ignore
+            pin_memory=True,
+            collate_fn=LoadImages.collate_fn,
+            prefetch_factor=5,
+        )
+        self.iterator = tqdm(
+            enumerate(self.dataloader), "Inference ...", total=len(self.dataloader)
+        )
+
+
+def export_model(model_loader: ModelLoader, args: argparse.Namespace) -> None:
+    """Export AIGC model.
+
+    Args:
+        model_loader: ModelLoader instance to export model.
+        args: arguments from CLI.
+    """
+    path = Path("aigc") / "weights" / "model.pt"
+    model_to_save = deepcopy(model_loader.model)
+    torch.save(model_to_save.cpu().half(), path)  # type: ignore
+    LOGGER.info(f"Model weight has been saved to {path}")
+    cfg_to_save = {
+        "model": {
+            "name": "yolov5_name",
+            "weights": "weights/model.pt",
+            "stride_size": model_loader.stride_size,
+            "n_param": model_loader.n_param,
+            "wandb": args.weights,
+            "half": args.half,
+        },
+        "inference": {
+            "batch_size": args.batch_size,
+            "conf_t": args.conf_t,
+            "iou_t": args.iou_t,
+            "nms_box": args.nms_box,
+            "agnostic": args.agnostic,
+            "tta": args.tta,
+        },
+        "data": {
+            "path": "/home/agc2021/dataset",
+            "img_size": args.img_width,
+            "rect": args.rect,
+            "use_mp": False,
+            "pad": 0.5,
+        },
+        "tta": args.tta_cfg,
+    }
+    path = Path("aigc") / "configs" / "submit_config.yaml"
+    with open(path, "w") as f:
+        yaml.dump(cfg_to_save, f)
+    LOGGER.info(f"Model config has been saved to {path}")
 
 
 def get_parser() -> argparse.Namespace:
@@ -122,10 +262,20 @@ def get_parser() -> argparse.Namespace:
         help="Check mAP after inference.",
     )
     parser.add_argument(
+        "--no-check-map", action="store_false", dest="check_map", help="Skip mAP check."
+    )
+    parser.add_argument(
         "--export",
         type=str,
         default="",
         help="Export all inference results if path is given.",
+    )
+    parser.add_argument(
+        "-em",
+        "--export-model",
+        action="store_true",
+        default=False,
+        help="Export model weight file for to follow AIGC standard.",
     )
     parser.add_argument(
         "--nms_type",
@@ -167,6 +317,7 @@ def get_parser() -> argparse.Namespace:
 if __name__ == "__main__":
     time_checker = TimeChecker("val2", ignore_thr=0.0)
     args = get_parser()
+    time_checker.add("get_argparse")
 
     if args.img_height < 0:
         args.img_height = args.img_width
@@ -183,76 +334,38 @@ if __name__ == "__main__":
         exit(1)
 
     device = select_device(args.device, args.batch_size)
+    time_checker.add("device")
 
-    # Unpack model from ckpt dict if the model has been saved during training.
-    model: Optional[Union[nn.Module]] = None
+    # Parallel load model and dataloader
+    model_loader = ModelLoader(args, device)
+    dataloader_generator = DataLoaderGenerator(args, stride_size=32)
 
-    time_checker.add("args")
-    if args.weights == "":
-        LOGGER.warning(
-            "Providing "
-            + colorstr("bold", "no weights path")
-            + " will validate a randomly initialized model. Please use only for a experiment purpose."
-        )
-    elif args.weights.endswith(".pt"):
-        model = load_pytorch_model(args.weights, args.model_cfg, load_ema=True)
-        stride_size = int(max(model.stride))  # type: ignore
-    else:  # load model from wandb
-        model = load_model_from_wandb(args.weights)
-        stride_size = int(max(model.stride))  # type: ignore
-
-    if model is None:
-        LOGGER.error(
-            f"Load model from {args.weights} with config {args.model_cfg if args.model_cfg != '' else 'None'} has failed."
-        )
-        exit(1)
+    model_loader.start()
+    dataloader_generator.start()
 
     with open(args.tta_cfg, "r") as f:
         tta_cfg = yaml.safe_load(f)
 
-    time_checker.add("load_model")
+    args.tta_cfg = tta_cfg
+    model_loader.join()
+    dataloader_generator.join()
 
-    val_dataset = LoadImages(
-        args.data,
-        img_size=args.img_width,
-        batch_size=args.batch_size,
-        rect=args.rect,
-        cache_images=None,
-        stride=stride_size,
-        pad=0.5,
-        n_skip=args.n_skip,
-        prefix="[val]",
-        augmentation=None,
-        preprocess=lambda x: (x / 255.0).astype(
-            np.float16 if args.half else np.float32
-        ),
-    )
+    model = model_loader.model
+    iterator = dataloader_generator.iterator
 
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset,
-        batch_size=args.batch_size,
-        num_workers=min(os.cpu_count(), args.batch_size),  # type: ignore
-        pin_memory=True,
-        collate_fn=LoadImages.collate_fn,
-        prefetch_factor=5,
-    )
+    assert (
+        iterator is not None and model is not None
+    ), "Either dataloader or model has not been initialized!"
 
-    time_checker.add("create_dataloader")
-
-    model.to(device).fuse().eval()  # type: ignore
-    LOGGER.info(f"# of parameters: {count_param(model):,d}")
-    if args.half:
-        model.half()
-
-    time_checker.add("Fuse model")
+    if args.export_model:
+        export_model(model_loader, args)
+        exit(0)
 
     result_writer = ResultWriterTorch(args.json_path)
     result_writer.start()
 
-    time_checker.add("Prepare run")
-    for _, (img, path, shape) in tqdm(
-        enumerate(val_loader), "Inference ...", total=len(val_loader)
-    ):
+    time_checker.add("Prepare model")
+    for _, (img, path, shape) in iterator:
         if args.tta:
             out = inference_with_tta(
                 model,
@@ -300,9 +413,10 @@ if __name__ == "__main__":
         pred = anno.loadRes(json_path)
         cocotools_eval = COCOeval(anno, pred, "bbox")
 
-        cocotools_eval.params.imgIds = [
-            int(Path(path).stem) for path in val_dataset.img_files
-        ]
+        if dataloader_generator.dataset is not None:
+            cocotools_eval.params.imgIds = [
+                int(Path(path).stem) for path in dataloader_generator.dataset.img_files
+            ]
 
         cocotools_eval.evaluate()
         cocotools_eval.accumulate()
